@@ -32,6 +32,14 @@ AGENCIAS_SEED = [
     ("Chihuahua 002",      "2095000000002", "2095000010002", "Agente123$",       "A",
      "Carlos Alanis Hernández", "ChichuahuaDM12A", "2095000020222", "Violeta Pruebas",
      "AM123 Chihuahua", "2095000090333", "Maxim Pruebas"),
+    # OJO: el focus_id 2019000020001 pertenece a Agency_Id 2019000000002 en
+    # botDB.dbo.Agency_Representative_AWS, NO a 2019000000001 (esa es la agencia de
+    # la Estrella/DM/AM de la captura original). Confirmado por consulta directa:
+    # agenciaCliente debe ser 2019000000002 para que el front liste las ofertas de
+    # este usuario.
+    ("Celaya 001",         "2019000000002", "2019000020001", "Agente123$",       "E",
+     "Carlos Cortés", "IRAcambaro DM26FF", "2019000010002", "César Coraza",
+     "AM2296 Celaya", "2019000010003", "Cirilo Castillo"),
 ]
 
 METODOS_ENTREGA_SEED = [
