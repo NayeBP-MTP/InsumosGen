@@ -1,0 +1,5 @@
+Id                                  |Name         |Description                                                            |
+------------------------------------+-------------+-----------------------------------------------------------------------+
+D681D8CC-F364-499A-9322-F6AEDBBF24AE|Cliente Nuevo|Se le otorga a una persona un crédito por primera vez                  |
+4819CA7D-5A32-4857-A6B2-12C99D5EA295|Frecuente    |Personas que ya tenían un crédito anterior y se les está otorgando otro|
+1322635C-BC4F-4B83-8DB9-224DE0C98C80|Prospecto    |Persona que recibe por primera vez una oferta                          |

@@ -1,0 +1,141 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.7, pytest-8.4.1, pluggy-1.6.0 -- C:\Python313\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\nayeli.benitez\Documents\GitHub\Providigital_Ventas
+configfile: pytest.ini
+plugins: allure-pytest-2.14.2
+collecting ... collected 1 item
+
+tests/test_login.py::TestLoginProvident::test_login_exitoso 
+==================================================
+Agencia    : Izcalli 335
+Método     : BBVA
+Ciclos     : 1
+==================================================
+
+--- Iniciando ciclo 1/1 ---
+Todas las requests frontal: captured_requests_front.json
+Requests Legalario frontal: legalario_requests_front.json
+Requests Legalario frontal: 1
+Base64 frontal guardado en: C:\Users\nayeli.benitez\Documents\GitHub\Providigital_Ventas\debug_base64_front.json
+Fecha nacimiento única asignada: 31/12/1995
+Todas las requests trasera: captured_requests_back.json
+Requests Legalario trasera: legalario_requests_back.json
+Requests Legalario trasera: 1
+Base64 trasera guardado en: C:\Users\nayeli.benitez\Documents\GitHub\Providigital_Ventas\debug_base64_back.json
+Auth token guardado: Sí — base URL: https://sandbox-api.legalario.com
+>>> CÁMARA t=0s: {"videos":[{"rs":4,"w":320,"h":240,"paused":false,"tracks":["live/live"]}],"mensaje":"Mantén esta posición"}
+Facematch completado por el SDK (pantalla 'Proceso exitoso')
+Todas las requests facematch: captured_requests_facematch.json
+Requests Legalario facematch: legalario_requests_facematch.json
+Requests Legalario facematch: 0
+Base64 selfie guardado en: C:\Users\nayeli.benitez\Documents\GitHub\Providigital_Ventas\debug_base64_selfie.json
+>>> DIAG: streams de cámara detenidos
+>>> DIAG: esperando botón Continuar post-facematch (máx 15s)
+>>> DIAG: tomando screenshot post-facematch
+>>> DIAG: URL post-facematch: https://originacion-uat.providigital.com/v1/app/documentpage
+>>> DIAG: intentando click legalarioModalButtonOk
+>>> DIAG: click legalarioModalButtonOk OK
+>>> DIAG: antes click_continuar URL=https://originacion-uat.providigital.com/v1/app/documentpage
+>>> DIAG: después click_continuar URL=https://originacion-uat.providigital.com/v1/app/documentpage
+>>> DIAG: click_continuar prestamo_personal
+>>> DIAG: después click_continuar prestamo URL=https://originacion-uat.providigital.com/v1/app/documentpage
+>>> DIAG: upload_comprobante_domicilio
+>>> DIAG: upload_comprobante_domicilio OK
+>>> DIAG: click_subir_comprobante
+>>> DIAG: click_subir_comprobante OK
+>>> DIAG: click_continuar_modal (comprobante)
+>>> DIAG: click_continuar_modal (comprobante) OK
+>>> DIAG: upload fachada
+>>> DIAG: upload fachada OK
+>>> DIAG: click_subir_fotografia
+>>> DIAG: click_subir_fotografia OK
+>>> DIAG: click_continuar_modal (fotografia)
+>>> DIAG: click_continuar_modal (fotografia) OK
+Click en Acepto OK
+Consentimiento de geolocalización aceptado (locationpage)
+Página Confirmar dirección cargada — URL: https://originacion-uat.providigital.com/v1/app/locationpage
+>>> DIAG: entrando a click_confirmar_direccion
+>>> DIAG: click_confirmar_direccion OK
+OTP Provident capturado: 473774
+Plazo/monto seleccionados: 32 Semanas / $5300
+Seguro Integral — estado actual: con seguro (Acepto), pedido: sin seguro
+Seguro Integral confirmado: sin seguro
+Pantalla singleoffer detectada — intentando salir
+Singleoffer superada (No aceptar) — nueva URL: https://originacion-uat.providigital.com/v1/app/paymenttypepage
+--- Ciclo 1 FALLIDO: Message: 
+Stacktrace:
+	chromedriver!GetHandleVerifier [0x11b1c73+4e33]
+	chromedriver!(No symbol) [0x10cd194]
+	chromedriver!(No symbol) [0xf0c0b0]
+	chromedriver!(No symbol) [0xf57066]
+	chromedriver!(No symbol) [0xf5723b]
+	chromedriver!(No symbol) [0xf9b782]
+	chromedriver!(No symbol) [0xf79af4]
+	chromedriver!(No symbol) [0xf98ff3]
+	chromedriver!(No symbol) [0xf79846]
+	chromedriver!(No symbol) [0xf4be6a]
+	chromedriver!(No symbol) [0xf4cb44]
+	chromedriver!GetHandleVerifier [0x161798a+46ab4a]
+	chromedriver!GetHandleVerifier [0x163946b+48c62b]
+	chromedriver!GetHandleVerifier [0x12d42c2+127482]
+	chromedriver!GetHandleVerifier [0x12dafd3+12e193]
+	chromedriver!(No symbol) [0x10db2b8]
+	chromedriver!(No symbol) [0x10d65e8]
+	chromedriver!(No symbol) [0x10d6795]
+	chromedriver!(No symbol) [0x10c2bd7]
+	KERNEL32!BaseThreadInitThunk [0x760a5d49+19]
+	ntdll!RtlInitializeExceptionChain [0x7763c75b+6b]
+	ntdll!RtlGetAppContainerNamedObjectPath [0x7763c6e1+231]
+ ---
+
+cerrar_sesion: la navegación de salida no terminó en 20s (ReadTimeoutError)
+cerrar_sesion: sin pantalla de login — limpiando sesión y recargando login
+Recuperación: cerrar_sesion no disponible (HTTPConnectionPool(host='localhost', port=59772): Max retries exceeded with url: /session/84fc35dfc1713ca9ba2dc276d55a1453/cookie (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000025EC0E09E10>: Failed to establish a new connection: [WinError 10061] No se puede establecer una conexión ya que el equipo de destino denegó expresamente dicha conexión'))) — limpiando cookies/storage
+Recuperación: no se pudo limpiar storage (HTTPConnectionPool(host='localhost', port=59772): Max retries exceeded with url: /session/84fc35dfc1713ca9ba2dc276d55a1453/cookie (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000025EC0E0AAD0>: Failed to establish a new connection: [WinError 10061] No se puede establecer una conexión ya que el equipo de destino denegó expresamente dicha conexión')))
+
+==================================================
+RESUMEN FINAL
+  Agencia   : Izcalli 335
+  Total     : 1
+  Exitosos  : 0
+  Fallidos  : 1
+  Resultados: C:\Users\nayeli.benitez\Documents\GitHub\Providigital_Ventas\data\run_results.json
+==================================================
+
+No se pudo tomar screenshot de error: HTTPConnectionPool(host='localhost', port=59772): Max retries exceeded with url: /session/84fc35dfc1713ca9ba2dc276d55a1453/screenshot (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000025EC0E0ABE0>: Failed to establish a new connection: [WinError 10061] No se puede establecer una conexión ya que el equipo de destino denegó expresamente dicha conexión'))
+FAILEDdriver.quit() no respondió en 15s — forzando cierre de Chrome
+
+
+================================== FAILURES ===================================
+____________________ TestLoginProvident.test_login_exitoso ____________________
+
+self = <test_login.TestLoginProvident object at 0x0000025EC0D54910>
+driver = <selenium.webdriver.chrome.webdriver.WebDriver (session="84fc35dfc1713ca9ba2dc276d55a1453")>
+
+>   ???
+E   AssertionError: 1 de 1 ciclo(s) fallaron. Revisa data\run_results.json para más detalles.
+E   assert 1 == 0
+
+tests\test_login.py:839: AssertionError
+------------------------------ Captured log call ------------------------------
+WARNING  urllib3.connectionpool:connectionpool.py:868 Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000025EC0CEAEA0>: Failed to establish a new connection: [WinError 10061] No se puede establecer una conexión ya que el equipo de destino denegó expresamente dicha conexión')': /session/84fc35dfc1713ca9ba2dc276d55a1453/alert/text
+WARNING  urllib3.connectionpool:connectionpool.py:868 Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000025EC0CEB230>: Failed to establish a new connection: [WinError 10061] No se puede establecer una conexión ya que el equipo de destino denegó expresamente dicha conexión')': /session/84fc35dfc1713ca9ba2dc276d55a1453/alert/text
+WARNING  urllib3.connectionpool:connectionpool.py:868 Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000025EC0D36570>: Failed to establish a new connection: [WinError 10061] No se puede establecer una conexión ya que el equipo de destino denegó expresamente dicha conexión')': /session/84fc35dfc1713ca9ba2dc276d55a1453/alert/text
+WARNING  urllib3.connectionpool:connectionpool.py:868 Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000025EC0E09370>: Failed to establish a new connection: [WinError 10061] No se puede establecer una conexión ya que el equipo de destino denegó expresamente dicha conexión')': /session/84fc35dfc1713ca9ba2dc276d55a1453/elements
+WARNING  urllib3.connectionpool:connectionpool.py:868 Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000025EC0E09040>: Failed to establish a new connection: [WinError 10061] No se puede establecer una conexión ya que el equipo de destino denegó expresamente dicha conexión')': /session/84fc35dfc1713ca9ba2dc276d55a1453/elements
+WARNING  urllib3.connectionpool:connectionpool.py:868 Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000025EC0E089E0>: Failed to establish a new connection: [WinError 10061] No se puede establecer una conexión ya que el equipo de destino denegó expresamente dicha conexión')': /session/84fc35dfc1713ca9ba2dc276d55a1453/elements
+WARNING  urllib3.connectionpool:connectionpool.py:868 Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000025EC0E08490>: Failed to establish a new connection: [WinError 10061] No se puede establecer una conexión ya que el equipo de destino denegó expresamente dicha conexión')': /session/84fc35dfc1713ca9ba2dc276d55a1453/cookie
+WARNING  urllib3.connectionpool:connectionpool.py:868 Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000025EC0E097B0>: Failed to establish a new connection: [WinError 10061] No se puede establecer una conexión ya que el equipo de destino denegó expresamente dicha conexión')': /session/84fc35dfc1713ca9ba2dc276d55a1453/cookie
+WARNING  urllib3.connectionpool:connectionpool.py:868 Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000025EC0E09AE0>: Failed to establish a new connection: [WinError 10061] No se puede establecer una conexión ya que el equipo de destino denegó expresamente dicha conexión')': /session/84fc35dfc1713ca9ba2dc276d55a1453/cookie
+WARNING  urllib3.connectionpool:connectionpool.py:868 Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000025EC0E0A140>: Failed to establish a new connection: [WinError 10061] No se puede establecer una conexión ya que el equipo de destino denegó expresamente dicha conexión')': /session/84fc35dfc1713ca9ba2dc276d55a1453/cookie
+WARNING  urllib3.connectionpool:connectionpool.py:868 Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000025EC0E0A470>: Failed to establish a new connection: [WinError 10061] No se puede establecer una conexión ya que el equipo de destino denegó expresamente dicha conexión')': /session/84fc35dfc1713ca9ba2dc276d55a1453/cookie
+WARNING  urllib3.connectionpool:connectionpool.py:868 Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000025EC0E0A7A0>: Failed to establish a new connection: [WinError 10061] No se puede establecer una conexión ya que el equipo de destino denegó expresamente dicha conexión')': /session/84fc35dfc1713ca9ba2dc276d55a1453/cookie
+---------------------------- Captured log teardown ----------------------------
+WARNING  urllib3.connectionpool:connectionpool.py:868 Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000025EC0E0BAC0>: Failed to establish a new connection: [WinError 10061] No se puede establecer una conexión ya que el equipo de destino denegó expresamente dicha conexión')': /session/84fc35dfc1713ca9ba2dc276d55a1453
+WARNING  urllib3.connectionpool:connectionpool.py:868 Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000025EC0E0BDF0>: Failed to establish a new connection: [WinError 10061] No se puede establecer una conexión ya que el equipo de destino denegó expresamente dicha conexión')': /session/84fc35dfc1713ca9ba2dc276d55a1453
+WARNING  urllib3.connectionpool:connectionpool.py:868 Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000025EC124C160>: Failed to establish a new connection: [WinError 10061] No se puede establecer una conexión ya que el equipo de destino denegó expresamente dicha conexión')': /session/84fc35dfc1713ca9ba2dc276d55a1453
+=========================== short test summary info ===========================
+FAILED tests/test_login.py::TestLoginProvident::test_login_exitoso - AssertionError: 1 de 1 ciclo(s) fallaron. Revisa data\run_results.json para más detalles.
+assert 1 == 0
+======================== 1 failed in 664.68s (0:11:04) ========================

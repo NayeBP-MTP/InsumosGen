@@ -1,0 +1,188 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.7, pytest-8.4.1, pluggy-1.6.0 -- C:\Python313\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\nayeli.benitez\Documents\GitHub\Providigital_Ventas
+configfile: pytest.ini
+plugins: allure-pytest-2.14.2
+collecting ... collected 1 item
+
+tests/test_login_cf.py::TestLoginProvidentCF::test_login_exitoso_cf Traceback (most recent call last):
+  File "C:\Users\nayeli.benitez\Documents\GitHub\Providigital_Ventas\pages\ofertas_listado_page.py", line 32, in wait_until_visible
+    element = wait.until(EC.visibility_of_element_located(locator))
+  File "C:\Users\nayeli.benitez\AppData\Roaming\Python\Python313\site-packages\selenium\webdriver\support\wait.py", line 138, in until
+    raise TimeoutException(message, screen, stacktrace)
+selenium.common.exceptions.TimeoutException: Message: 
+Stacktrace:
+	chromedriver!GetHandleVerifier [0x11b1c73+4e33]
+	chromedriver!(No symbol) [0x10cd194]
+	chromedriver!(No symbol) [0xf0c0b0]
+	chromedriver!(No symbol) [0xf57066]
+	chromedriver!(No symbol) [0xf5723b]
+	chromedriver!(No symbol) [0xf9b782]
+	chromedriver!(No symbol) [0xf79af4]
+	chromedriver!(No symbol) [0xf98ff3]
+	chromedriver!(No symbol) [0xf79846]
+	chromedriver!(No symbol) [0xf4be6a]
+	chromedriver!(No symbol) [0xf4cb44]
+	chromedriver!GetHandleVerifier [0x161798a+46ab4a]
+	chromedriver!GetHandleVerifier [0x163946b+48c62b]
+	chromedriver!GetHandleVerifier [0x12d42c2+127482]
+	chromedriver!GetHandleVerifier [0x12dafd3+12e193]
+	chromedriver!(No symbol) [0x10db2b8]
+	chromedriver!(No symbol) [0x10d65e8]
+	chromedriver!(No symbol) [0x10d6795]
+	chromedriver!(No symbol) [0x10c2bd7]
+	KERNEL32!BaseThreadInitThunk [0x760a5d49+19]
+	ntdll!RtlInitializeExceptionChain [0x7763c75b+6b]
+	ntdll!RtlGetAppContainerNamedObjectPath [0x7763c6e1+231]
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\nayeli.benitez\Documents\GitHub\Providigital_Ventas\tests\test_login_cf.py", line 223, in _ejecutar_venta_cf
+    ofertas_listado_page.seleccionar_cliente(oferta.nombreCliente)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\nayeli.benitez\Documents\GitHub\Providigital_Ventas\pages\ofertas_listado_page.py", line 104, in seleccionar_cliente
+    self.click_tarjeta_cliente(nombre_cliente, estatus_texto=estatus_texto)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\nayeli.benitez\Documents\GitHub\Providigital_Ventas\pages\ofertas_listado_page.py", line 87, in click_tarjeta_cliente
+    tarjeta = self.esperar_tarjeta_cliente(nombre_cliente, estatus_texto)
+  File "C:\Users\nayeli.benitez\Documents\GitHub\Providigital_Ventas\pages\ofertas_listado_page.py", line 77, in esperar_tarjeta_cliente
+    return self.wait_until_visible(
+           ~~~~~~~~~~~~~~~~~~~~~~~^
+        self._locator_tarjeta(nombre_cliente, estatus_texto), timeout=timeout
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\nayeli.benitez\Documents\GitHub\Providigital_Ventas\pages\ofertas_listado_page.py", line 36, in wait_until_visible
+    raise Exception(f"Elemento no visible: {locator}") from exc
+Exception: Elemento no visible: ('xpath', "//*[contains(normalize-space(text()), 'GERARDO FLORES JIMÉNEZ')]/ancestor::*[.//*[contains(text(), 'Oferta realizada')] and .//*[contains(normalize-space(.), 'Sin estatus')]][1]")
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\nayeli.benitez\Documents\GitHub\Providigital_Ventas\tests\test_login_cf.py", line 278, in test_login_exitoso_cf
+    oferta_info = _ejecutar_venta_cf(driver, ciclo)
+  File "C:\Users\nayeli.benitez\Documents\GitHub\Providigital_Ventas\tests\test_login_cf.py", line 226, in _ejecutar_venta_cf
+    raise AssertionError(
+    ...<4 lines>...
+    ) from exc
+AssertionError: La oferta 26090083 ('GERARDO FLORES JIMÉNEZ') está en botDB con semana=202640 pero no apareció en el listado del front. Semana más reciente en la tabla: 202640. El front solo lista la semana más reciente; revisa que la oferta la tenga. Detalle: Elemento no visible: ('xpath', "//*[contains(normalize-space(text()), 'GERARDO FLORES JIMÉNEZ')]/ancestor::*[.//*[contains(text(), 'Oferta realizada')] and .//*[contains(normalize-space(.), 'Sin estatus')]][1]")
+
+==================================================
+Flujo      : Cliente Frecuente (CF)
+Agencia    : Izcalli 335
+Método     : HSBC
+Ciclos     : 1
+==================================================
+
+--- Iniciando ciclo CF 1/1 ---
+Semana de la oferta: 202640 (calculada=202639, máxima en tabla=202640)
+Oferta verificada en BD — idOferta=26090083, estatus=1, agencia=2075000000335, vendida=None
+Oferta insertada — idOferta=26090083, nombreCliente=GERARDO FLORES JIMÉNEZ
+--- Ciclo CF 1 FALLIDO: La oferta 26090083 ('GERARDO FLORES JIMÉNEZ') está en botDB con semana=202640 pero no apareció en el listado del front. Semana más reciente en la tabla: 202640. El front solo lista la semana más reciente; revisa que la oferta la tenga. Detalle: Elemento no visible: ('xpath', "//*[contains(normalize-space(text()), 'GERARDO FLORES JIMÉNEZ')]/ancestor::*[.//*[contains(text(), 'Oferta realizada')] and .//*[contains(normalize-space(.), 'Sin estatus')]][1]") ---
+
+
+==================================================
+RESUMEN FINAL CF
+  Agencia   : Izcalli 335
+  Total     : 1
+  Exitosos  : 0
+  Fallidos  : 1
+  Resultados: C:\Users\nayeli.benitez\Documents\GitHub\Providigital_Ventas\data\run_results_cf.json
+==================================================
+
+FAILED
+
+================================== FAILURES ===================================
+_________________ TestLoginProvidentCF.test_login_exitoso_cf __________________
+
+self = <test_login_cf.TestLoginProvidentCF object at 0x000002A1D4B5F610>
+driver = <selenium.webdriver.chrome.webdriver.WebDriver (session="acfe20795d76ce9e9cd9166c605c1c77")>
+
+    @allure.title("Ventas automatizadas Cliente Frecuente — ciclos múltiples")
+    def test_login_exitoso_cf(self, driver):
+        total = Settings.CICLOS
+        resultados = []
+    
+        print(f"\n{'='*50}")
+        print(f"Flujo      : Cliente Frecuente (CF)")
+        print(f"Agencia    : {Settings.AGENCIA_LABEL}")
+        print(f"Método     : {Settings.METODO_ENTREGA}")
+        print(f"Ciclos     : {total}")
+        print(f"{'='*50}\n")
+    
+        for ciclo in range(1, total + 1):
+            print(f"--- Iniciando ciclo CF {ciclo}/{total} ---")
+    
+            with allure.step(f"Ciclo CF {ciclo} de {total}"):
+                try:
+                    oferta_info = _ejecutar_venta_cf(driver, ciclo)
+                    resultados.append({
+                        "ciclo": ciclo,
+                        "estado": "exitoso",
+                        "error": None,
+                        **oferta_info,
+                    })
+                    print(f"--- Ciclo CF {ciclo} EXITOSO ---\n")
+                    Progress.emit(
+                        f"Venta CF {ciclo}/{total} finalizada (folio {oferta_info.get('folio')})", "ok"
+                    )
+    
+                except Exception as exc:
+                    import traceback
+                    traceback.print_exc()
+                    resultados.append({
+                        "ciclo": ciclo,
+                        "estado": "fallido",
+                        "error": str(exc)
+                    })
+                    print(f"--- Ciclo CF {ciclo} FALLIDO: {exc} ---\n")
+                    Progress.emit(
+                        f"Venta CF {ciclo}/{total} FALLÓ: {(str(exc).splitlines() or [''])[0][:120]}",
+                        "error",
+                    )
+                    _capturar_diagnostico_falla(driver, ciclo)
+                    LoginPage(driver).recuperar_sesion_tras_fallo()
+    
+        exitosos = sum(1 for r in resultados if r["estado"] == "exitoso")
+        fallidos = total - exitosos
+    
+        resumen = {
+            "flujo": "CF",
+            "agencia": Settings.AGENCIA_LABEL,
+            "metodo_entrega": Settings.METODO_ENTREGA,
+            "total": total,
+            "exitosos": exitosos,
+            "fallidos": fallidos,
+            "detalle": resultados
+        }
+    
+        RUN_RESULTS_PATH.parent.mkdir(parents=True, exist_ok=True)
+        RUN_RESULTS_PATH.write_text(
+            json.dumps(resumen, indent=2, ensure_ascii=False),
+            encoding="utf-8"
+        )
+    
+        print(f"\n{'='*50}")
+        print(f"RESUMEN FINAL CF")
+        print(f"  Agencia   : {Settings.AGENCIA_LABEL}")
+        print(f"  Total     : {total}")
+        print(f"  Exitosos  : {exitosos}")
+        print(f"  Fallidos  : {fallidos}")
+        print(f"  Resultados: {RUN_RESULTS_PATH.resolve()}")
+        print(f"{'='*50}\n")
+    
+>       assert fallidos == 0, (
+            f"{fallidos} de {total} ciclo(s) CF fallaron. "
+            f"Revisa {RUN_RESULTS_PATH} para más detalles."
+        )
+E       AssertionError: 1 de 1 ciclo(s) CF fallaron. Revisa data\run_results_cf.json para más detalles.
+E       assert 1 == 0
+
+tests\test_login_cf.py:334: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_login_cf.py::TestLoginProvidentCF::test_login_exitoso_cf - AssertionError: 1 de 1 ciclo(s) CF fallaron. Revisa data\run_results_cf.json para más detalles.
+assert 1 == 0
+============================= 1 failed in 53.47s ==============================

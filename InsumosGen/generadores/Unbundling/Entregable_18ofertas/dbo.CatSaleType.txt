@@ -1,0 +1,4 @@
+Id                                  |Name       |Description       |
+------------------------------------+-----------+------------------+
+F7049160-F367-438C-A0A8-0B63F6B03EBD|Home Credit|Crédito personal  |
+21BE783E-8B08-405D-A449-A21FABC8E113|Negocio    |Crédito de negocio|

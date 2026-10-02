@@ -1,0 +1,170 @@
+## Overview
+Resumen detallado de la sesión de entendimiento del proceso de cobranza y originación en las aplicaciones MyProvi, MyCollections y MyTeams, con énfasis en comportamiento offline, sincronización, generación de folios y diferencias en flujos según roles y sucursales (especialmente Tijuana). La presentación principal fue hecha por Prisma (Prisma Sanchez) con aportes clave de Liliana Galicia y consultas técnicas y de insumos por parte del equipo (Carlos Gilmhar, Marisol Barrera, Giresse García, entre otros) el 2026-04-20.
+
+## Puntos clave — Estructura organizacional y roles (jerarquía de ventas y servicio)
+
+> Fuente adicional (26-ago-2026): "Glosario de Posiciones en Campo" y tabla "Ventas y Servicios (Sales and service)" compartidos por negocio, que complementan y corrigen algunos puntos de la sesión de onboarding original (ver correcciones marcadas explícitamente abajo).
+
+### Jerarquía de territorios y roles — Préstamo Personal (línea principal, cobertura de MyProvi/MyCollections)
+
+| Territorio | Roles (Personal / Negocio) | Significado | Ejemplo de ID / cómo se identifica |
+|---|---|---|---|
+| Macro región | **CBO** | **Comercial Business Owner** — "propietario" del negocio comercial de la macro región (⚠️ corrige definición previa; NO es "Chief Business Officer") | ej. Bajío |
+| Región | **RSSM** | Regional Sales and Service Manager — Gerente regional de ventas y servicio | ej. Guanajuato |
+| Sucursal | **CL / BL** | Comercial Leader — Líder comercial (a nivel sucursal) | ej. 2100 |
+| Grupo | **AM / BL** | Area Manager / Business Leader — Gerente de área / Líder de negocio | ID ej. 2100000000043 (Grupo 1) |
+| Sección | **DM / BRM** | Development Manager / Business Relationship Manager — Gerente de desarrollo / Gerente de relación de negocio | ID ej. 2100000000023 (2100G-G) |
+| Agencia | **Estrella** | Star — Comisionista independiente | ID ej. 2100000000001 (2100000000005) |
+
+- **Estrella**: posición operativa más baja; siempre pertenece a una **agencia**. Realiza cobranza y venta en campo.
+- **Agencia**: unidad territorial/de clientes asignada a una estrella. Siempre existe como registro en Focus, aunque no tenga estrella asignada (ver "agencia vacante" abajo).
+- **DM (Gerente de Desarrollo / Development Manager)**: jefe de estrellas, con varias estrellas/agencias a su cargo; pertenece a una sola **sección**.
+- **AM (Gerente de Área / Area Manager)**: puede tener varios DMs (y por tanto muchas estrellas); pertenece a un solo **grupo**. **BL (Business Leader) es el mismo nivel jerárquico que AM.**
+- **DOM (Gerente Divisional)**: nivel jerárquico **inmediatamente arriba de AM/BL** (entre el Grupo y la Región).
+- **Gerente Regional**: tiene a su cargo la región (varios DOM/sucursales), enfocado en una región (ej. Bajío, Guanajuato).
+- **Director**: nivel superior a Gerente Regional, antes de CBO.
+- Jerarquía resumida (Préstamo Personal): Estrella (Agencia) → DM/BRM (Sección) → AM/BL (Grupo) → DOM (Sucursal) → Gerente Regional (Región) → Director → CBO (Macro región).
+- **Acceso a MyProvi**: solo estrellas, DMs y AMs tienen acceso a la aplicación; posiciones superiores (DOM, Gerente Regional, Director, CBO) no tienen acceso por dependencias de sistema.
+- **Estructura especial de Tijuana**: usa **BRM** en lugar de DM y **BL (Business Leader)** en lugar de AM; en Tijuana no existe el puesto de AM, el BL realiza esas funciones. **Estrella y Asesor son el mismo nivel jerárquico** (el más bajo, operativo en campo); se diferencian únicamente por línea de producto: **Estrella** = Préstamo Personal, **Asesor** = Préstamo Negocio. Jerarquía de Tijuana: Estrella/Asesor → BRM → BL → BO → Director. Para efectos de MyProvi, BRM y BL tienen exactamente las mismas actividades/permisos que DM y AM respectivamente.
+- Nota para insumos: la estructura de ventas y servicio (agencia, sección, grupo, sucursal) es distinta entre Tijuana y el resto de sucursales; es importante tenerlo en cuenta al crear estructuras de prueba.
+
+### Línea "Préstamo Negocio" (crédito a negocios/comercial — misma estructura corporativa, distinto producto)
+
+- **BO (Business Owner)**: posición más alta de la línea de negocio (equivalente a "Director" de Préstamo Personal). También existe en la estructura de Tijuana.
+- **BL (Business Leader)**: mismo nivel que AM, pero para la línea de negocio (también es el nombre usado para AM en Tijuana).
+- **GCN (Gerente de Crédito Negocio)**: rol propio de la línea de crédito a negocio.
+- Jerarquía resumida (Préstamo Negocio): Asesor → GCN → BL → BO → Director.
+
+### Línea "Administración"
+
+- **FAM (Gerente de Administración)**: cabeza del área de Administración en sucursal ("Head de Administración").
+- **OM (Gerente de Oficina)**: reporta a FAM. ⚠️ Corrige una nota previa que decía que OM "solo tiene acceso a Portal Administración" y que era poco relevante — OM es un rol de negocio real (Gerente de Oficina) dentro del área de Administración de la sucursal.
+- **Clerk (Analista de Administración)**: reporta dentro del área de Administración. ⚠️ Corrige una nota previa que decía que Clerk "nunca se ha usado" — si es un rol real de Administración según este glosario.
+- Jerarquía resumida: Head de Administración → FAM → OM → Clerk.
+
+### Línea "Prevención de Pérdidas" (seguridad y servicio al cliente)
+
+- **RSM (Gerente Regional de Seguridad)**, **ASM (Gerente de Área de Seguridad)**, **SM (Gerente de Seguridad)**: jerarquía de seguridad/prevención de pérdidas, bajo "Head de Prevención de Pérdidas".
+- **CSAM (Gerente de Área Servicio al Cliente)**, **TLAC (Team Leader AC)**, **AC (Administrador de Crédito)**: jerarquía de administración de crédito/servicio al cliente, agrupada también bajo el mismo "Head de Prevención de Pérdidas" en el organigrama de negocio.
+- Jerarquía resumida: Head de Prevención de Pérdidas → RSM → ASM → SM (seguridad) y → CSAM → TLAC → AC (crédito/servicio al cliente).
+
+## Puntos clave — Aplicaciones y acceso
+- MyProvi: aplicación de grupo usada en 9 países del Grupo IPF. Soporta el proceso de cobranza y es accesible para roles operativos (estrellas, DMs, AMs dependiendo de la estructura y sucursal).  
+- Componentes adicionales: MyCollections (100% proceso de cobranza, incluye modo offline) y MyTeams (uso restringido a ciertas posiciones para asignaciones/segmentación de clip; permite al DM asignar el clip completo de una agencia vacante a una estrella, o dividir/segmentar el clip entre varias estrellas).  
+- Compatibilidad: MyProvi se instala en Android; el registro inicial se hace en myprovi.online con ID Focus (13 dígitos) y número celular coincidente (SMS para verificación). Durante registro se solicita creación de NIP.  
+- Restricciones de instalación: MyCollections se liga a equipo/numero; es necesario confirmar desinstalación del equipo anterior para instalar en un nuevo dispositivo; pérdida del equipo puede bloquear acceso hasta acciones administrativas.
+
+## Puntos clave — Arquitectura de datos: LNFS, Focus y Freud
+- **LNFS (base de datos local por sucursal)**: cada sucursal tiene su propia base de datos LNFS, identificada con los mismos 4 dígitos que el número de sucursal. Las bases LNFS de las distintas sucursales no están conectadas entre sí.
+- Todo lo que se registra durante el día (ventas, cobranza) vive primero en el LNFS de la sucursal correspondiente.
+- Por la noche corre un proceso de réplica: se extrae la información de cada LNFS, se concentra y se copia a **Freud** (la réplica/espejo de Focus a nivel consolidado). Por eso comprobantes tipo OP y HC, ofertas, contratos, etc. que dependen de Freud suelen reflejarse hasta el día siguiente.
+- **Reglas de numeración (ID Focus / número de cliente)**: tanto el Focus ID de las estrellas como el número de cliente inician con los 4 dígitos de la sucursal a la que pertenecen.
+  - **Excepción — clientes transferidos**: si un cliente se dio de alta en la sucursal 2001 (ej. Puebla Dorada) y luego se muda/transfiere a Tijuana (2093), el cliente conserva su número original iniciado en 2001; no se le genera un número nuevo.
+  - **Estrellas que cambian de sucursal**: a diferencia de los clientes, si una estrella se da de baja de la sucursal 2001 y se da de alta en Tijuana (2093), se le asigna un Focus ID nuevo que inicia con 2093.
+- **Agencia vacante — cómo se ve en los datos**: en Focus no existe literalmente la palabra "vacante"; cuando una agencia o sección no tiene responsable asignado, el campo correspondiente simplemente viene vacío/nulo (o en cero). La palabra "vacante" es una traducción que agregan los microservicios cuando detectan ese campo vacío, no un valor que exista así en la base de datos.
+
+## Puntos clave — Sincronización y modo offline
+- MyCollections permite trabajo offline (modo avión). Para que la cobranza registrada en dispositivo llegue a Focus es obligatorio ejecutar la sincronización: sin ello, los pagos quedan "atrapados" en el dispositivo.  
+- Diferencia de fechas en base de datos: MyCollections guarda fecha de creación (registro en dispositivo) y Focus guarda fecha de transacción/inserción (cuando sincroniza). Ejemplo: pago registrado a las 16:00 en modo offline y sincronizado a las 16:15, ambas fechas aparecerán distintas.  
+- Importancia operativa: se debe recordar periódicamente a equipos campo sincronizar para reflejar avances en reportes corporativos; la barra en la app muestra "última sincronización" (día/hora).
+- Actualización de saldo tras un pago: para transacciones fuera de clip (DM/AM), el sistema recalcula el nuevo saldo casi de inmediato (cambio reciente asociado a bundling). Para la estrella normal (con clip), el saldo/balance actualizado en la app solo se refleja hasta el siguiente cambio de semana; mientras tanto, las estrellas llevan manualmente un **"tarjetón"** (hojita física) donde anotan cada semana el folio del pago registrado y van restando manualmente el saldo que el cliente aún debe, hasta que coincide con el balance del sistema en el cambio de semana.
+
+## Puntos clave — Clip, descarga y cierre de semana
+- Clip: listado de clientes que la estrella debe descargar (resumen con monto, número de clientes, avance señalado en verde). Incluye no solo la cartera existente sino también las nuevas ventas/transacciones generadas con clientes nuevos y clientes frecuentes desde el cierre/inicio de semana anterior. Descarga requerida al inicio/cambio de semana para ver información actualizada.  
+- Si la estrella no descarga el clip (por ejemplo en agencia vacante), pueden trabajar con clip anterior pero sin datos actualizados.  
+- Botón "Cerrar semana": al confirmar impide ingresar más pagos en la aplicación para esa semana (recomendación: cuidado al usarlo). Cierre de semana detona procesos en Provi Digital (mensajes de pesos) y afecta recepción/actualización.
+- Al cerrar semana/clip, Focus asigna automáticamente **cero** como cobranza a todos los clientes que no registraron pago (aparecen con cobranza en $0, equivalente a "no pago"); por eso ya no se recomienda usar el botón "No pago" para registrar visitas.
+
+## Puntos clave — Registro de cobranza, tipos de pago y folios
+- Tipos de botones en cobranza: pago esperado (tarifa/contrato), último pago, pago manual (permite ingresar mayor o menor monto que el esperado) y no pago (uso restringido: ya se pidió no usar “no pago” para registrar visitas por temas en Focus).  
+- Folio/recibo: cada pago genera un número de recibo único e irrepetible (legislación y transparencia). Folio y estructura se generan igual para estrella, DM o AM; la diferencia visible es el identificador de tipo de pago (ej. CO, OP, HC), no el folio en sí.  
+- Clasificación en base de datos: pagos desde MyCollections llegan como **CO** (cobranza, incluye pagos de estrella y los que un DM/AM cobran por segmentación/asignación de clip de otra agencia — siguen viéndose como CO 100%). Pago de oficina (transacción fuera de clip de DM/AM) → **OP** (`Agreement_Transaction_Type_Code` = 'OP', confirmado en scripts técnicos — corrige una documentación previa que decía "PO"); **HC** = **Home Credit**, créditos otorgados/realizados en el domicilio del cliente (corrige una documentación previa que decía "cobranza electrónica", que era incorrecto). "Home Credit" no es solo nomenclatura técnica: es el nombre que la empresa matriz de Provident (International Personal Finance) usa a nivel internacional para el modelo de negocio de crédito puerta a puerta que opera Provident México (fuente: blog oficial de Provident México y Wikipedia — ver referencias abajo).  
+  - **✅ Confirmado en scripts técnicos (`transactions/agreement_transaction_insert.sql`, skill `payment-receipt-generator`)**: el prefijo **RC-** que ve el equipo de insumos/QA en Customer APP no es específico de HC u OP — es el formato estándar del campo `Receipt_Reference` en `Agreement_Transaction_Receipt_Table`, que siempre sigue el patrón `RC-{Agreement_Transaction_Id}` para **cualquier** tipo de transacción (CO, HC u OP). No existe un prefijo "TH1"; esa hipótesis queda descartada.
+  - Mapeo técnico de plazo: `Product_Version_Id` 112 = 12 semanas, 106 = 42 semanas, 131 = 65 semanas.
+- Transacción fuera de clip (DM/AM): permite buscar cliente por número de cliente (13 dígitos) o número de contrato (9 dígitos). Búsqueda por contrato suele ser más rápida (campo ha reportado que la búsqueda por número de cliente tarda más).
+
+## Puntos clave — Comportamiento por rol y asignaciones
+- Roles con acceso pleno a MyProvi/MyCollections: estrella (star), DMs y AMs (según estructura); líderes comerciales / regionales / CBO no siempre tienen acceso por dependencias sistémicas.  
+- Agencia vacante: el DM puede segmentar o asignar clip desde MyTeams, permitiendo que una estrella cobre clientes de otra agencia; esos registros se visualizan como CO 100% aunque la estrella registre el cobro. Folio permanece con estructura igual, lo que cambia es el identificador (p.ej. OP).
+
+## Puntos clave — Autonomía (beneficio por categoría de estrella)
+- **Autonomía**: beneficio que permite a algunas estrellas prestar por encima del monto sugerido por el "mensaje de pesos", según su categoría de desempeño y el riesgo del cliente.
+- Categorías de estrella (de menor a mayor, según cómo manejan su territorio: cuánto venden y cobran): **mini, inter, mega, ultra**.
+- Se combina con el grado de riesgo del cliente (categorías A, B, C, D, E, siendo A el de menor riesgo).
+- Ejemplo: si el cliente tiene riesgo A y la estrella es categoría "ultra", puede prestar más de lo que indica el mensaje de pesos (ej. mensaje dice $5,000, con autonomía podría prestar hasta $10,000).
+- Relevante principalmente si se van a diseñar pruebas relacionadas con autonomía/límites de préstamo.
+
+## Puntos clave — Detalle de vistas en la app cliente / Customer APP
+- La Customer APP obtiene comprobantes de MyCollections→Focus→tópico (mensaje inmediato cuando llega pago); recibos CO se deberían ver minutos después si MyCollections sincroniza con Focus.  
+- Comprobantes de pagos tipo OP y HC: proceso batch diurno (replicación a Freud/replica nocturna). Es decir, Focus replica a Freud en la noche; Customer APP consulta Freud al día siguiente para generar comprobante PDF (por eso OP y HC pueden verse al día siguiente).  
+- Contrato electrónico y estados de cuenta: según Liliana, el comportamiento esperado es que el contrato electrónico se muestre de inmediato cuando el cliente entra a Customer APP y da clic en "contrato electrónico" (la app consulta directo el repositorio donde vive el contrato); no debería depender de ningún proceso batch. Esto aplica solo a ventas cerradas de forma digital (Provi Digital), no a ventas en papel. Sin embargo, el equipo de QA observó en pruebas que el contrato electrónico solo aparecía después de disparar el proceso batch de estados de cuenta, lo cual sugeriría un posible error (en generación de insumos o en el consumo del microservicio de Customer APP) más que el comportamiento esperado; se acordó hacer pruebas end-to-end con el equipo (Nicki, Charlie, DevOps) para reproducir y determinar la causa raíz.
+- Referencias de pago: cuando el cliente consulta su referencia de pago desde Customer APP, la app llama al servicio **Agreement**, que expone un endpoint de "referencias". La referencia se genera con base en el número de sucursal, el número de contrato y un algoritmo que varía según el medio de pago (OXXO o banco). Persona de contacto para detalle técnico de este endpoint: **Flor**.
+
+## Puntos clave — Ofertas, bundling (rebate) y niveles de pricing
+- Resumen sobre ofertas: Customer APP **no** utiliza el "micro de calculadora" para mostrar ofertas (ese micro fue el que originalmente traía comportamiento tipo "like"/primera oferta y causó problemas en pruebas previas). En su lugar, Customer APP consulta directo la tabla/base de datos de ofertas y debe traer siempre la **última oferta vigente**. Si existen ofertas históricas antiguas con niveles N1/N2, no deben mostrarse; solo la vigente (sin importar su nivel). Revisión de datos con ofertas N1/N2 antiguas quedó pendiente.  
+- Bonding / bundling (estrategia lanzada en **marzo de 2026**): antes de bundling, Provident no cobraba interés/cargo moratorio por incumplimiento (si el cliente no pagaba una semana, seguía debiendo el mismo monto, sin recargo). Bundling introduce 3 cambios:
+  1. Cargo moratorio si el cliente deja de pagar.
+  2. Rebate/descuento por liquidación anticipada.
+  3. Posibilidad de un nivel de precio más favorable para clientes frecuentes.
+  - Cargo por servicio: Provident cobra un cargo por servicio fijo sobre el préstamo (ej. si el cliente pide $2,000, con un cargo por servicio de $2,100, el total a deber sería $4,100); esto es la base sobre la que luego se calculan descuento/cargo moratorio.
+  - Ejemplo de descuento por pago anticipado: si el saldo total es $4,000, liquidar anticipadamente puede mostrar $3,600 (descuento de $400). El descuento existe desde que se genera el contrato en Focus y va disminuyendo semana a semana (ej. semana 1 liquidarías con $3,900, semana 2 con $3,800, etc., hasta llegar al saldo total si ya no hay descuento). El monto se calcula automáticamente por Focus/GDS y se muestra en un banner verde. Reglas/porcentaje exactos no fueron detallados por Liliana (cálculo interno de Focus/GDS); se requiere aporte de Riesgos/Créditos para el detalle.  
+  - Mensajes de pesos: generados por el **GDS de clientes frecuentes**, conectado a Focus; pueden incluir niveles **N1/N2/N3** según historial y número de préstamos tomados por el cliente — **N3 es el nivel más alto** (mejor condición/menor pago para el cliente); a mayor número de préstamos pagados, mayor nivel (ej. N2 correspondería aproximadamente a clientes con ~4 préstamos). GDS determina generación y nivel; para sucursales con bundling activo se habilitan renglones adicionales en el detalle del contrato (saldo por pago anticipado/descuento y cargo moratorio).
+  - **⚠️ CORRECCIÓN (14-sep-2026, vía negocio) — los niveles NO son exclusivos de CF**: la regla anterior ("solo CF + sucursal Unbundling") era **incompleta**. La regla correcta, condición por condición:
+    - **N1**: se otorga **automáticamente a cualquier cliente — nuevo (CN) o frecuente (CF)** — con solo el hecho de solicitar su crédito en una agencia/sucursal dentro de la estrategia Unbundling. No requiere ser CF ni tener historial.
+    - **N2**: aplica a CF según su historial de préstamos (regla original, ej. ~4 préstamos). **También aplica a un caso especial de cliente "nuevo"**: un cliente con estatus **LTPU** (liquidó un préstamo anterior siendo buen pagador) que regresa a solicitar un nuevo crédito **después de cierto tiempo de inactividad** puede recibir N2 al reingresar, aunque en ese momento se le trate como cliente nuevo para efectos de evaluación. **Pendiente confirmar con negocio**: el tiempo exacto de inactividad requerido para calificar a este caso.
+    - **N3**: sin corrección reportada hasta ahora — se mantiene la regla original (exclusivo de CF con historial de préstamos suficiente, y sucursal dentro de Unbundling). Dentro de la escala, **N3 sigue siendo siempre el mejor precio**.
+    - En resumen: **un cliente nuevo (CN) SÍ puede tener N1** (automático por sucursal) **y en el caso especial de LTPU también puede tener N2**; lo que NO puede tener un cliente nuevo "normal" (sin el antecedente LTPU) es N2 por historial de préstamos ni N3.
+  - **Agencias/sucursales dentro de Unbundling (a la fecha)**: Aguascalientes, Zacatecas, San Luis Potosí II, Texcoco, León II, San Juan del Río, Chihuahua. Esta lista puede cambiar conforme se agreguen sucursales al programa; validar vigencia con negocio antes de generar insumos. Un cliente (nuevo o frecuente) de una sucursal que NO está en esta lista no debe llevar ningún nivel N1/N2/N3.
+
+## Puntos clave — Originación de leads y ventas (proceso)
+- Leads digitales: canales Facebook y TikTok (formularios de interés), afiliados (empresas que comparten datos de personas interesadas en un préstamo) y **Creditea rejects** (Creditea es una empresa hermana de Provident enfocada en el sector **bancarizado**, mientras Provident atiende al sector **no bancarizado**; cuando Creditea rechaza a un cliente, comparte esos datos con Provident, que evalúa y, si genera una preoferta, se la muestra al prospecto). Toda esta información cae en la **API Lead Management** y, si aprueba reglas, va a CRM para contacto por call center.  
+- CRM → Provi Digital: call center contacta prospecto, confirma interés y “enviar a campo” crea el lead en Provi Digital (gestión de visitas por estrella). Hasta que no se concrete la venta el prospecto no es cliente (no tiene número cliente en Focus).  
+- **Leads en papel**: para estrellas/sucursales sin acceso a Provi Digital (por falta de internet), el call center notifica el lead por WhatsApp directamente a la estrella (dirección y datos básicos) para que vaya a buscar al prospecto; la venta se genera de la misma forma que cualquier venta en papel.  
+- Ventas en papel vs Provi Digital: la venta en papel representa aproximadamente el 15-20% del total de ventas (Provi Digital cubre el 80-85% restante).
+  - **Papel**: la estrella visita al cliente con la hojita **CIS** impresa, llena la solicitud y recaba copia de INE y comprobante de domicilio para armar el expediente. Entrega el expediente a su DM, quien lo entrega a administración de la sucursal. El personal de administración (**OEM/Clerks**) captura el expediente en el sistema **Application Scoring**, que evalúa si se puede prestar al cliente. Si aprueba, se imprime una hojita con la oferta (monto y plazo), se avisa al DM, se genera el contrato (sistema **ABT**) y la estrella entrega al cliente el contrato físico y el dinero. **Los contratos en papel no se digitalizan, por lo que nunca aparecen en Customer APP.**  
+  - **Provi Digital**: flujo 100% digital (fotos de INE, comprobante, scoring, consulta a **Círculo de Crédito** para revisar historial crediticio del prospecto, prueba de vida, GDS). Si la venta se cierra digital, se registra en Focus, se asigna número de cliente y sí aparece en Customer APP.  
+  - **Formas de entrega del dinero en Provi Digital — orden de pago vs. cheque**: con **orden de pago**, la estrella visita una sola vez al cliente y completa toda la venta (se genera el contrato y llega a Portal Admin). Con **cheque**, se requieren **2 visitas**: en la primera se captura la información y se selecciona la opción de recibir por cheque, el flujo se detiene en Provi Digital y pasa a revisión en Portal Admin; si Portal Admin aprueba, el flujo regresa a Provi Digital y la estrella hace una segunda visita para terminar la venta (entrega de dinero/firma final). Es decir, la opción cheque "parte a la mitad" el flujo de venta.
+- **CRM también se conoce como Dynamics** (nombre oficial del sistema). Es donde el call center captura información para generar leads. Muestra en la parte superior derecha un estatus de validación: aprobado o rechazado. Si el lead fue rechazado, se habilita una sección adicional con: quién lo rechazó (Focus ID y nombre) y el motivo del rechazo — información útil para que call center dé seguimiento. Conforme el lead avanza en Provi Digital (o culmina la venta), esos estatus/eventos deben regresar y reflejarse en CRM para trazabilidad (ver "disparadores entre sistemas" abajo).  
+- **Tipificación**: es la clasificación de los leads dentro de CRM (ej. lead de cliente nuevo, lead de cliente frecuente, o "no interesó" cuando el prospecto ya no quiere continuar).  
+- **Disparadores/notificaciones entre sistemas**: cuando una venta termina en Provi Digital (cliente firma contrato), se notifica a CRM que la venta concluyó. Portal Admin notifica ciertos estatus del expediente; Portal Tesorería notifica si el préstamo ya se dispersó o si fue cancelado; los "portales gerentes" también reciben notificaciones. Esto mantiene sincronizados los distintos sistemas del flujo de venta.
+
+## Puntos clave — Clientes eliminados / write-off, Profil y rehabilitación
+- Clientes eliminados (write-off): se consideran clientes con **más de 17 semanas consecutivas sin pago**. Se les da de baja en Focus (estatus "eliminado") y la información se traspasa mediante **carga semanal hecha por el equipo de BI** al sistema **Profil**, donde se gestiona la recuperación de cartera.
+- **Profil** es utilizado por el **call center de recuperación de cartera / cobranza temprana** (equipo distinto al call center de ventas, aunque están en el mismo piso de oficina). Toda la información sobre si estos clientes eliminados pagan o no vive en Profil.
+- Acceso Customer APP: clientes eliminados **no** están visibles en Customer APP, porque su información vive en Profil, sistema que no está conectado a Customer APP (confirmado explícitamente en la llamada).
+- Un cliente eliminado puede volver al flujo de 2 formas:
+  1. **Solicita un nuevo préstamo por iniciativa propia**: Provi Digital detecta el estatus "eliminado", pero si tiene el subestatus **PU (pagó)**, lo deja continuar y lo trata como cliente nuevo — se revisa su historial en Círculo de Crédito y, si aplica, se le genera un mensaje de pesos normal.
+  2. **Campañas especiales del equipo de Crédito y Riesgo**: se "rehabilita" al cliente de forma manual y se le ofrecen mensajes de pesos con características particulares (posiblemente montos menores), generados manualmente (no llegan por la vía automática habitual de mensajes de clientes frecuentes).
+- **LTPU**: estatus para clientes con **más de 27 semanas sin tener un préstamo activo**. Ejemplo: un cliente termina de pagar su préstamo; durante 26 semanas el GDS de clientes frecuentes puede seguir generándole mensajes de pesos (si fue buen pagador); si no toma un nuevo préstamo en ese periodo, Focus deja de emitir mensajes; a la semana 28 sin préstamo activo, si solicita un nuevo préstamo, ya no tiene mensaje de cliente frecuente y se trata como cliente nuevo, pasando a estatus **LTPU**.
+- Importante: los estatus **LTPU/STPU son para efectos de evaluación de clientes nuevos**, no tienen relación con los niveles de precio (N1/N2/N3) — Liliana aclaró explícitamente esta distinción tras una confusión inicial del equipo de insumos/QA, que había asociado LTPU con el nivel N2.
+- Giresse/QA sugirieron generar insumos con estatus LTPU para pruebas; Liliana confirmó que esos estatus se usan para evaluar clientes nuevos y que GDS gestiona los cambios. La tabla de datos relevante fue referida por Liliana como algo similar a "GDS Customer Data" (distinta de la tabla relacionada con LTPU); pendiente confirmar nombres exactos de tablas con el equipo técnico.
+
+## Puntos pendientes / acciones acordadas
+1. ✅ **Resuelto**: nomenclatura de folios/identificadores confirmada en scripts técnicos — `Agreement_Transaction_Type_Code` = CO / OP (no "PO") / HC; el prefijo `RC-` es el formato del `Receipt_Reference` para cualquier tipo de transacción, no exclusivo de un tipo. Ver sección "Registro de cobranza, tipos de pago y folios" arriba.  
+2. Confirmar comportamiento exacto de generación y visibilidad de comprobantes OP/HC en Customer APP (replica Freud / proceso diario) — responsable: Liliana + DevOps (confirmado parcialmente: se replica a Freud en la noche; Customer APP consulta Freud al día siguiente).  
+3. Reproducir y validar generación/visualización de contrato electrónico en Customer APP tras venta en Provi Digital (detectar si falta proceso batch o consumo de microservicio) — responsables: Nicki + Charlie + equipo DevOps + Liliana. Programar prueba end-to-end.  
+4. Validar cómo Customer APP obtiene la última oferta vigente (tabla de ofertas) y revisar casos donde aparecen ofertas antiguas con N1/N2; confirmar que Customer APP consulte la última oferta vigente y no un listado histórico — responsable: Liliana + desarrollo microservicios (calculadora/ofertas).  
+5. Confirmar reglas y cálculos exactos para el rebate/discount (bonding): fórmula o parámetros GDS/Focus que generan monto mostrado en banner verde — responsable: Riesgos / GDS / Liliana.  
+6. Obtener listado de tablas y campos de Focus relevantes para insumos (clientes, agencias vacantes, IDs, estatus) para definir replicación y pruebas; coordinar con Emma, Erick, Paquito y DevOps — responsables: equipo Insumos (Giresse, Charlie) + Emma/Paquito.  
+7. Probar transacción fuera de clip y tiempos de actualización de saldo para DM/AM vs Estrella (DM/AM ven saldo actualizado inmediatamente; estrella lo ve al siguiente cambio de semana en clip) — responsables: Prisma + campo + QA.
+
+## Decisiones operativas y recomendaciones destacadas
+- Recordar regularmente a las estrellas la obligatoriedad de sincronizar MyCollections para evitar pérdida de trazabilidad y discrepancias en reportes.  
+- Evitar uso del botón “No pago” en MyCollections para registrar visitas hasta aclarar impacto en Focus; seguir directrices de Ventas & Servicio.  
+- Para insumos/QA: homologar términos (lead, prospecto, cliente nuevo, cliente frecuente) según la definición de Liliana: leads → cliente nuevo / cliente frecuente; leads de cliente frecuente son distintos por origen (GDS) y deben tratarse como tal para pruebas.  
+- Para solicitudes de insumos: cuando se requiera validar escenarios con clientes eliminados (LTPU) o niveles de pricing (N1/N2/N3), incluir el estatus exacto y tabla/registro propuesto para evitar discrepancias en Customer APP.
+
+## Seguimiento y próximos pasos inmediatos
+- Equipos de Insumos/QA (Giresse, Charlie, Nicki) coordinarán pruebas con DevOps (Emma, Paquito, Erick) y con Liliana para validar: generación de folios, contrato electrónico, visualización de comprobantes OP/HC y ofertas vigentes.  
+- Liliana / Ventas & Servicio compartirán (o coordinarán con Riesgos) detalle de reglas para bonding/rebate y criterios de niveles de pricing para incluir en criterios de prueba.  
+- Agendar sesión técnica (post-PRIS) entre DevOps, Emma Montufar y equipo Insumos para revisar tablas específicas de Focus / Freud y confirmar formatos/prefijos de folios y tiempos de replicación.
+
+## Resumen de responsables (refuerzo)
+- Prisma Sanchez: explicación funcional de MyProvi / MyCollections / flujo de cobranza y sincronización; punto de contacto operativo.  
+- Liliana Galicia: clarificaciones de negocio (CRM, origen leads, GDS, bundling, procesos nocturnos/replicación a Freud) y coordinación con riesgos/operaciones.  
+- DevOps / Emma Montufar / Paquito / Erick: validar nomenclaturas, replicación a Freud, tablas Focus/queries y ejecutar pruebas batch.  
+- Insumos / QA (Giresse Antonio García Velasco, Carlos Gilmhar Sanchez Ayala, Nicki Paola Garcia Castilla, equipo de Mari): ejecutar pruebas end-to-end, solicitar insumos y confirmar requisitos técnicos.  
+- Otros aportes: Marisol Barrera (ejemplos operativos), Gustavo Valdespino y CORE (aportaron en contratos/ofertas y confirmación de visibilidad).
+- Otros contactos técnicos mencionados: **Flor** (endpoint de referencias de pago / servicio Agreement), **Gustavo Gonzalez** (Product Owner de Provi Digital), **Yadi** (tabla de niveles de precio), **Emanuel** (dudas técnicas generales).
+
+Si desean, preparo un checklist de pruebas técnicas priorizadas (contrato electrónico, comprobantes OP/HC, folios/nomenclatura, ofertas vigentes, sincronización offline) con pasos, datos de prueba y responsables para acelerar las validaciones. ¿Deseas que lo genere ahora?

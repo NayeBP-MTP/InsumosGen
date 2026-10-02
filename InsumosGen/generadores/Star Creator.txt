@@ -1,0 +1,63 @@
+Stars Creator
+
+Para crear una nueva estrella en la Base de datos de BotDB y Challenger, se deberan considerar las siguientes tablas:
+
+BotDB: tblRepresentative_Table_AWS y Agency_Representative_AWS
+Challenger: tblRepresentative_Table_AWS y Agency_Representative_AWS
+
+
+DDL de BotDB
+
+CREATE TABLE botDB.dbo.tblRepresentative_Table_AWS (
+	Representative_Id bigint NOT NULL,
+	Email_Address nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	Display_Name nvarchar(255) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	Mobile_Tel_Num nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	tipo_Representante tinyint NOT NULL,
+	Maintained_By_Db_Id smallint NULL,
+	RFC nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS NULL
+);
+
+CREATE TABLE botDB.dbo.Agency_Representative_AWS (
+	Agency_Id bigint NULL,
+	Representative_Id bigint NULL,
+	Maintained_By_Db_Id smallint NULL
+);
+
+
+DDL de Challenger
+
+CREATE TABLE Challenger_uat.dbo.tblRepresentative_Table_AWS (
+	Representative_Id bigint NOT NULL,
+	Email_Address nvarchar(50) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	Display_Name nvarchar(255) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+	Mobile_Tel_Num nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	tipo_Representante tinyint NOT NULL,
+	Maintained_By_Db_Id smallint NULL,
+	RFC nvarchar(20) COLLATE SQL_Latin1_General_CP1_CI_AS NULL
+);
+
+CREATE TABLE Challenger_uat.dbo.Agency_Representative_AWS (
+	Agency_Id bigint NULL,
+	Representative_Id bigint NULL,
+	Maintained_By_Db_Id smallint NULL
+);
+
+-- ROLES table (for reference)
+
+Roles (
+	ProvidentRoleID int NOT NULL,
+	RoleName nvarchar(30) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+	CONSTRAINT PK__Roles__5859AC7F5ACDFD8C PRIMARY KEY (ProvidentRoleID)
+);
+
+ProvidentRoleID|RoleName |
+---------------+---------+
+              1|DM       |
+              2|Estrellas|
+              3|AM       |
+              4|OM       |
+              5|Clerk    |
+              6|AC       |
+              7|TL       |
+              8|CSAM     |

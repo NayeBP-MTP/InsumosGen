@@ -1,0 +1,5 @@
+Id                                  |Name|Description      |ShouldDisplay|
+------------------------------------+----+-----------------+-------------+
+B771BFC0-D40A-49A7-8372-72F7776A6338|N1  |Nivel de precio 1|            1|
+44B1FFD7-F5E3-4B49-A771-E03C80627593|N2  |Nivel de precio 2|            1|
+0383C426-64C5-497E-9E90-779650EEF86C|N3  |Nivel de precio 3|            1|

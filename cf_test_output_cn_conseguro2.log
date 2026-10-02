@@ -1,0 +1,9 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.7, pytest-8.4.1, pluggy-1.6.0 -- C:\Python313\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\nayeli.benitez\Documents\GitHub\Providigital_Ventas
+configfile: pytest.ini
+plugins: allure-pytest-2.14.2
+collecting ... collected 1 item
+
+tests/test_login.py::TestLoginProvident::test_login_exitoso 

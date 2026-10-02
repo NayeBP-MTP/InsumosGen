@@ -1,0 +1,7 @@
+Id                                  |Name  |Term|Description             |
+------------------------------------+------+----+------------------------+
+81C7FA1C-FFB3-4CF3-AEB7-BDDE1A8A4D6C|12 sem|  12|Plazo a pagar el crédito|
+403E89C5-B995-4AA1-8ADA-5B99E0267BB2|32 sem|  32|Plazo a pagar el crédito|
+E2741F66-A665-491E-84AB-EB0DECDA3E8A|42 sem|  42|Plazo a pagar el crédito|
+E1B43A01-C984-4D50-A468-A4E8FCDA1296|52 sem|  52|Plazo a pagar el crédito|
+B93D4C1A-3AA7-44E1-B255-3A438108C1E2|65 sem|  65|Plazo a pagar el crédito|

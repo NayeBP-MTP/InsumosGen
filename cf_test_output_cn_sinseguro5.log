@@ -1,0 +1,237 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.7, pytest-8.4.1, pluggy-1.6.0 -- C:\Python313\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\nayeli.benitez\Documents\GitHub\Providigital_Ventas
+configfile: pytest.ini
+plugins: allure-pytest-2.14.2
+collecting ... collected 1 item
+
+tests/test_login.py::TestLoginProvident::test_login_exitoso 
+==================================================
+Agencia    : Izcalli 335
+Método     : Finabien
+Ciclos     : 2
+==================================================
+
+--- Iniciando ciclo 1/2 ---
+Todas las requests frontal: captured_requests_front.json
+Requests Legalario frontal: legalario_requests_front.json
+Requests Legalario frontal: 1
+Base64 frontal guardado en: C:\Users\nayeli.benitez\Documents\GitHub\Providigital_Ventas\debug_base64_front.json
+Fecha nacimiento única asignada: 07/01/1996
+--- Ciclo 1 FALLIDO: Message: 
+Stacktrace:
+	chromedriver!GetHandleVerifier [0x11b1c73+4e33]
+	chromedriver!(No symbol) [0x10cd194]
+	chromedriver!(No symbol) [0xf0c0b0]
+	chromedriver!(No symbol) [0xf57066]
+	chromedriver!(No symbol) [0xf5723b]
+	chromedriver!(No symbol) [0xf9b782]
+	chromedriver!(No symbol) [0xf79af4]
+	chromedriver!(No symbol) [0xf98ff3]
+	chromedriver!(No symbol) [0xf79846]
+	chromedriver!(No symbol) [0xf4be6a]
+	chromedriver!(No symbol) [0xf4cb44]
+	chromedriver!GetHandleVerifier [0x161798a+46ab4a]
+	chromedriver!GetHandleVerifier [0x163946b+48c62b]
+	chromedriver!GetHandleVerifier [0x12d42c2+127482]
+	chromedriver!GetHandleVerifier [0x12dafd3+12e193]
+	chromedriver!(No symbol) [0x10db2b8]
+	chromedriver!(No symbol) [0x10d65e8]
+	chromedriver!(No symbol) [0x10d6795]
+	chromedriver!(No symbol) [0x10c2bd7]
+	KERNEL32!BaseThreadInitThunk [0x760a5d49+19]
+	ntdll!RtlInitializeExceptionChain [0x7763c75b+6b]
+	ntdll!RtlGetAppContainerNamedObjectPath [0x7763c6e1+231]
+ ---
+
+Recuperación: cerrar_sesion no disponible (Message: element click intercepted: Element <button _ngcontent-xwy-c45="" type="button" aria-controls="appNavigation" aria-expanded="!isCollapsed" aria-label="Toggle navigation" class="navbar-toggler navbar-toggler-right ml-auto">...</button> is not clickable at point (1492, 44). Other element would receive the click: <div class="overlay" id="legalarioModalLoadingContainer">...</div>
+  (Session info: chrome=153.0.8010.54)
+Stacktrace:
+	chromedriver!GetHandleVerifier [0x11b1c73+4e33]
+	chromedriver!(No symbol) [0x10cd194]
+	chromedriver!(No symbol) [0xf0c0b0]
+	chromedriver!(No symbol) [0xf5cff8]
+	chromedriver!(No symbol) [0xf5b689]
+	chromedriver!(No symbol) [0xf59465]
+	chromedriver!(No symbol) [0xf58674]
+	chromedriver!(No symbol) [0xf4d80a]
+	chromedriver!(No symbol) [0xf79aac]
+	chromedriver!(No symbol) [0xf4d244]
+	chromedriver!(No symbol) [0xf79c74]
+	chromedriver!(No symbol) [0xf98ff3]
+	chromedriver!(No symbol) [0xf79846]
+	chromedriver!(No symbol) [0xf4be6a]
+	chromedriver!(No symbol) [0xf4cb44]
+	chromedriver!GetHandleVerifier [0x161798a+46ab4a]
+	chromedriver!GetHandleVerifier [0x163946b+48c62b]
+	chromedriver!GetHandleVerifier [0x12d42c2+127482]
+	chromedriver!GetHandleVerifier [0x12dafd3+12e193]
+	chromedriver!(No symbol) [0x10db2b8]
+	chromedriver!(No symbol) [0x10d65e8]
+	chromedriver!(No symbol) [0x10d6795]
+	chromedriver!(No symbol) [0x10c2bd7]
+	KERNEL32!BaseThreadInitThunk [0x760a5d49+19]
+	ntdll!RtlInitializeExceptionChain [0x7763c75b+6b]
+	ntdll!RtlGetAppContainerNamedObjectPath [0x7763c6e1+231]
+) — limpiando cookies/storage
+--- Iniciando ciclo 2/2 ---
+Todas las requests frontal: captured_requests_front.json
+Requests Legalario frontal: legalario_requests_front.json
+Requests Legalario frontal: 1
+Base64 frontal guardado en: C:\Users\nayeli.benitez\Documents\GitHub\Providigital_Ventas\debug_base64_front.json
+Fecha nacimiento única asignada: 09/01/1996
+--- Ciclo 2 FALLIDO: Message: 
+Stacktrace:
+	chromedriver!GetHandleVerifier [0x11b1c73+4e33]
+	chromedriver!(No symbol) [0x10cd194]
+	chromedriver!(No symbol) [0xf0c0b0]
+	chromedriver!(No symbol) [0xf57066]
+	chromedriver!(No symbol) [0xf5723b]
+	chromedriver!(No symbol) [0xf9b782]
+	chromedriver!(No symbol) [0xf79af4]
+	chromedriver!(No symbol) [0xf98ff3]
+	chromedriver!(No symbol) [0xf79846]
+	chromedriver!(No symbol) [0xf4be6a]
+	chromedriver!(No symbol) [0xf4cb44]
+	chromedriver!GetHandleVerifier [0x161798a+46ab4a]
+	chromedriver!GetHandleVerifier [0x163946b+48c62b]
+	chromedriver!GetHandleVerifier [0x12d42c2+127482]
+	chromedriver!GetHandleVerifier [0x12dafd3+12e193]
+	chromedriver!(No symbol) [0x10db2b8]
+	chromedriver!(No symbol) [0x10d65e8]
+	chromedriver!(No symbol) [0x10d6795]
+	chromedriver!(No symbol) [0x10c2bd7]
+	KERNEL32!BaseThreadInitThunk [0x760a5d49+19]
+	ntdll!RtlInitializeExceptionChain [0x7763c75b+6b]
+	ntdll!RtlGetAppContainerNamedObjectPath [0x7763c6e1+231]
+ ---
+
+Recuperación: cerrar_sesion no disponible (Message: element click intercepted: Element <button _ngcontent-eww-c45="" type="button" aria-controls="appNavigation" aria-expanded="!isCollapsed" aria-label="Toggle navigation" class="navbar-toggler navbar-toggler-right ml-auto">...</button> is not clickable at point (1492, 44). Other element would receive the click: <div class="overlay" id="legalarioModalLoadingContainer">...</div>
+  (Session info: chrome=153.0.8010.54)
+Stacktrace:
+	chromedriver!GetHandleVerifier [0x11b1c73+4e33]
+	chromedriver!(No symbol) [0x10cd194]
+	chromedriver!(No symbol) [0xf0c0b0]
+	chromedriver!(No symbol) [0xf5cff8]
+	chromedriver!(No symbol) [0xf5b689]
+	chromedriver!(No symbol) [0xf59465]
+	chromedriver!(No symbol) [0xf58674]
+	chromedriver!(No symbol) [0xf4d80a]
+	chromedriver!(No symbol) [0xf79aac]
+	chromedriver!(No symbol) [0xf4d244]
+	chromedriver!(No symbol) [0xf79c74]
+	chromedriver!(No symbol) [0xf98ff3]
+	chromedriver!(No symbol) [0xf79846]
+	chromedriver!(No symbol) [0xf4be6a]
+	chromedriver!(No symbol) [0xf4cb44]
+	chromedriver!GetHandleVerifier [0x161798a+46ab4a]
+	chromedriver!GetHandleVerifier [0x163946b+48c62b]
+	chromedriver!GetHandleVerifier [0x12d42c2+127482]
+	chromedriver!GetHandleVerifier [0x12dafd3+12e193]
+	chromedriver!(No symbol) [0x10db2b8]
+	chromedriver!(No symbol) [0x10d65e8]
+	chromedriver!(No symbol) [0x10d6795]
+	chromedriver!(No symbol) [0x10c2bd7]
+	KERNEL32!BaseThreadInitThunk [0x760a5d49+19]
+	ntdll!RtlInitializeExceptionChain [0x7763c75b+6b]
+	ntdll!RtlGetAppContainerNamedObjectPath [0x7763c6e1+231]
+) — limpiando cookies/storage
+
+==================================================
+RESUMEN FINAL
+  Agencia   : Izcalli 335
+  Total     : 2
+  Exitosos  : 0
+  Fallidos  : 2
+  Resultados: C:\Users\nayeli.benitez\Documents\GitHub\Providigital_Ventas\data\run_results.json
+==================================================
+
+FAILED
+
+================================== FAILURES ===================================
+____________________ TestLoginProvident.test_login_exitoso ____________________
+
+self = <test_login.TestLoginProvident object at 0x000001F779DB4910>
+driver = <selenium.webdriver.chrome.webdriver.WebDriver (session="2cb94250486a15a8e1af6bf645af7445")>
+
+    @allure.title("Ventas automatizadas — ciclos múltiples")
+    def test_login_exitoso(self, driver):
+        total = Settings.CICLOS
+        resultados = []
+    
+        print(f"\n{'='*50}")
+        print(f"Agencia    : {Settings.AGENCIA_LABEL}")
+        print(f"Método     : {Settings.METODO_ENTREGA}")
+        print(f"Ciclos     : {total}")
+        print(f"{'='*50}\n")
+    
+        for ciclo in range(1, total + 1):
+            print(f"--- Iniciando ciclo {ciclo}/{total} ---")
+    
+            with allure.step(f"Ciclo {ciclo} de {total}"):
+                try:
+                    _ejecutar_venta(driver, ciclo)
+                    resultados.append({
+                        "ciclo": ciclo,
+                        "estado": "exitoso",
+                        "error": None
+                    })
+                    print(f"--- Ciclo {ciclo} EXITOSO ---\n")
+                    Progress.emit(f"Venta CN {ciclo}/{total} finalizada", "ok")
+    
+                except Exception as exc:
+                    resultados.append({
+                        "ciclo": ciclo,
+                        "estado": "fallido",
+                        "error": str(exc)
+                    })
+                    print(f"--- Ciclo {ciclo} FALLIDO: {exc} ---\n")
+                    Progress.emit(
+                        f"Venta CN {ciclo}/{total} FALLÓ: {(str(exc).splitlines() or [''])[0][:120]}",
+                        "error",
+                    )
+                    LoginPage(driver).recuperar_sesion_tras_fallo()
+    
+        # =========================
+        # RESUMEN DE RESULTADOS
+        # =========================
+        exitosos = sum(1 for r in resultados if r["estado"] == "exitoso")
+        fallidos = total - exitosos
+    
+        resumen = {
+            "agencia": Settings.AGENCIA_LABEL,
+            "metodo_entrega": Settings.METODO_ENTREGA,
+            "total": total,
+            "exitosos": exitosos,
+            "fallidos": fallidos,
+            "detalle": resultados
+        }
+    
+        RUN_RESULTS_PATH.parent.mkdir(parents=True, exist_ok=True)
+        RUN_RESULTS_PATH.write_text(
+            json.dumps(resumen, indent=2, ensure_ascii=False),
+            encoding="utf-8"
+        )
+    
+        print(f"\n{'='*50}")
+        print(f"RESUMEN FINAL")
+        print(f"  Agencia   : {Settings.AGENCIA_LABEL}")
+        print(f"  Total     : {total}")
+        print(f"  Exitosos  : {exitosos}")
+        print(f"  Fallidos  : {fallidos}")
+        print(f"  Resultados: {RUN_RESULTS_PATH.resolve()}")
+        print(f"{'='*50}\n")
+    
+>       assert fallidos == 0, (
+            f"{fallidos} de {total} ciclo(s) fallaron. "
+            f"Revisa {RUN_RESULTS_PATH} para más detalles."
+        )
+E       AssertionError: 2 de 2 ciclo(s) fallaron. Revisa data\run_results.json para más detalles.
+E       assert 2 == 0
+
+tests\test_login.py:840: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_login.py::TestLoginProvident::test_login_exitoso - AssertionError: 2 de 2 ciclo(s) fallaron. Revisa data\run_results.json para más detalles.
+assert 2 == 0
+======================== 1 failed in 126.71s (0:02:06) ========================

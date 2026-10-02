@@ -1,0 +1,260 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.7, pytest-8.4.1, pluggy-1.6.0 -- C:\Python313\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\nayeli.benitez\Documents\GitHub\Providigital_Ventas
+configfile: pytest.ini
+plugins: allure-pytest-2.14.2
+collecting ... collected 1 item
+
+tests/test_login.py::TestLoginProvident::test_login_exitoso 
+==================================================
+Agencia    : Izcalli 335
+Método     : BBVA
+Ciclos     : 1
+==================================================
+
+--- Iniciando ciclo 1/1 ---
+Todas las requests frontal: captured_requests_front.json
+Requests Legalario frontal: legalario_requests_front.json
+Requests Legalario frontal: 1
+Base64 frontal guardado en: C:\Users\nayeli.benitez\Documents\GitHub\Providigital_Ventas\debug_base64_front.json
+Fecha nacimiento única asignada: 02/01/1996
+Todas las requests trasera: captured_requests_back.json
+Requests Legalario trasera: legalario_requests_back.json
+Requests Legalario trasera: 1
+Base64 trasera guardado en: C:\Users\nayeli.benitez\Documents\GitHub\Providigital_Ventas\debug_base64_back.json
+Auth token guardado: Sí — base URL: https://sandbox-api.legalario.com
+>>> CÁMARA t=0s: {"videos":[{"rs":4,"w":320,"h":240,"paused":false,"tracks":["live/live"]}],"mensaje":"Mantén esta posición"}
+Facematch completado por el SDK (pantalla 'Proceso exitoso')
+Todas las requests facematch: captured_requests_facematch.json
+Requests Legalario facematch: legalario_requests_facematch.json
+Requests Legalario facematch: 0
+Base64 selfie guardado en: C:\Users\nayeli.benitez\Documents\GitHub\Providigital_Ventas\debug_base64_selfie.json
+>>> DIAG: streams de cámara detenidos
+>>> DIAG: esperando botón Continuar post-facematch (máx 15s)
+>>> DIAG: tomando screenshot post-facematch
+>>> DIAG: URL post-facematch: https://originacion-uat.providigital.com/v1/app/documentpage
+>>> DIAG: intentando click legalarioModalButtonOk
+>>> DIAG: click legalarioModalButtonOk OK
+>>> DIAG: antes click_continuar URL=https://originacion-uat.providigital.com/v1/app/documentpage
+>>> DIAG: después click_continuar URL=https://originacion-uat.providigital.com/v1/app/documentpage
+>>> DIAG: click_continuar prestamo_personal
+>>> DIAG: después click_continuar prestamo URL=https://originacion-uat.providigital.com/v1/app/documentpage
+>>> DIAG: upload_comprobante_domicilio
+>>> DIAG: upload_comprobante_domicilio OK
+>>> DIAG: click_subir_comprobante
+>>> DIAG: click_subir_comprobante OK
+>>> DIAG: click_continuar_modal (comprobante)
+>>> DIAG: click_continuar_modal (comprobante) OK
+>>> DIAG: upload fachada
+>>> DIAG: upload fachada OK
+>>> DIAG: click_subir_fotografia
+>>> DIAG: click_subir_fotografia OK
+>>> DIAG: click_continuar_modal (fotografia)
+>>> DIAG: click_continuar_modal (fotografia) OK
+Click en Acepto OK
+Página Confirmar dirección cargada — URL: https://originacion-uat.providigital.com/v1/app/locationpage
+>>> DIAG: entrando a click_confirmar_direccion
+>>> DIAG: click_confirmar_direccion OK
+OTP Provident capturado: 195992
+Plazo/monto seleccionados: 32 Semanas / $5300
+Seguro Integral — estado actual: con seguro (Acepto), pedido: sin seguro
+Seguro Integral confirmado: sin seguro
+--- Ciclo 1 FALLIDO: Message: 
+Stacktrace:
+	chromedriver!GetHandleVerifier [0x11b1c73+4e33]
+	chromedriver!(No symbol) [0x10cd194]
+	chromedriver!(No symbol) [0xf0c0b0]
+	chromedriver!(No symbol) [0xf57066]
+	chromedriver!(No symbol) [0xf5723b]
+	chromedriver!(No symbol) [0xf9b782]
+	chromedriver!(No symbol) [0xf79af4]
+	chromedriver!(No symbol) [0xf98ff3]
+	chromedriver!(No symbol) [0xf79846]
+	chromedriver!(No symbol) [0xf4be6a]
+	chromedriver!(No symbol) [0xf4cb44]
+	chromedriver!GetHandleVerifier [0x161798a+46ab4a]
+	chromedriver!GetHandleVerifier [0x163946b+48c62b]
+	chromedriver!GetHandleVerifier [0x12d42c2+127482]
+	chromedriver!GetHandleVerifier [0x12dafd3+12e193]
+	chromedriver!(No symbol) [0x10db2b8]
+	chromedriver!(No symbol) [0x10d65e8]
+	chromedriver!(No symbol) [0x10d6795]
+	chromedriver!(No symbol) [0x10c2bd7]
+	KERNEL32!BaseThreadInitThunk [0x760a5d49+19]
+	ntdll!RtlInitializeExceptionChain [0x7763c75b+6b]
+	ntdll!RtlGetAppContainerNamedObjectPath [0x7763c6e1+231]
+ ---
+
+cerrar_sesion: la navegación de salida no terminó en 20s (InvalidSessionIdException)
+cerrar_sesion: sin pantalla de login — limpiando sesión y recargando login
+Recuperación: cerrar_sesion no disponible (Message: invalid session id
+Stacktrace:
+	chromedriver!GetHandleVerifier [0x11b1c73+4e33]
+	chromedriver!(No symbol) [0x10cd194]
+	chromedriver!(No symbol) [0xf0beee]
+	chromedriver!(No symbol) [0xf4b137]
+	chromedriver!(No symbol) [0xf79966]
+	chromedriver!(No symbol) [0xf74c63]
+	chromedriver!(No symbol) [0xf74630]
+	chromedriver!(No symbol) [0xeded01]
+	chromedriver!(No symbol) [0xedf2a3]
+	chromedriver!(No symbol) [0xedf7ed]
+	chromedriver!GetHandleVerifier [0x161798a+46ab4a]
+	chromedriver!GetHandleVerifier [0x163946b+48c62b]
+	chromedriver!GetHandleVerifier [0x12d42c2+127482]
+	chromedriver!GetHandleVerifier [0x12dafd3+12e193]
+	chromedriver!(No symbol) [0x10db2b8]
+	chromedriver!(No symbol) [0xede480]
+	chromedriver!(No symbol) [0xeddb72]
+	chromedriver!GetHandleVerifier [0x1694211+4e73d1]
+	KERNEL32!BaseThreadInitThunk [0x760a5d49+19]
+	ntdll!RtlInitializeExceptionChain [0x7763c75b+6b]
+	ntdll!RtlGetAppContainerNamedObjectPath [0x7763c6e1+231]
+) — limpiando cookies/storage
+Recuperación: no se pudo limpiar storage (Message: invalid session id
+Stacktrace:
+	chromedriver!GetHandleVerifier [0x11b1c73+4e33]
+	chromedriver!(No symbol) [0x10cd194]
+	chromedriver!(No symbol) [0xf0beee]
+	chromedriver!(No symbol) [0xf4b137]
+	chromedriver!(No symbol) [0xf79966]
+	chromedriver!(No symbol) [0xf74c63]
+	chromedriver!(No symbol) [0xf74630]
+	chromedriver!(No symbol) [0xeded01]
+	chromedriver!(No symbol) [0xedf2a3]
+	chromedriver!(No symbol) [0xedf7ed]
+	chromedriver!GetHandleVerifier [0x161798a+46ab4a]
+	chromedriver!GetHandleVerifier [0x163946b+48c62b]
+	chromedriver!GetHandleVerifier [0x12d42c2+127482]
+	chromedriver!GetHandleVerifier [0x12dafd3+12e193]
+	chromedriver!(No symbol) [0x10db2b8]
+	chromedriver!(No symbol) [0xede480]
+	chromedriver!(No symbol) [0xeddb72]
+	chromedriver!GetHandleVerifier [0x1694211+4e73d1]
+	KERNEL32!BaseThreadInitThunk [0x760a5d49+19]
+	ntdll!RtlInitializeExceptionChain [0x7763c75b+6b]
+	ntdll!RtlGetAppContainerNamedObjectPath [0x7763c6e1+231]
+)
+
+==================================================
+RESUMEN FINAL
+  Agencia   : Izcalli 335
+  Total     : 1
+  Exitosos  : 0
+  Fallidos  : 1
+  Resultados: C:\Users\nayeli.benitez\Documents\GitHub\Providigital_Ventas\data\run_results.json
+==================================================
+
+No se pudo tomar screenshot de error: Message: invalid session id
+Stacktrace:
+	chromedriver!GetHandleVerifier [0x11b1c73+4e33]
+	chromedriver!(No symbol) [0x10cd194]
+	chromedriver!(No symbol) [0xf0beee]
+	chromedriver!(No symbol) [0xf4b137]
+	chromedriver!(No symbol) [0xf79966]
+	chromedriver!(No symbol) [0xf74c63]
+	chromedriver!(No symbol) [0xf74630]
+	chromedriver!(No symbol) [0xeded01]
+	chromedriver!(No symbol) [0xedf2a3]
+	chromedriver!(No symbol) [0xedf7ed]
+	chromedriver!GetHandleVerifier [0x161798a+46ab4a]
+	chromedriver!GetHandleVerifier [0x163946b+48c62b]
+	chromedriver!GetHandleVerifier [0x12d42c2+127482]
+	chromedriver!GetHandleVerifier [0x12dafd3+12e193]
+	chromedriver!(No symbol) [0x10db2b8]
+	chromedriver!(No symbol) [0xede480]
+	chromedriver!(No symbol) [0xeddb72]
+	chromedriver!GetHandleVerifier [0x1694211+4e73d1]
+	KERNEL32!BaseThreadInitThunk [0x760a5d49+19]
+	ntdll!RtlInitializeExceptionChain [0x7763c75b+6b]
+	ntdll!RtlGetAppContainerNamedObjectPath [0x7763c6e1+231]
+
+FAILED
+
+================================== FAILURES ===================================
+____________________ TestLoginProvident.test_login_exitoso ____________________
+
+self = <test_login.TestLoginProvident object at 0x000001D99D628910>
+driver = <selenium.webdriver.chrome.webdriver.WebDriver (session="e21c19ab60e4328beb14b5434e426a56")>
+
+    @allure.title("Ventas automatizadas — ciclos múltiples")
+    def test_login_exitoso(self, driver):
+        total = Settings.CICLOS
+        resultados = []
+    
+        print(f"\n{'='*50}")
+        print(f"Agencia    : {Settings.AGENCIA_LABEL}")
+        print(f"Método     : {Settings.METODO_ENTREGA}")
+        print(f"Ciclos     : {total}")
+        print(f"{'='*50}\n")
+    
+        for ciclo in range(1, total + 1):
+            print(f"--- Iniciando ciclo {ciclo}/{total} ---")
+    
+            with allure.step(f"Ciclo {ciclo} de {total}"):
+                try:
+                    _ejecutar_venta(driver, ciclo)
+                    resultados.append({
+                        "ciclo": ciclo,
+                        "estado": "exitoso",
+                        "error": None
+                    })
+                    print(f"--- Ciclo {ciclo} EXITOSO ---\n")
+                    Progress.emit(f"Venta CN {ciclo}/{total} finalizada", "ok")
+    
+                except Exception as exc:
+                    resultados.append({
+                        "ciclo": ciclo,
+                        "estado": "fallido",
+                        "error": str(exc)
+                    })
+                    print(f"--- Ciclo {ciclo} FALLIDO: {exc} ---\n")
+                    Progress.emit(
+                        f"Venta CN {ciclo}/{total} FALLÓ: {(str(exc).splitlines() or [''])[0][:120]}",
+                        "error",
+                    )
+                    LoginPage(driver).recuperar_sesion_tras_fallo()
+    
+        # =========================
+        # RESUMEN DE RESULTADOS
+        # =========================
+        exitosos = sum(1 for r in resultados if r["estado"] == "exitoso")
+        fallidos = total - exitosos
+    
+        resumen = {
+            "agencia": Settings.AGENCIA_LABEL,
+            "metodo_entrega": Settings.METODO_ENTREGA,
+            "total": total,
+            "exitosos": exitosos,
+            "fallidos": fallidos,
+            "detalle": resultados
+        }
+    
+        RUN_RESULTS_PATH.parent.mkdir(parents=True, exist_ok=True)
+        RUN_RESULTS_PATH.write_text(
+            json.dumps(resumen, indent=2, ensure_ascii=False),
+            encoding="utf-8"
+        )
+    
+        print(f"\n{'='*50}")
+        print(f"RESUMEN FINAL")
+        print(f"  Agencia   : {Settings.AGENCIA_LABEL}")
+        print(f"  Total     : {total}")
+        print(f"  Exitosos  : {exitosos}")
+        print(f"  Fallidos  : {fallidos}")
+        print(f"  Resultados: {RUN_RESULTS_PATH.resolve()}")
+        print(f"{'='*50}\n")
+    
+>       assert fallidos == 0, (
+            f"{fallidos} de {total} ciclo(s) fallaron. "
+            f"Revisa {RUN_RESULTS_PATH} para más detalles."
+        )
+E       AssertionError: 1 de 1 ciclo(s) fallaron. Revisa data\run_results.json para más detalles.
+E       assert 1 == 0
+
+tests\test_login.py:840: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_login.py::TestLoginProvident::test_login_exitoso - AssertionError: 1 de 1 ciclo(s) fallaron. Revisa data\run_results.json para más detalles.
+assert 1 == 0
+======================== 1 failed in 356.55s (0:05:56) ========================

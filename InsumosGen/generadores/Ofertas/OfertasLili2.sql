@@ -1,0 +1,471 @@
+INSERT INTO [botDB].[dbo].[Ofertas]
+         ([idOferta]
+         ,[nombreCliente]
+         ,[porcentajeCalidadCliente]
+         ,[montoOferta]
+         ,[tipoDeOferta]
+         ,[telefonoCliente1]
+         ,[telefonoCliente2]
+         ,[direccionCliente]
+         ,[agenciaCliente]
+         ,[seccionCliente]
+         ,[amOferta]
+         ,[branchOferta]
+         ,[idEstatusOferta]
+         ,[EstatusComentario]
+         ,[descOferta]
+         ,[semana]
+         ,[Customer_Id]
+         ,[Agreement_Num]
+         ,[Agreement_Id]
+         ,[Agreement_Db_Id]
+         ,[Agreement_Balance]
+         ,[FechaNacimiento]
+         ,[RFC]
+         ,[Customer_Status_Code]
+         ,[Agreement_Status_Code]
+         ,[DireccionCobranzaCliente]
+         ,[VendidaProvidigital]
+         ,[FechaActualizacion])
+VALUES
+         (26024482
+         ,'Lilia Andrea Soto Ríos'
+         ,80
+         ,6000
+         ,'AD'
+         ,NULL
+         ,NULL
+         ,NULL
+         ,2075000001234
+         ,'C'
+         ,'amOferta'
+         ,2075
+         ,1
+         ,NULL
+         ,'TARIFA MÁX 255 AGREGAR 6000/52 ó 3000/12 D  2'
+         ,202602
+         ,2019000896133
+         ,NULL
+         ,NULL
+         ,NULL
+         ,NULL
+         ,'1994-05-22 00:00:00.000'
+         ,'SORL940522'
+         ,'CC'
+         ,NULL
+         ,NULL
+         ,1
+         ,'2026-02-19');
+
+INSERT INTO [botDB].[dbo].[Ofertas]
+         ([idOferta]
+         ,[nombreCliente]
+         ,[porcentajeCalidadCliente]
+         ,[montoOferta]
+         ,[tipoDeOferta]
+         ,[telefonoCliente1]
+         ,[telefonoCliente2]
+         ,[direccionCliente]
+         ,[agenciaCliente]
+         ,[seccionCliente]
+         ,[amOferta]
+         ,[branchOferta]
+         ,[idEstatusOferta]
+         ,[EstatusComentario]
+         ,[descOferta]
+         ,[semana]
+         ,[Customer_Id]
+         ,[Agreement_Num]
+         ,[Agreement_Id]
+         ,[Agreement_Db_Id]
+         ,[Agreement_Balance]
+         ,[FechaNacimiento]
+         ,[RFC]
+         ,[Customer_Status_Code]
+         ,[Agreement_Status_Code]
+         ,[DireccionCobranzaCliente]
+         ,[VendidaProvidigital]
+         ,[FechaActualizacion])
+VALUES
+         (26024483
+         ,'José Martín Vega Salinas'
+         ,80
+         ,2400
+         ,'AD'
+         ,NULL
+         ,NULL
+         ,NULL
+         ,2075000001234
+         ,'C'
+         ,'amOferta'
+         ,2075
+         ,1
+         ,NULL
+         ,'TARIFA MÁX 315 AGREGAR 2400/12 D  14'
+         ,202602
+         ,2019000705680
+         ,NULL
+         ,NULL
+         ,NULL
+         ,NULL
+         ,'1991-10-09 00:00:00.000'
+         ,'VESJ911009'
+         ,'CC'
+         ,NULL
+         ,NULL
+         ,1
+         ,'2026-02-19');
+
+INSERT INTO [botDB].[dbo].[Ofertas]
+         ([idOferta]
+         ,[nombreCliente]
+         ,[porcentajeCalidadCliente]
+         ,[montoOferta]
+         ,[tipoDeOferta]
+         ,[telefonoCliente1]
+         ,[telefonoCliente2]
+         ,[direccionCliente]
+         ,[agenciaCliente]
+         ,[seccionCliente]
+         ,[amOferta]
+         ,[branchOferta]
+         ,[idEstatusOferta]
+         ,[EstatusComentario]
+         ,[descOferta]
+         ,[semana]
+         ,[Customer_Id]
+         ,[Agreement_Num]
+         ,[Agreement_Id]
+         ,[Agreement_Db_Id]
+         ,[Agreement_Balance]
+         ,[FechaNacimiento]
+         ,[RFC]
+         ,[Customer_Status_Code]
+         ,[Agreement_Status_Code]
+         ,[DireccionCobranzaCliente]
+         ,[VendidaProvidigital]
+         ,[FechaActualizacion])
+VALUES
+         (26024484
+         ,'Karla Itzel Navarro Peña'
+         ,80
+         ,2500
+         ,'AD'
+         ,NULL
+         ,NULL
+         ,NULL
+         ,2075000001234
+         ,'C'
+         ,'amOferta'
+         ,2075
+         ,1
+         ,NULL
+         ,'TARIFA MÁX 317 AGREGAR 2500/12 D  20'
+         ,202602
+         ,2019000601001
+         ,NULL
+         ,NULL
+         ,NULL
+         ,NULL
+         ,'1996-01-17 00:00:00.000'
+         ,'NAPK960117'
+         ,'CC'
+         ,NULL
+         ,NULL
+         ,1
+         ,'2026-02-19');
+
+INSERT INTO [botDB].[dbo].[Ofertas]
+         ([idOferta]
+         ,[nombreCliente]
+         ,[porcentajeCalidadCliente]
+         ,[montoOferta]
+         ,[tipoDeOferta]
+         ,[telefonoCliente1]
+         ,[telefonoCliente2]
+         ,[direccionCliente]
+         ,[agenciaCliente]
+         ,[seccionCliente]
+         ,[amOferta]
+         ,[branchOferta]
+         ,[idEstatusOferta]
+         ,[EstatusComentario]
+         ,[descOferta]
+         ,[semana]
+         ,[Customer_Id]
+         ,[Agreement_Num]
+         ,[Agreement_Id]
+         ,[Agreement_Db_Id]
+         ,[Agreement_Balance]
+         ,[FechaNacimiento]
+         ,[RFC]
+         ,[Customer_Status_Code]
+         ,[Agreement_Status_Code]
+         ,[DireccionCobranzaCliente]
+         ,[VendidaProvidigital]
+         ,[FechaActualizacion])
+VALUES
+         (26024485
+         ,'Ricardo Daniel Campos Ledesma'
+         ,80
+         ,8500
+         ,'AD'
+         ,NULL
+         ,NULL
+         ,NULL
+         ,2075000001234
+         ,'C'
+         ,'amOferta'
+         ,2075
+         ,1
+         ,NULL
+         ,'TARIFA MÁX 354 AGREGAR 8500/52 ó 3000/12 D  11'
+         ,202602
+         ,2019000655552
+         ,NULL
+         ,NULL
+         ,NULL
+         ,NULL
+         ,'1988-03-30 00:00:00.000'
+         ,'CALR880330'
+         ,'CC'
+         ,NULL
+         ,NULL
+         ,1
+         ,'2026-02-19');
+
+INSERT INTO [botDB].[dbo].[Ofertas]
+         ([idOferta]
+         ,[nombreCliente]
+         ,[porcentajeCalidadCliente]
+         ,[montoOferta]
+         ,[tipoDeOferta]
+         ,[telefonoCliente1]
+         ,[telefonoCliente2]
+         ,[direccionCliente]
+         ,[agenciaCliente]
+         ,[seccionCliente]
+         ,[amOferta]
+         ,[branchOferta]
+         ,[idEstatusOferta]
+         ,[EstatusComentario]
+         ,[descOferta]
+         ,[semana]
+         ,[Customer_Id]
+         ,[Agreement_Num]
+         ,[Agreement_Id]
+         ,[Agreement_Db_Id]
+         ,[Agreement_Balance]
+         ,[FechaNacimiento]
+         ,[RFC]
+         ,[Customer_Status_Code]
+         ,[Agreement_Status_Code]
+         ,[DireccionCobranzaCliente]
+         ,[VendidaProvidigital]
+         ,[FechaActualizacion])
+VALUES
+         (26024486
+         ,'Mariana Paola Flores Castañeda'
+         ,80
+         ,8500
+         ,'AD'
+         ,NULL
+         ,NULL
+         ,NULL
+         ,2075000001234
+         ,'C'
+         ,'amOferta'
+         ,2075
+         ,1
+         ,NULL
+         ,'TARIFA MÁX 341 AGREGAR 8500/52 ó 3000/12 D  14'
+         ,202602
+         ,2019001104723
+         ,NULL
+         ,NULL
+         ,NULL
+         ,NULL
+         ,'1993-07-14 00:00:00.000'
+         ,'FOCM930714'
+         ,'CC'
+         ,NULL
+         ,NULL
+         ,1
+         ,'2026-02-19');
+
+INSERT INTO [botDB].[dbo].[Ofertas]
+         ([idOferta]
+         ,[nombreCliente]
+         ,[porcentajeCalidadCliente]
+         ,[montoOferta]
+         ,[tipoDeOferta]
+         ,[telefonoCliente1]
+         ,[telefonoCliente2]
+         ,[direccionCliente]
+         ,[agenciaCliente]
+         ,[seccionCliente]
+         ,[amOferta]
+         ,[branchOferta]
+         ,[idEstatusOferta]
+         ,[EstatusComentario]
+         ,[descOferta]
+         ,[semana]
+         ,[Customer_Id]
+         ,[Agreement_Num]
+         ,[Agreement_Id]
+         ,[Agreement_Db_Id]
+         ,[Agreement_Balance]
+         ,[FechaNacimiento]
+         ,[RFC]
+         ,[Customer_Status_Code]
+         ,[Agreement_Status_Code]
+         ,[DireccionCobranzaCliente]
+         ,[VendidaProvidigital]
+         ,[FechaActualizacion])
+VALUES
+         (26024487
+         ,'Eduardo Javier Torres Muñoz'
+         ,80
+         ,7500
+         ,'AD'
+         ,NULL
+         ,NULL
+         ,NULL
+         ,2075000001234
+         ,'C'
+         ,'amOferta'
+         ,2075
+         ,1
+         ,NULL
+         ,'TARIFA MÁX 303 AGREGAR 7500/52 ó 3000/12 D  10'
+         ,202602
+         ,2019001093067
+         ,NULL
+         ,NULL
+         ,NULL
+         ,NULL
+         ,'1990-11-02 00:00:00.000'
+         ,'TOME901102'
+         ,'CC'
+         ,NULL
+         ,NULL
+         ,1
+         ,'2026-02-19');
+
+INSERT INTO [botDB].[dbo].[Ofertas]
+         ([idOferta]
+         ,[nombreCliente]
+         ,[porcentajeCalidadCliente]
+         ,[montoOferta]
+         ,[tipoDeOferta]
+         ,[telefonoCliente1]
+         ,[telefonoCliente2]
+         ,[direccionCliente]
+         ,[agenciaCliente]
+         ,[seccionCliente]
+         ,[amOferta]
+         ,[branchOferta]
+         ,[idEstatusOferta]
+         ,[EstatusComentario]
+         ,[descOferta]
+         ,[semana]
+         ,[Customer_Id]
+         ,[Agreement_Num]
+         ,[Agreement_Id]
+         ,[Agreement_Db_Id]
+         ,[Agreement_Balance]
+         ,[FechaNacimiento]
+         ,[RFC]
+         ,[Customer_Status_Code]
+         ,[Agreement_Status_Code]
+         ,[DireccionCobranzaCliente]
+         ,[VendidaProvidigital]
+         ,[FechaActualizacion])
+VALUES
+         (26024488
+         ,'Paola Ximena Reyes Luna'
+         ,80
+         ,5500
+         ,'AD'
+         ,NULL
+         ,NULL
+         ,NULL
+         ,2075000001234
+         ,'C'
+         ,'amOferta'
+         ,2075
+         ,1
+         ,NULL
+         ,'TARIFA MÁX 232 AGREGAR 5500/52 ó 3000/12 D  5'
+         ,202602
+         ,2019001004568
+         ,NULL
+         ,NULL
+         ,NULL
+         ,NULL
+         ,'1997-02-26 00:00:00.000'
+         ,'RELP970226'
+         ,'CC'
+         ,NULL
+         ,NULL
+         ,1
+         ,'2026-02-19');
+
+INSERT INTO [botDB].[dbo].[Ofertas]
+         ([idOferta]
+         ,[nombreCliente]
+         ,[porcentajeCalidadCliente]
+         ,[montoOferta]
+         ,[tipoDeOferta]
+         ,[telefonoCliente1]
+         ,[telefonoCliente2]
+         ,[direccionCliente]
+         ,[agenciaCliente]
+         ,[seccionCliente]
+         ,[amOferta]
+         ,[branchOferta]
+         ,[idEstatusOferta]
+         ,[EstatusComentario]
+         ,[descOferta]
+         ,[semana]
+         ,[Customer_Id]
+         ,[Agreement_Num]
+         ,[Agreement_Id]
+         ,[Agreement_Db_Id]
+         ,[Agreement_Balance]
+         ,[FechaNacimiento]
+         ,[RFC]
+         ,[Customer_Status_Code]
+         ,[Agreement_Status_Code]
+         ,[DireccionCobranzaCliente]
+         ,[VendidaProvidigital]
+         ,[FechaActualizacion])
+VALUES
+         (26024489
+         ,'Sergio Armando Rivera Ortiz'
+         ,80
+         ,5000
+         ,'AD'
+         ,NULL
+         ,NULL
+         ,NULL
+         ,2075000001234
+         ,'C'
+         ,'amOferta'
+         ,2075
+         ,1
+         ,NULL
+         ,'TARIFA MÁX 207 AGREGAR 5000/52 ó 3000/12 D  7'
+         ,202602
+         ,2019001228111
+         ,NULL
+         ,NULL
+         ,NULL
+         ,NULL
+         ,'1989-08-19 00:00:00.000'
+         ,'RIOS890819'
+         ,'CC'
+         ,NULL
+         ,NULL
+         ,1
+         ,'2026-02-19');

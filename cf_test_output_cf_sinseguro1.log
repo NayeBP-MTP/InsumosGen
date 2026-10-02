@@ -1,0 +1,89 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.7, pytest-8.4.1, pluggy-1.6.0 -- C:\Python313\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\nayeli.benitez\Documents\GitHub\Providigital_Ventas
+configfile: pytest.ini
+plugins: allure-pytest-2.14.2
+collecting ... collected 1 item
+
+tests/test_login_cf.py::TestLoginProvidentCF::test_login_exitoso_cf 
+==================================================
+Flujo      : Cliente Frecuente (CF)
+Agencia    : Izcalli 335
+Método     : BBVA
+Ciclos     : 1
+==================================================
+
+--- Iniciando ciclo CF 1/1 ---
+Semana de la oferta: 202640 (calculada=202639, máxima en tabla=202640)
+Oferta verificada en BD — idOferta=26090078, estatus=1, agencia=2075000000335, vendida=None
+Oferta insertada — idOferta=26090078, nombreCliente=SILVIA MORENO MORALES
+Plazo/monto seleccionados: 32 Semanas / $15000
+Seguro Integral — estado actual: con seguro (Acepto), pedido: sin seguro
+Seguro Integral confirmado: sin seguro
+DIAG después de click Sí — URL: https://originacion-uat.providigital.com/v1/app/documentpage
+Todas las requests frontal: captured_requests_front.json
+Requests Legalario frontal: legalario_requests_front.json
+Requests Legalario frontal: 1
+Base64 frontal guardado en: C:\Users\nayeli.benitez\Documents\GitHub\Providigital_Ventas\debug_base64_front.json
+Fecha nacimiento única asignada: 22/01/1996
+Todas las requests trasera: captured_requests_back.json
+Requests Legalario trasera: legalario_requests_back.json
+Requests Legalario trasera: 1
+Base64 trasera guardado en: C:\Users\nayeli.benitez\Documents\GitHub\Providigital_Ventas\debug_base64_back.json
+Auth token guardado: Sí — base URL: https://sandbox-api.legalario.com
+>>> CÁMARA t=0s: {"videos":[{"rs":4,"w":320,"h":240,"paused":false,"tracks":["live/live"]}],"mensaje":"Mantén esta posición"}
+Facematch completado por el SDK (pantalla 'Proceso exitoso')
+Todas las requests facematch: captured_requests_facematch.json
+Requests Legalario facematch: legalario_requests_facematch.json
+Requests Legalario facematch: 0
+Base64 selfie guardado en: C:\Users\nayeli.benitez\Documents\GitHub\Providigital_Ventas\debug_base64_selfie.json
+>>> DIAG: streams de cámara detenidos
+>>> DIAG: esperando botón Continuar post-facematch (máx 15s)
+>>> DIAG: tomando screenshot post-facematch
+>>> DIAG: URL post-facematch: https://originacion-uat.providigital.com/v1/app/documentpage
+>>> DIAG: intentando click legalarioModalButtonOk
+>>> DIAG: click legalarioModalButtonOk OK
+>>> DIAG: antes click_continuar URL=https://originacion-uat.providigital.com/v1/app/documentpage
+>>> DIAG: después click_continuar URL=https://originacion-uat.providigital.com/v1/app/documentpage
+>>> DIAG: click_continuar prestamo_personal
+>>> DIAG: después click_continuar prestamo URL=https://originacion-uat.providigital.com/v1/app/documentpage
+>>> DIAG: upload_comprobante_domicilio
+>>> DIAG: upload_comprobante_domicilio OK
+>>> DIAG: click_subir_comprobante
+>>> DIAG: click_subir_comprobante OK
+>>> DIAG: click_continuar_modal (comprobante)
+>>> DIAG: click_continuar_modal (comprobante) OK
+>>> DIAG: upload fachada
+>>> DIAG: upload fachada OK
+>>> DIAG: click_subir_fotografia
+>>> DIAG: click_subir_fotografia OK
+>>> DIAG: click_continuar_modal (fotografia)
+>>> DIAG: click_continuar_modal (fotografia) OK
+Click en Acepto OK
+Consentimiento de geolocalización aceptado (locationpage)
+Página Confirmar dirección cargada — URL: https://originacion-uat.providigital.com/v1/app/locationpage
+>>> DIAG: entrando a click_confirmar_direccion
+>>> DIAG: click_confirmar_direccion OK
+Pantalla de beneficiario no apareció (venta sin seguro: se omite, URL actual: https://originacion-uat.providigital.com/v1/app/legalconsentpage)
+Consentimiento Seguro Integral — estado actual: sin seguro (NO), pedido: sin seguro
+Motivo de rechazo del seguro (1): No conozco los beneficios
+OTP Legalario capturado: 4065
+Modal 'Contrato exitoso' — click Continuar #1
+Botón 'Finalizar' final no apareció en 25s — se continúa a cerrar sesión
+Folio de finalización: None
+--- Ciclo CF 1 EXITOSO ---
+
+
+==================================================
+RESUMEN FINAL CF
+  Agencia   : Izcalli 335
+  Total     : 1
+  Exitosos  : 1
+  Fallidos  : 0
+  Resultados: C:\Users\nayeli.benitez\Documents\GitHub\Providigital_Ventas\data\run_results_cf.json
+==================================================
+
+PASSED
+
+======================== 1 passed in 364.85s (0:06:04) ========================
