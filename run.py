@@ -2,6 +2,7 @@ import json
 import sqlite3
 import subprocess
 import sys
+import threading
 from datetime import datetime
 from pathlib import Path
 
@@ -10,6 +11,33 @@ from ui.results_ui import ResultsUI
 from ui.selector_ui import SelectorUI
 from utils.progress import Progress
 from utils.run_history import RunHistory
+
+
+class RunController:
+    """
+    Permite abortar una ronda en curso desde la UI: guarda el subproceso pytest
+    activo para poder matarlo, y una bandera que `_ejecutar_ronda` revisa entre
+    fases para no arrancar la siguiente.
+    """
+
+    def __init__(self):
+        self.cancel_event = threading.Event()
+        self._process = None
+        self._lock = threading.Lock()
+
+    def set_process(self, proc) -> None:
+        with self._lock:
+            self._process = proc
+
+    def abort(self) -> None:
+        self.cancel_event.set()
+        with self._lock:
+            proc = self._process
+        if proc and proc.poll() is None:
+            try:
+                proc.terminate()
+            except Exception:
+                pass
 
 
 TEST_FILE_BY_TIPO_CLIENTE = {
@@ -80,7 +108,10 @@ def _borrar_ofertas_fallidas(huerfanas: list) -> None:
             Progress.emit(f"No se pudo eliminar la oferta {id_oferta}: {exc}", "error")
 
 
-def _ejecutar_fase(tipo: str, ciclos: int, run_config: dict, ofertas_cfg: list = None) -> int:
+def _ejecutar_fase(
+    tipo: str, ciclos: int, run_config: dict, ofertas_cfg: list = None,
+    controller: RunController = None,
+) -> int:
     # Settings lee run_config.json al importarse (en cada subproceso pytest),
     # por lo que se reescribe con el tipo y los ciclos de la fase actual.
     fase_config = {**run_config, "tipo_cliente": tipo, "ciclos": ciclos}
@@ -104,7 +135,7 @@ def _ejecutar_fase(tipo: str, ciclos: int, run_config: dict, ofertas_cfg: list =
         etiqueta += " sin seguro" if not run_config.get("con_seguro", True) else " con seguro"
     print(f"\n>>> Fase {tipo}: {ciclos} operación(es)")
     Progress.emit(f"{etiqueta}: {ciclos} operación(es)", "fase")
-    result = subprocess.run(
+    proc = subprocess.Popen(
         [
             sys.executable, "-m", "pytest",
             TEST_FILE_BY_TIPO_CLIENTE[tipo],
@@ -113,15 +144,27 @@ def _ejecutar_fase(tipo: str, ciclos: int, run_config: dict, ofertas_cfg: list =
         ],
         cwd=Path(__file__).parent
     )
-    return result.returncode
+    if controller:
+        controller.set_process(proc)
+    returncode = proc.wait()
+    if controller:
+        controller.set_process(None)
+    return returncode
 
 
-def _ejecutar_ronda(slots: dict, run_config: dict, huerfanas: list, ronda: int) -> None:
+def _ejecutar_ronda(
+    slots: dict, run_config: dict, huerfanas: list, ronda: int,
+    controller: RunController = None,
+) -> None:
     """Ejecuta solo las ventas pendientes de cada tipo y actualiza `slots`."""
     # Antes de generar ofertas nuevas, se limpian las de intentos fallidos.
     _borrar_ofertas_fallidas(huerfanas)
 
     for tipo in ORDEN_TIPOS:
+        if controller and controller.cancel_event.is_set():
+            Progress.emit("Ejecución abortada por el usuario.", "error")
+            break
+
         pendientes = [s for s in slots.get(tipo, []) if s["estado"] != "exitosa"]
         if not pendientes:
             continue
@@ -129,9 +172,9 @@ def _ejecutar_ronda(slots: dict, run_config: dict, huerfanas: list, ronda: int) 
         ids_antes = _ids_ofertas_generadas() if tipo == "CF" else set()
         if tipo in ("OF", "AGENCIA"):
             ofertas_cfg = [s["config"] for s in pendientes]
-            _ejecutar_fase(tipo, len(pendientes), run_config, ofertas_cfg=ofertas_cfg)
+            _ejecutar_fase(tipo, len(pendientes), run_config, ofertas_cfg=ofertas_cfg, controller=controller)
         else:
-            _ejecutar_fase(tipo, len(pendientes), run_config)
+            _ejecutar_fase(tipo, len(pendientes), run_config, controller=controller)
         detalle = _leer_resultados(tipo)
 
         if tipo == "CF":
@@ -223,9 +266,12 @@ def main():
         while True:
             ronda += 1
             Progress.reset()
+            controller = RunController()
             ProgressUI(
                 run_config, ronda,
-                lambda: _ejecutar_ronda(slots, run_config, huerfanas, ronda),
+                lambda: _ejecutar_ronda(slots, run_config, huerfanas, ronda, controller=controller),
+                slots=slots,
+                controller=controller,
             ).run()
 
             # Restaura la selección original del usuario (las fases la sobrescriben).
