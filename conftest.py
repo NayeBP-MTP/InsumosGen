@@ -177,6 +177,10 @@ def driver(request, screenshots_dir):
         _CHROMEDRIVER_PIDS.add(service.process.pid)
 
     driver.implicitly_wait(Settings.IMPLICIT_WAIT)
+    # El default de Selenium (~30s) se queda corto para execute_async_script en
+    # force_facematch_request cuando el sandbox de Legalario responde lento (más
+    # aún con varias corridas en paralelo compitiendo por el mismo sandbox/VPN).
+    driver.set_script_timeout(90)
 
     request.node.screenshots_dir = screenshots_dir
     try:

@@ -65,7 +65,13 @@ class OfferRepository:
         self.password = os.environ["BOTDB_PASSWORD"]
         self.driver = os.environ.get("BOTDB_DRIVER", "ODBC Driver 17 for SQL Server")
 
-    def _get_connection(self):
+    def _get_connection(self, intentos: int = 3):
+        """
+        Reintenta la conexión ante errores transitorios ("Named pipe provider: no se
+        pudo abrir...", '08001'/'08S01'): con varias corridas en paralelo abriendo
+        conexiones al mismo tiempo contra la VPN, el primer intento a veces falla
+        aunque el servidor esté disponible.
+        """
         connection_string = (
             f"DRIVER={{{self.driver}}};"
             f"SERVER={self.server};"
@@ -73,7 +79,15 @@ class OfferRepository:
             f"UID={self.user};"
             f"PWD={self.password};"
         )
-        return pyodbc.connect(connection_string)
+        for intento in range(1, intentos + 1):
+            try:
+                return pyodbc.connect(connection_string)
+            except pyodbc.Error as exc:
+                sqlstate = exc.args[0] if exc.args else ""
+                if sqlstate not in ("08001", "08S01") or intento == intentos:
+                    raise
+                print(f"Conexión a botDB falló (intento {intento}/{intentos}, {sqlstate}), reintentando…")
+                time.sleep(2 * intento)
 
     def test_connection(self) -> bool:
         """Verifica que la conexiÃ³n a botDB pueda establecerse. Ãštil para diagnÃ³stico."""

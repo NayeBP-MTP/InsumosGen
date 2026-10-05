@@ -16,7 +16,10 @@ class LegalarioPage:
         "nacimiento_ocr"
     )
 
-    def __init__(self, driver, timeout: int = 15):
+    def __init__(self, driver, timeout: int = 45):
+        # 45s: tras cada foto (frontal/trasera) Legalario tarda en validar antes de
+        # habilitar el botón "OK"; con el default anterior de 15s el ciclo 4 de esta
+        # corrida reventó aquí ("Elemento no clickable: legalarioModalButtonOk").
         self.driver = driver
         self.wait = WebDriverWait(driver, timeout)
 
@@ -81,10 +84,16 @@ class LegalarioPage:
     def extract_base64_from_data_url(self, data_url: str) -> str:
         return data_url.split(",", 1)[1]
     
-    def cambiar_fecha_nacimiento_ocr(self, fecha: str) -> None:
+    def cambiar_fecha_nacimiento_ocr(self, fecha: str, timeout: int = 60) -> None:
+        """
+        timeout=60s: la validación del frente (identify/front) en el sandbox de
+        Legalario a veces tarda mucho más que el resto del flujo; el spinner
+        "Validando el frente de la identificación..." se queda visible hasta que
+        responde, y el input nacimiento_ocr no existe antes de eso.
+        """
         with allure.step(f"Cambiar fecha nacimiento OCR: {fecha}"):
 
-            input_fecha = self.wait.until(
+            input_fecha = WebDriverWait(self.driver, timeout).until(
                 EC.presence_of_element_located(
                     self.INPUT_FECHA_NACIMIENTO_OCR
                 )
