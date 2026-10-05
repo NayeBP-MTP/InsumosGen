@@ -40,6 +40,12 @@ AGENCIAS_SEED = [
     ("Celaya 001",         "2019000000002", "2019000020001", "Agente123$",       "E",
      "Carlos Cortés", "IRAcambaro DM26FF", "2019000010002", "César Coraza",
      "AM2296 Celaya", "2019000010003", "Cirilo Castillo"),
+    # Confirmado por consulta directa a Agency_Representative_AWS: 2075000012345 sí
+    # está vinculado a 2075000001234 (a diferencia de Celaya). Metadata organizacional
+    # tomada del ejemplo documentado en config/Context/usuariosAgencias.md.
+    ("Izcalli 234",         "2075000001234", "2075000012345", "Pr0v1d1g1Tal1*",   "C",
+     "Pablo Enciso", "IzcalliDM62C", "2075000012789", "Katerin Perez",
+     "AM530 Izcalli", "2075000012987", "Yadira gonzalez"),
 ]
 
 METODOS_ENTREGA_SEED = [
