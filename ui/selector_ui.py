@@ -62,6 +62,8 @@ class SelectorUI:
         self.ofertas_rows = []
         self.agencias_rows = []
         self._combos_cache = {}  # branch -> lista de combos DM/AM ya consultados
+        self.cantidad_vars = {"CF": tk.IntVar(value=0), "CN": tk.IntVar(value=0)}
+        self.con_seguro_var = tk.StringVar(value="si")  # "si" / "no"
         self.tomar_capturas_var = tk.BooleanVar(value=False)
         self.navegador_var = tk.StringVar(value="visible")  # "visible" / "headless"
 
