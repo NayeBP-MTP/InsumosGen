@@ -102,10 +102,13 @@ for _sig in ("SIGTERM", "SIGBREAK"):
 
 @pytest.fixture(scope="session")
 def screenshots_dir():
+    # PID en el nombre evita que dos subprocesos pytest lanzados en el mismo
+    # segundo (p. ej. lotes de venta ejecutados uno detrás de otro muy rápido,
+    # o en paralelo a futuro) comparan la misma carpeta de screenshots.
     folder = os.path.join(
         os.getcwd(),
         "screenshots",
-        datetime.now().strftime("run_%Y%m%d_%H%M%S")
+        datetime.now().strftime("run_%Y%m%d_%H%M%S") + f"_{os.getpid()}"
     )
     ensure_dir(folder)
     return folder

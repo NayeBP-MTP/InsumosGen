@@ -19,7 +19,7 @@ from pages.prestamo_personal_page import PrestamoPersonalPage
 from utils.birthdate_allocator import BirthdateAllocator
 
 
-RUN_RESULTS_PATH = Path("data/run_results.json")
+RUN_RESULTS_PATH = Path(Settings.RUN_RESULTS_PATH) if Settings.RUN_RESULTS_PATH else Path("data/run_results.json")
 
 
 def _ejecutar_venta(driver, numero_ciclo: int) -> None:

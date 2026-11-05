@@ -40,7 +40,12 @@ EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 class SelectorUI:
 
-    def __init__(self):
+    def __init__(self, config_path: Path = None):
+        # run.py pasa su propia ruta (por PID) para que dos ventanas de
+        # `python run.py` corriendo a la vez no se pisen el config una a la otra.
+        # Sin ella (uso directo/pruebas), se usa la ruta fija de siempre.
+        self.config_path = config_path or RUN_CONFIG_PATH
+
         self.root = tk.Tk()
         self.root.title("Providigital — Configuración de Ejecución")
         self.root.resizable(False, False)
@@ -50,21 +55,19 @@ class SelectorUI:
         self.agencias = CatalogDB.get_agencias()
         self.metodos = CatalogDB.get_metodos_entrega()
 
-        self.agencia_var = tk.StringVar()
-        self.metodo_var = tk.StringVar()
         self.insumo_var = tk.StringVar()  # código: OF / VENTA
         self.insumo_label_var = tk.StringVar(value=INSUMO_PLACEHOLDER)
 
-        # Oferta: lista de filas independientes (agencia + tipo + nivel por fila,
-        # ver _agregar_fila_oferta). Venta: cantidad por tipo (CF y CN). Agencia:
-        # lista de filas independientes (sucursal + modo por fila, ver
-        # _agregar_fila_agencia) — cada fila crea su propio DM/AM si elige "nuevo".
+        # Oferta y Agencia: lista de filas independientes (ver _agregar_fila_oferta /
+        # _agregar_fila_agencia). Venta: igual patrón — una lista de "lotes", cada uno
+        # con su propia agencia/tipo(CF o CN)/método/seguro/cantidad (ver
+        # _agregar_fila_venta), para poder combinar p. ej. 5 CN en Izcalli + 3 CF en
+        # Tijuana en una sola corrida.
         self.ofertas_rows = []
         self.agencias_rows = []
+        self.ventas_rows = []
         self._combos_cache = {}  # branch -> lista de combos DM/AM ya consultados
-        self.cantidad_vars = {"CF": tk.IntVar(value=0), "CN": tk.IntVar(value=0)}
-        self.con_seguro_var = tk.StringVar(value="si")  # "si" / "no"
-        self.tomar_capturas_var = tk.BooleanVar(value=True)
+        self.tomar_capturas_var = tk.BooleanVar(value=False)
 
         self.user_settings = self._load_user_settings()
         self.celular_var = tk.StringVar(value=self.user_settings.get("celular", DEFAULT_CELULAR))
@@ -75,6 +78,7 @@ class SelectorUI:
         self._build_ui()
         self._agregar_fila_oferta()
         self._agregar_fila_agencia()
+        self._agregar_fila_venta()
         self._lock_window_size()
 
     @staticmethod
@@ -326,78 +330,71 @@ class SelectorUI:
             command=self._agregar_fila_oferta
         ).pack(anchor="w", pady=(8, 10))
 
-        # ── Paso 2b: opciones de Venta ───────────────────────────
+        # ── Paso 2b: opciones de Venta (lista de lotes independientes, cada uno
+        # con su propia agencia/tipo/método/seguro/cantidad — ver _agregar_fila_venta)
         self.panel_venta = tk.Frame(form, bg=BG)
 
         tk.Label(
-            self.panel_venta, text="Ventas a realizar:", font=FONT_LABEL, bg=BG, anchor="w"
-        ).grid(row=0, column=0, sticky="w", pady=(0, 4))
-        cantidades_frame = tk.Frame(self.panel_venta, bg=BG)
-        cantidades_frame.grid(row=1, column=0, sticky="w", pady=(0, 10))
-        for fila, (tipo, texto) in enumerate(
-            [("CF", "Cliente frecuente (CF)"), ("CN", "Cliente nuevo (CN)")]
-        ):
-            tk.Label(
-                cantidades_frame, text=texto, font=FONT_LABEL, bg=BG, width=22, anchor="w"
-            ).grid(row=fila, column=0, sticky="w", pady=2)
-            tk.Button(
-                cantidades_frame, text="−", font=FONT_BTN, width=2, relief="flat", bg="#e0e0e0",
-                command=lambda t=tipo: self._cambiar_cantidad_venta(t, -1)
-            ).grid(row=fila, column=1)
-            tk.Label(
-                cantidades_frame, textvariable=self.cantidad_vars[tipo],
-                font=("Segoe UI", 11, "bold"), bg=BG, width=4
-            ).grid(row=fila, column=2)
-            tk.Button(
-                cantidades_frame, text="+", font=FONT_BTN, width=2, relief="flat", bg="#e0e0e0",
-                command=lambda t=tipo: self._cambiar_cantidad_venta(t, 1)
-            ).grid(row=fila, column=3)
+            self.panel_venta, text="Lotes de venta:", font=FONT_LABEL, bg=BG, anchor="w"
+        ).pack(fill="x", pady=(0, 6))
 
-        tk.Label(self.panel_venta, text="¿Con seguro?", font=FONT_LABEL, bg=BG, anchor="w").grid(
-            row=2, column=0, sticky="w", pady=(0, 4)
-        )
-        seguro_frame = tk.Frame(self.panel_venta, bg=BG)
-        seguro_frame.grid(row=3, column=0, sticky="w", pady=(0, 10))
-        tk.Radiobutton(
-            seguro_frame, text="Con seguro", value="si", variable=self.con_seguro_var,
-            font=FONT_LABEL, bg=BG, activebackground=BG, cursor="hand2"
-        ).pack(side="left", padx=(0, 16))
-        tk.Radiobutton(
-            seguro_frame, text="Sin seguro", value="no", variable=self.con_seguro_var,
-            font=FONT_LABEL, bg=BG, activebackground=BG, cursor="hand2"
-        ).pack(side="left")
+        VENTAS_CANVAS_HEIGHT = 220
+        ventas_scroll_area = tk.Frame(self.panel_venta, bg=BG)
+        ventas_scroll_area.pack(fill="x")
 
-        tk.Label(self.panel_venta, text="Agencia:", font=FONT_LABEL, bg=BG, anchor="w").grid(
-            row=4, column=0, sticky="w", pady=(0, 4)
+        self.ventas_canvas = tk.Canvas(
+            ventas_scroll_area, bg=BG, highlightthickness=0, height=VENTAS_CANVAS_HEIGHT
         )
-        self.agencia_combo_venta = ttk.Combobox(
-            self.panel_venta, textvariable=self.agencia_var,
-            values=[ag["label"] for ag in self.agencias], state="readonly", width=38
+        ventas_scrollbar = ttk.Scrollbar(
+            ventas_scroll_area, orient="vertical", command=self.ventas_canvas.yview
         )
-        self.agencia_combo_venta.grid(row=5, column=0, sticky="ew", pady=(0, 10))
+        self.ventas_canvas.configure(yscrollcommand=ventas_scrollbar.set)
+        self.ventas_canvas.pack(side="left", fill="both", expand=True)
+        ventas_scrollbar.pack(side="right", fill="y")
 
-        tk.Label(self.panel_venta, text="Método de entrega:", font=FONT_LABEL, bg=BG, anchor="w").grid(
-            row=6, column=0, sticky="w", pady=(0, 4)
+        self.ventas_list_frame = tk.Frame(self.ventas_canvas, bg=BG)
+        self._ventas_canvas_window = self.ventas_canvas.create_window(
+            (0, 0), window=self.ventas_list_frame, anchor="nw"
         )
-        self.metodo_combo = ttk.Combobox(
-            self.panel_venta, textvariable=self.metodo_var,
-            values=[m["nombre"] for m in self.metodos], state="readonly", width=38
-        )
-        self.metodo_combo.grid(row=7, column=0, sticky="ew", pady=(0, 10))
 
-        tk.Label(self.panel_venta, text="Número de celular:", font=FONT_LABEL, bg=BG, anchor="w").grid(
-            row=8, column=0, sticky="w", pady=(0, 4)
+        def _actualizar_scrollregion_ventas(_e=None):
+            self.ventas_canvas.configure(scrollregion=self.ventas_canvas.bbox("all"))
+
+        def _ajustar_ancho_interno_ventas(event):
+            self.ventas_canvas.itemconfig(self._ventas_canvas_window, width=event.width)
+
+        self.ventas_list_frame.bind("<Configure>", _actualizar_scrollregion_ventas)
+        self.ventas_canvas.bind("<Configure>", _ajustar_ancho_interno_ventas)
+
+        def _on_mousewheel_ventas(event):
+            self.ventas_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+        self.ventas_canvas.bind("<Enter>", lambda _e: self.ventas_canvas.bind_all("<MouseWheel>", _on_mousewheel_ventas))
+        self.ventas_canvas.bind("<Leave>", lambda _e: self.ventas_canvas.unbind_all("<MouseWheel>"))
+
+        tk.Button(
+            self.panel_venta,
+            text="+ Agregar lote de venta",
+            font=FONT_LABEL,
+            bg="#e0e0e0",
+            relief="flat",
+            cursor="hand2",
+            command=self._agregar_fila_venta
+        ).pack(anchor="w", pady=(8, 10))
+
+        tk.Label(self.panel_venta, text="Número de celular:", font=FONT_LABEL, bg=BG, anchor="w").pack(
+            fill="x", pady=(0, 4)
         )
         tk.Entry(
             self.panel_venta, textvariable=self.celular_var, font=FONT_LABEL, width=40
-        ).grid(row=9, column=0, sticky="ew", pady=(0, 10))
+        ).pack(fill="x", pady=(0, 10))
 
-        tk.Label(self.panel_venta, text="Correo electrónico:", font=FONT_LABEL, bg=BG, anchor="w").grid(
-            row=10, column=0, sticky="w", pady=(0, 4)
+        tk.Label(self.panel_venta, text="Correo electrónico:", font=FONT_LABEL, bg=BG, anchor="w").pack(
+            fill="x", pady=(0, 4)
         )
         tk.Entry(
             self.panel_venta, textvariable=self.correo_var, font=FONT_LABEL, width=40
-        ).grid(row=11, column=0, sticky="ew", pady=(0, 4))
+        ).pack(fill="x", pady=(0, 4))
 
         tk.Checkbutton(
             self.panel_venta,
@@ -407,7 +404,7 @@ class SelectorUI:
             bg=BG,
             activebackground=BG,
             cursor="hand2"
-        ).grid(row=12, column=0, sticky="w", pady=(6, 0))
+        ).pack(anchor="w", pady=(6, 0))
 
         # ── Paso 2c: opciones de Nueva estructura de agencia ──────
         self.panel_agencia = tk.Frame(form, bg=BG)
@@ -480,9 +477,119 @@ class SelectorUI:
         )
         self.confirm_btn.pack()
 
-    def _cambiar_cantidad_venta(self, tipo: str, delta: int):
-        var = self.cantidad_vars[tipo]
-        var.set(max(0, min(50, var.get() + delta)))
+    def _cambiar_cantidad_fila_venta(self, row: dict, delta: int):
+        var = row["cantidad_var"]
+        var.set(max(1, min(50, var.get() + delta)))
+        self._actualizar_texto_boton_venta()
+
+    def _agregar_fila_venta(self):
+        self.ventas_rows.append({
+            "tipo_var": tk.StringVar(value="CN"),
+            "agencia_var": tk.StringVar(),
+            "metodo_var": tk.StringVar(),
+            "seguro_var": tk.StringVar(value="si"),  # "si" / "no"
+            "cantidad_var": tk.IntVar(value=1),
+        })
+        self._renderizar_filas_venta()
+        self._actualizar_texto_boton_venta()
+
+    def _quitar_fila_venta(self, row: dict):
+        if len(self.ventas_rows) <= 1:
+            return
+        self.ventas_rows.remove(row)
+        self._renderizar_filas_venta()
+        self._actualizar_texto_boton_venta()
+
+    def _actualizar_texto_boton_venta(self):
+        """Pluraliza el botón de confirmar cuando el total de ventas pedidas es > 1."""
+        if self.insumo_var.get() != "VENTA":
+            return
+        total = sum(row["cantidad_var"].get() for row in self.ventas_rows)
+        self.confirm_btn.configure(
+            text="▶  Crear Ventas" if total > 1 else "▶  Crear Venta"
+        )
+
+    def _renderizar_filas_venta(self):
+        FONT_LABEL = self._FONT_LABEL
+        FONT_BTN = self._FONT_BTN
+        CARD_BG = "#ffffff"
+        for child in self.ventas_list_frame.winfo_children():
+            child.destroy()
+
+        for idx, row in enumerate(self.ventas_rows, start=1):
+            card = tk.Frame(self.ventas_list_frame, bg=CARD_BG, relief="groove", bd=1)
+            card.pack(fill="x", pady=(0, 10))
+            inner = tk.Frame(card, bg=CARD_BG, padx=12, pady=10)
+            inner.pack(fill="x")
+
+            header = tk.Frame(inner, bg=CARD_BG)
+            header.pack(fill="x", pady=(0, 8))
+            tk.Label(
+                header, text=f"Lote {idx}", font=("Segoe UI", 10, "bold"), bg=CARD_BG
+            ).pack(side="left")
+            if len(self.ventas_rows) > 1:
+                tk.Button(
+                    header, text="✕ Quitar", font=("Segoe UI", 8), bg=CARD_BG, fg="#c62828",
+                    relief="flat", cursor="hand2",
+                    command=lambda r=row: self._quitar_fila_venta(r)
+                ).pack(side="right")
+
+            tk.Label(inner, text="Tipo de cliente:", font=FONT_LABEL, bg=CARD_BG, anchor="w").pack(fill="x")
+            tipo_frame = tk.Frame(inner, bg=CARD_BG)
+            tipo_frame.pack(fill="x", pady=(2, 8))
+            tk.Radiobutton(
+                tipo_frame, text="Cliente nuevo (CN)", value="CN", variable=row["tipo_var"],
+                font=FONT_LABEL, bg=CARD_BG, activebackground=CARD_BG, cursor="hand2"
+            ).pack(side="left", padx=(0, 16))
+            tk.Radiobutton(
+                tipo_frame, text="Cliente frecuente (CF)", value="CF", variable=row["tipo_var"],
+                font=FONT_LABEL, bg=CARD_BG, activebackground=CARD_BG, cursor="hand2"
+            ).pack(side="left")
+
+            tk.Label(inner, text="Agencia:", font=FONT_LABEL, bg=CARD_BG, anchor="w").pack(fill="x")
+            agencia_combo = ttk.Combobox(
+                inner, textvariable=row["agencia_var"],
+                values=[ag["label"] for ag in self.agencias], state="readonly"
+            )
+            agencia_combo.pack(fill="x", pady=(2, 8))
+
+            tk.Label(inner, text="Método de entrega:", font=FONT_LABEL, bg=CARD_BG, anchor="w").pack(fill="x")
+            metodo_combo = ttk.Combobox(
+                inner, textvariable=row["metodo_var"],
+                values=[m["nombre"] for m in self.metodos], state="readonly"
+            )
+            metodo_combo.pack(fill="x", pady=(2, 8))
+
+            tk.Label(inner, text="¿Con seguro?", font=FONT_LABEL, bg=CARD_BG, anchor="w").pack(fill="x")
+            seguro_frame = tk.Frame(inner, bg=CARD_BG)
+            seguro_frame.pack(fill="x", pady=(2, 8))
+            tk.Radiobutton(
+                seguro_frame, text="Con seguro", value="si", variable=row["seguro_var"],
+                font=FONT_LABEL, bg=CARD_BG, activebackground=CARD_BG, cursor="hand2"
+            ).pack(side="left", padx=(0, 16))
+            tk.Radiobutton(
+                seguro_frame, text="Sin seguro", value="no", variable=row["seguro_var"],
+                font=FONT_LABEL, bg=CARD_BG, activebackground=CARD_BG, cursor="hand2"
+            ).pack(side="left")
+
+            tk.Label(inner, text="Cantidad:", font=FONT_LABEL, bg=CARD_BG, anchor="w").pack(fill="x")
+            cantidad_frame = tk.Frame(inner, bg=CARD_BG)
+            cantidad_frame.pack(anchor="w", pady=(2, 0))
+            tk.Button(
+                cantidad_frame, text="−", font=FONT_BTN, width=2, relief="flat", bg="#e0e0e0",
+                command=lambda r=row: self._cambiar_cantidad_fila_venta(r, -1)
+            ).pack(side="left")
+            tk.Label(
+                cantidad_frame, textvariable=row["cantidad_var"],
+                font=("Segoe UI", 11, "bold"), bg=CARD_BG, width=4
+            ).pack(side="left")
+            tk.Button(
+                cantidad_frame, text="+", font=FONT_BTN, width=2, relief="flat", bg="#e0e0e0",
+                command=lambda r=row: self._cambiar_cantidad_fila_venta(r, 1)
+            ).pack(side="left")
+
+        # El Canvas de ventas tiene alto fijo (VENTAS_CANVAS_HEIGHT) y hace scroll
+        # internamente, así que agregar/quitar filas ya no cambia el tamaño de la ventana.
 
     def _agregar_fila_oferta(self):
         self.ofertas_rows.append({
@@ -753,7 +860,7 @@ class SelectorUI:
         else:
             self.step2_title.configure(text="Ventas")
             self.panel_venta.pack(fill="x")
-            self.confirm_btn.configure(text="▶  Crear Venta")
+            self._actualizar_texto_boton_venta()
         self.confirm_btn.configure(state="normal")
         self._center_window(600, self._fixed_height)
 
@@ -903,15 +1010,38 @@ class SelectorUI:
                 agencias_cfg.append(cfg)
             ventas = {"AGENCIA": len(agencias_cfg)}
         else:
-            agencia_label = self.agencia_var.get()
-            if not agencia_label:
-                messagebox.showwarning("Campo requerido", "Debes seleccionar una agencia.")
+            if not self.ventas_rows:
+                messagebox.showwarning("Campo requerido", "Agrega al menos un lote de venta.")
                 return
-            metodo = self.metodo_var.get()
-            if not metodo:
-                messagebox.showwarning("Campo requerido", "Debes seleccionar un método de entrega.")
-                return
-            ventas = {t: v.get() for t, v in self.cantidad_vars.items()}
+            ventas_batches = []
+            for idx, row in enumerate(self.ventas_rows, start=1):
+                agencia_label_fila = row["agencia_var"].get()
+                if not agencia_label_fila:
+                    messagebox.showwarning(
+                        "Campo requerido", f"Selecciona la agencia del lote {idx}."
+                    )
+                    return
+                metodo_fila = row["metodo_var"].get()
+                if not metodo_fila:
+                    messagebox.showwarning(
+                        "Campo requerido", f"Selecciona el método de entrega del lote {idx}."
+                    )
+                    return
+                agencia_data = CatalogDB.get_agencia_by_label(agencia_label_fila)
+                ventas_batches.append({
+                    "id":             f"lote{idx}",
+                    "tipo_cliente":   row["tipo_var"].get(),
+                    "agencia_label":  agencia_label_fila,
+                    "agencia":        agencia_data["agencia"],
+                    "focus_id":       agencia_data["focus_id"],
+                    "password":       agencia_data["password"],
+                    "metodo_entrega": metodo_fila,
+                    "con_seguro":     row["seguro_var"].get() == "si",
+                    "cantidad":       row["cantidad_var"].get(),
+                })
+            ventas = {}
+            for batch in ventas_batches:
+                ventas[batch["tipo_cliente"]] = ventas.get(batch["tipo_cliente"], 0) + batch["cantidad"]
             if sum(ventas.values()) < 1:
                 messagebox.showwarning(
                     "Valor inválido", "Debes indicar al menos 1 venta (CF o CN)."
@@ -929,7 +1059,6 @@ class SelectorUI:
                     "Campo requerido", "Ingresa un correo electrónico válido."
                 )
                 return
-            con_seguro = self.con_seguro_var.get() == "si"
             tomar_capturas = self.tomar_capturas_var.get()
 
         # La ejecución requiere VPN de Provident (portal UAT, botDB y, para AGENCIA,
@@ -967,22 +1096,16 @@ class SelectorUI:
                 "tomar_capturas": False,
             }
         else:
-            agencia_data = CatalogDB.get_agencia_by_label(agencia_label)
             config = {
                 "ventas":         ventas,
-                "agencia_label":  agencia_label,
-                "agencia":        agencia_data["agencia"],
-                "focus_id":       agencia_data["focus_id"],
-                "password":       agencia_data["password"],
-                "metodo_entrega": metodo,
-                "con_seguro":     con_seguro,
+                "ventas_batches": ventas_batches,
                 "celular":        self.celular_var.get(),
                 "correo":         self.correo_var.get(),
-                "tomar_capturas": tomar_capturas
+                "tomar_capturas": tomar_capturas,
             }
 
-        RUN_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-        RUN_CONFIG_PATH.write_text(
+        self.config_path.parent.mkdir(parents=True, exist_ok=True)
+        self.config_path.write_text(
             json.dumps(config, indent=2, ensure_ascii=False),
             encoding="utf-8"
         )

@@ -4,7 +4,11 @@ from pathlib import Path
 
 
 def _load_run_config() -> dict:
-    config_path = Path("data/run_config.json")
+    # run.py puede apuntar cada subproceso pytest a su propio archivo de config
+    # (p. ej. un lote de venta con su propia agencia) vía esta variable de entorno,
+    # en vez de siempre leer data/run_config.json. Si no está definida, se mantiene
+    # el comportamiento de siempre (una sola config global).
+    config_path = Path(os.environ.get("PROVIDIGITAL_RUN_CONFIG_PATH", "data/run_config.json"))
     if config_path.exists():
         return json.loads(config_path.read_text(encoding="utf-8"))
     return {}
@@ -15,6 +19,13 @@ _run_config = _load_run_config()
 
 class Settings:
     BASE_URL = "https://originacion-uat.providigital.com/v1/app/login"
+
+    # Ruta donde ESTE subproceso debe escribir su resultado (run.py la fija por
+    # venta/lote vía PROVIDIGITAL_RUN_RESULTS_PATH cuando aísla ejecuciones
+    # concurrentes). None si no está definida: cada test usa su propio default
+    # (data/run_results[_cf|_of|_agencia].json), como antes de que existieran
+    # los lotes/paralelismo.
+    RUN_RESULTS_PATH = os.environ.get("PROVIDIGITAL_RUN_RESULTS_PATH")
 
     # Credenciales: se sobreescriben desde run_config.json si existe
     ESTRELLA = _run_config.get("focus_id", "2075000343335")
