@@ -12,7 +12,7 @@ from services.agency_repository import (
 from utils.progress import Progress
 
 
-RUN_RESULTS_PATH = Path("data/run_results_agencia.json")
+RUN_RESULTS_PATH = Path(Settings.RUN_RESULTS_PATH) if Settings.RUN_RESULTS_PATH else Path("data/run_results_agencia.json")
 
 
 def _resolver_dm_am(cfg: dict, sucursal: dict, challenger: ChallengerRepository, botdb: BotDbAgencyRepository):

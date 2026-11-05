@@ -9,7 +9,7 @@ from utils.progress import Progress
 from tests.test_login_cf import _insertar_oferta_cf
 
 
-RUN_RESULTS_PATH = Path("data/run_results_of.json")
+RUN_RESULTS_PATH = Path(Settings.RUN_RESULTS_PATH) if Settings.RUN_RESULTS_PATH else Path("data/run_results_of.json")
 
 
 @allure.epic("Provident")

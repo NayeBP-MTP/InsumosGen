@@ -25,7 +25,7 @@ from tests.test_login import (
 )
 
 
-RUN_RESULTS_PATH = Path("data/run_results_cf.json")
+RUN_RESULTS_PATH = Path(Settings.RUN_RESULTS_PATH) if Settings.RUN_RESULTS_PATH else Path("data/run_results_cf.json")
 
 
 # Finabien solo aparece en "Método de entrega" si el monto elegido es menor a esto.
@@ -213,7 +213,7 @@ def _capturar_diagnostico_falla(driver, ciclo: int) -> None:
         print(f"No se pudo capturar diagnóstico: {exc}")
 
 
-def _ejecutar_venta_cf(driver, numero_ciclo: int) -> dict:
+def _ejecutar_venta_cf(driver, numero_ciclo: int, contexto_falla: dict = None) -> dict:
     """
     Flujo completo de venta para Cliente Frecuente (CF).
 
@@ -221,6 +221,12 @@ def _ejecutar_venta_cf(driver, numero_ciclo: int) -> dict:
     identidad Legalario → documentos (+ consentimiento de geolocalización) →
     datos personales (sin OTP Provident) → beneficiario → contrato/firma →
     finalizar venta. Ver ESPECIFICACIONES.md.
+
+    `contexto_falla` (opcional): dict mutable donde se anota el `idOferta` recién
+    insertado en cuanto se conoce, antes de tocar el navegador. Así, si el resto
+    del flujo falla, quien llama puede saber qué oferta quedó huérfana en botDB
+    sin depender de comparar snapshots de la tabla de IDs (que no es seguro
+    cuando hay varias ventas CF corriendo en paralelo).
     """
     login_page = LoginPage(driver)
     interceptor = NetworkInterceptor(driver)
@@ -230,6 +236,8 @@ def _ejecutar_venta_cf(driver, numero_ciclo: int) -> dict:
 
     repo = OfferRepository()
     oferta = _insertar_oferta_cf(repo, numero_ciclo)
+    if contexto_falla is not None:
+        contexto_falla["idOferta"] = oferta.idOferta
 
     # =========================
     # LOGIN Y FLUJO INICIAL (específico de Cliente Frecuente)
@@ -316,8 +324,9 @@ class TestLoginProvidentCF:
             print(f"--- Iniciando ciclo CF {ciclo}/{total} ---")
 
             with allure.step(f"Ciclo CF {ciclo} de {total}"):
+                contexto_falla = {}
                 try:
-                    oferta_info = _ejecutar_venta_cf(driver, ciclo)
+                    oferta_info = _ejecutar_venta_cf(driver, ciclo, contexto_falla=contexto_falla)
                     resultados.append({
                         "ciclo": ciclo,
                         "estado": "exitoso",
@@ -335,7 +344,8 @@ class TestLoginProvidentCF:
                     resultados.append({
                         "ciclo": ciclo,
                         "estado": "fallido",
-                        "error": str(exc)
+                        "error": str(exc),
+                        "idOferta": contexto_falla.get("idOferta"),
                     })
                     print(f"--- Ciclo CF {ciclo} FALLIDO: {exc} ---\n")
                     Progress.emit(

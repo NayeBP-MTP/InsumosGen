@@ -62,7 +62,13 @@ class ProgressUI:
         ).pack(fill="x", padx=20)
         self.title_label = title.winfo_children()[0]
 
-        if config.get("agencia_label"):
+        if config.get("ventas_batches"):
+            agencias = sorted({b["agencia_label"] for b in config["ventas_batches"]})
+            total_lotes = len(config["ventas_batches"])
+            subtitulo = (
+                f"{total_lotes} lote(s) de venta · {', '.join(agencias)}  ·  Ronda {ronda}"
+            )
+        elif config.get("agencia_label"):
             subtitulo = f"{config['agencia_label']}  ·  {config.get('metodo_entrega', '')}  ·  Ronda {ronda}"
         elif config.get("agencias"):
             subtitulo = f"{len(config['agencias'])} agencia(s) nueva(s)  ·  Ronda {ronda}"
@@ -192,10 +198,15 @@ class ProgressUI:
     def _agregar(self, evento: dict):
         nivel = evento.get("nivel", "info")
         msg = evento.get("msg", "")
+        # Con varios lotes/agencias corriendo en paralelo, esta etiqueta dice de
+        # cuál viene el evento (ver PROVIDIGITAL_RUN_TAG en run.py) — sin ella,
+        # "Paso actual" se confundía entre los pasos de ventas distintas.
+        tag = evento.get("worker")
+        tag_prefix = f"[{tag}] " if tag else ""
         if nivel == "fase":
-            self.fase_var.set(msg)
+            self.fase_var.set(f"{tag_prefix}{msg}")
         elif nivel == "info":
-            self.paso_var.set(f"Paso actual: {msg}")
+            self.paso_var.set(f"Paso actual: {tag_prefix}{msg}")
         elif nivel == "error":
             self.hubo_error = True
 
@@ -209,7 +220,7 @@ class ProgressUI:
 
         icono = {"ok": "✔ ", "error": "✖ ", "fase": "▶ "}.get(nivel, "· ")
         self.log.configure(state="normal")
-        self.log.insert("end", f"{evento.get('hora', '')}  {icono}{msg}\n", nivel)
+        self.log.insert("end", f"{evento.get('hora', '')}  {icono}{tag_prefix}{msg}\n", nivel)
         self.log.see("end")
         self.log.configure(state="disabled")
 
