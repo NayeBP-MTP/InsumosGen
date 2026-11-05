@@ -62,9 +62,8 @@ class SelectorUI:
         self.ofertas_rows = []
         self.agencias_rows = []
         self._combos_cache = {}  # branch -> lista de combos DM/AM ya consultados
-        self.cantidad_vars = {"CF": tk.IntVar(value=0), "CN": tk.IntVar(value=0)}
-        self.con_seguro_var = tk.StringVar(value="si")  # "si" / "no"
-        self.tomar_capturas_var = tk.BooleanVar(value=True)
+        self.tomar_capturas_var = tk.BooleanVar(value=False)
+        self.navegador_var = tk.StringVar(value="visible")  # "visible" / "headless"
 
         self.user_settings = self._load_user_settings()
         self.celular_var = tk.StringVar(value=self.user_settings.get("celular", DEFAULT_CELULAR))
@@ -407,7 +406,23 @@ class SelectorUI:
             bg=BG,
             activebackground=BG,
             cursor="hand2"
-        ).grid(row=12, column=0, sticky="w", pady=(6, 0))
+        ).pack(anchor="w", pady=(6, 0))
+
+        tk.Label(
+            self.panel_venta, text="Navegador:", font=FONT_LABEL, bg=BG, anchor="w"
+        ).pack(fill="x", pady=(10, 4))
+        navegador_frame = tk.Frame(self.panel_venta, bg=BG)
+        navegador_frame.pack(fill="x", pady=(0, 4))
+        tk.Radiobutton(
+            navegador_frame, text="Ver el navegador paso a paso", value="visible",
+            variable=self.navegador_var, font=FONT_LABEL, bg=BG, activebackground=BG,
+            cursor="hand2"
+        ).pack(anchor="w")
+        tk.Radiobutton(
+            navegador_frame, text="Ejecutar en segundo plano (sin mostrar el navegador)",
+            value="headless", variable=self.navegador_var, font=FONT_LABEL, bg=BG,
+            activebackground=BG, cursor="hand2"
+        ).pack(anchor="w")
 
         # ── Paso 2c: opciones de Nueva estructura de agencia ──────
         self.panel_agencia = tk.Frame(form, bg=BG)
@@ -978,7 +993,8 @@ class SelectorUI:
                 "con_seguro":     con_seguro,
                 "celular":        self.celular_var.get(),
                 "correo":         self.correo_var.get(),
-                "tomar_capturas": tomar_capturas
+                "tomar_capturas": tomar_capturas,
+                "headless":       self.navegador_var.get() == "headless",
             }
 
         RUN_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)

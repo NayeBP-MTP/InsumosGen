@@ -109,5 +109,8 @@ class Settings:
     # Activar para ejecución desatendida de facematch.
     USE_FAKE_CAMERA = True
 
-    HEADLESS = False
+    # Elegible desde el panel "Venta" de la UI ("Ejecutar sin mostrar el
+    # navegador"). Probado contra UAT: el facematch/OTP con cámara fake funciona
+    # igual en headless — solo cambia que no se ve la ventana de Chrome.
+    HEADLESS = _run_config.get("headless", False)
     IMPLICIT_WAIT = 10

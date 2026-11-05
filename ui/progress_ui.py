@@ -39,6 +39,9 @@ class ProgressUI:
 
         BG = "#f5f5f5"
         ACCENT = "#1565C0"
+        self.ACCENT = ACCENT
+        DISABLED_BG = "#90a4ae"  # gris azulado: distingue "inactivo" sin ocultar el texto
+        self.DISABLED_BG = DISABLED_BG
         self.root = tk.Tk()
         self.root.title("Providigital — Ejecución en curso")
         self.root.configure(bg=BG)
@@ -116,17 +119,26 @@ class ProgressUI:
         # al estar packed después del frame expandible, se podían salir de la vista.
         btns = tk.Frame(self.root, bg=BG, pady=12)
         btns.pack(side="bottom")
+        # fg="white" solo se respeta con el botón habilitado: en estado "disabled" Tk usa
+        # `disabledforeground` (gris apenas visible por defecto) y el texto desaparecía
+        # contra el fondo de color. Se fija disabledforeground="white" para que el texto
+        # siga siendo legible, y el estado "inactivo" se nota por el fondo apagado
+        # (DISABLED_BG) en vez de por un texto invisible.
         self.continuar = tk.Button(
-            btns, text="Ver resultados", font=("Segoe UI", 10, "bold"), bg=ACCENT, fg="white",
+            btns, text="Ver resultados", font=("Segoe UI", 10, "bold"),
+            bg=DISABLED_BG, fg="white", disabledforeground="white",
             activebackground="#0d47a1", activeforeground="white", relief="flat",
             padx=16, pady=8, state="disabled", command=self.root.destroy
         )
         self.continuar.pack(side="left", padx=(0, 10))
 
+        abortar_habilitado = bool(self.controller)
         self.abortar = tk.Button(
-            btns, text="Abortar", font=("Segoe UI", 10, "bold"), bg="#c62828", fg="white",
+            btns, text="Abortar", font=("Segoe UI", 10, "bold"),
+            bg=("#c62828" if abortar_habilitado else DISABLED_BG),
+            fg="white", disabledforeground="white",
             activebackground="#8e0000", activeforeground="white", relief="flat",
-            padx=16, pady=8, state="normal" if self.controller else "disabled",
+            padx=16, pady=8, state="normal" if abortar_habilitado else "disabled",
             command=self._pedir_abortar,
         )
         self.abortar.pack(side="left")
@@ -136,17 +148,23 @@ class ProgressUI:
 
         frame = tk.Frame(self.root, bg=BG)
         frame.pack(fill="both", expand=True, padx=20, pady=10)
+        # Fondo oscuro + colores claros fijados explícitamente (bg, fg del widget y de
+        # cada tag): en algunos entornos Windows (modo oscuro / alto contraste) un fondo
+        # claro con texto oscuro puede terminar invisible porque el sistema reinterpreta
+        # los colores por defecto. Con un esquema oscuro explícito en ambos lados el
+        # contraste queda garantizado sin depender del tema del SO.
         self.log = tk.Text(
-            frame, font=("Consolas", 9), state="disabled", wrap="word", bg="white", relief="flat"
+            frame, font=("Consolas", 9), state="disabled", wrap="word",
+            bg="#1e1e1e", fg="#e0e0e0", insertbackground="#e0e0e0", relief="flat"
         )
         scroll = ttk.Scrollbar(frame, orient="vertical", command=self.log.yview)
         self.log.configure(yscrollcommand=scroll.set)
         self.log.pack(side="left", fill="both", expand=True)
         scroll.pack(side="right", fill="y")
-        self.log.tag_configure("info", foreground="#333")
-        self.log.tag_configure("fase", foreground=ACCENT, font=("Consolas", 9, "bold"))
-        self.log.tag_configure("ok", foreground="#2e7d32", font=("Consolas", 9, "bold"))
-        self.log.tag_configure("error", foreground="#c62828", font=("Consolas", 9, "bold"))
+        self.log.tag_configure("info", foreground="#e0e0e0")
+        self.log.tag_configure("fase", foreground="#64b5f6", font=("Consolas", 9, "bold"))
+        self.log.tag_configure("ok", foreground="#81c784", font=("Consolas", 9, "bold"))
+        self.log.tag_configure("error", foreground="#ef5350", font=("Consolas", 9, "bold"))
 
     def _pedir_abortar(self) -> None:
         if not self.controller or self.abortando:
@@ -160,7 +178,7 @@ class ProgressUI:
         ):
             return
         self.abortando = True
-        self.abortar.configure(state="disabled", text="Abortando…")
+        self.abortar.configure(state="disabled", text="Abortando…", bg=self.DISABLED_BG)
         self.fase_var.set("Abortando…")
         self.controller.abort()
 
@@ -236,8 +254,8 @@ class ProgressUI:
         self.fase_var.set("Finalizado")
         self.paso_var.set("")
         self.root.protocol("WM_DELETE_WINDOW", self.root.destroy)
-        self.abortar.configure(state="disabled")
-        self.continuar.configure(state="normal")
+        self.abortar.configure(state="disabled", bg=self.DISABLED_BG)
+        self.continuar.configure(state="normal", bg=self.ACCENT)
 
     def _run_worker(self):
         try:
