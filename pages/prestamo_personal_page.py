@@ -5,6 +5,7 @@ import time
 import allure
 import os
 
+from selenium.common.exceptions import StaleElementReferenceException, TimeoutException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -305,9 +306,26 @@ class PrestamoPersonalPage:
                     f"No existe el archivo: {file_path}"
                 )
 
-            input_file = WebDriverWait(self.driver, 20).until(
-                EC.presence_of_element_located(self.INPUT_COMPROBANTE_DOMICILIO)
-            )
+            try:
+                input_file = WebDriverWait(self.driver, 40).until(
+                    EC.presence_of_element_located(self.INPUT_COMPROBANTE_DOMICILIO)
+                )
+            except TimeoutException:
+                # Respaldo: cualquier input file de la página. Si tampoco hay, se deja
+                # evidencia (HTML + captura) y se falla con un mensaje que lo explique.
+                candidatos = self.driver.find_elements(By.XPATH, "//input[@type='file']")
+                if not candidatos:
+                    os.makedirs("data", exist_ok=True)
+                    with open("data/diag_comprobante.html", "w", encoding="utf-8") as f:
+                        f.write(self.driver.page_source)
+                    take_step_screenshot(
+                        self.driver, "comprobante_sin_input", force=True
+                    )
+                    raise AssertionError(
+                        "No apareció el input de comprobante de domicilio en 40s "
+                        f"(URL {self.driver.current_url}). HTML en data/diag_comprobante.html"
+                    )
+                input_file = candidatos[0]
 
             take_step_screenshot(
                 self.driver,
@@ -1367,50 +1385,34 @@ class PrestamoPersonalPage:
                     f"OTP Legalario inválido: {otp}"
                 )
 
-            # =========================
-            # ESPERAR INPUT OTP #1
-            # =========================
-            otp_input_1 = WebDriverWait(self.driver, 60).until(
-                EC.element_to_be_clickable(
-                    self.INPUT_OTP_1
-                )
+            # Espera a que aparezca el primer input y a que llegue el response del OTP.
+            WebDriverWait(self.driver, 60).until(
+                EC.element_to_be_clickable(self.INPUT_OTP_1)
             )
-
-            # Espera pequeña para garantizar
-            # que ya llegó el response del OTP
             time.sleep(3)
 
             otp_digits = list(str(otp))
+            inputs_otp = [
+                self.INPUT_OTP_1, self.INPUT_OTP_2, self.INPUT_OTP_3, self.INPUT_OTP_4
+            ]
 
-            otp_input_1.clear()
-            otp_input_1.send_keys(otp_digits[0])
-            time.sleep(1)
-
-            otp_input_2 = WebDriverWait(self.driver, 10).until(
-                EC.element_to_be_clickable(
-                    self.INPUT_OTP_2
-                )
-            )
-            otp_input_2.clear()
-            otp_input_2.send_keys(otp_digits[1])
-            time.sleep(1)
-
-            otp_input_3 = WebDriverWait(self.driver, 10).until(
-                EC.element_to_be_clickable(
-                    self.INPUT_OTP_3
-                )
-            )
-            otp_input_3.clear()
-            otp_input_3.send_keys(otp_digits[2])
-            time.sleep(1)
-
-            otp_input_4 = WebDriverWait(self.driver, 10).until(
-                EC.element_to_be_clickable(
-                    self.INPUT_OTP_4
-                )
-            )
-            otp_input_4.clear()
-            otp_input_4.send_keys(otp_digits[3])
+            # El portal puede re-renderizar los inputs mientras se teclea (stale element):
+            # cada dígito re-localiza su input y, si se pierde, se reintenta todo el OTP.
+            for intento in range(1, 4):
+                try:
+                    for locator, digito in zip(inputs_otp, otp_digits):
+                        campo = WebDriverWait(self.driver, 10).until(
+                            EC.element_to_be_clickable(locator)
+                        )
+                        campo.clear()
+                        campo.send_keys(digito)
+                        time.sleep(1)
+                    break
+                except StaleElementReferenceException:
+                    if intento == 3:
+                        raise
+                    print(f"OTP Legalario: input obsoleto, reintentando ({intento}/3)")
+                    time.sleep(2)
 
             take_step_screenshot(
                 self.driver,
@@ -1507,35 +1509,39 @@ class PrestamoPersonalPage:
                 "legalario_canvas_firma_dibujada"
             )
 
+    def _click_js_reintentando(self, locator, timeout: int, screenshot: str) -> None:
+        """
+        Scroll + click por JS re-localizando el elemento en cada intento: el portal
+        re-renderiza estos botones (Legalario) entre localizarlos y pulsarlos y daba
+        StaleElementReferenceException.
+        """
+        for intento in range(1, 4):
+            try:
+                button = WebDriverWait(self.driver, timeout).until(
+                    EC.presence_of_element_located(locator)
+                )
+                take_step_screenshot(self.driver, screenshot)
+                button = self.driver.find_element(*locator)
+                self.driver.execute_script("arguments[0].scrollIntoView(true);", button)
+                self.driver.execute_script("arguments[0].click();", button)
+                return
+            except StaleElementReferenceException:
+                if intento == 3:
+                    raise
+                print(f"Click {locator}: elemento obsoleto, reintentando ({intento}/3)")
+                time.sleep(1)
+
     def click_firmar_legalario(self) -> None:
         with allure.step("Click en botón Firmar Legalario"):
-
-            button = WebDriverWait(self.driver, 30).until(
-                EC.presence_of_element_located(self.BTN_FIRMAR_LEGALARIO)
+            self._click_js_reintentando(
+                self.BTN_FIRMAR_LEGALARIO, 30, "legalario_click_firmar"
             )
-
-            take_step_screenshot(
-                self.driver,
-                "legalario_click_firmar"
-            )
-
-            self.driver.execute_script("arguments[0].scrollIntoView(true);", button)
-            self.driver.execute_script("arguments[0].click();", button)
 
     def click_finalizar_venta(self) -> None:
         with allure.step("Click en botón Finalizar Venta"):
-
-            button = WebDriverWait(self.driver, 60).until(
-                EC.presence_of_element_located(self.BTN_FINALIZAR_VENTA)
+            self._click_js_reintentando(
+                self.BTN_FINALIZAR_VENTA, 60, "prestamo_personal_finalizar_venta"
             )
-
-            take_step_screenshot(
-                self.driver,
-                "prestamo_personal_finalizar_venta"
-            )
-
-            self.driver.execute_script("arguments[0].scrollIntoView(true);", button)
-            self.driver.execute_script("arguments[0].click();", button)
     
     def click_aceptar(self) -> None:
         with allure.step("Click en botón Aceptar"):

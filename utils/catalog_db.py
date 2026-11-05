@@ -46,6 +46,10 @@ AGENCIAS_SEED = [
     ("Izcalli 234",         "2075000001234", "2075000012345", "Pr0v1d1g1Tal1*",   "C",
      "Pablo Enciso", "IzcalliDM62C", "2075000012789", "Katerin Perez",
      "AM530 Izcalli", "2075000012987", "Yadira gonzalez"),
+    ("Izcalli 333",         "2075000000333", "2075020343333", "Agente123$",       "E",
+     None, None, None, None, None, None, None),
+    ("Tijuana 113",         "2093000000113", "2093020082562", "Agente123$",       "E",
+     None, None, None, None, None, None, None),
 ]
 
 METODOS_ENTREGA_SEED = [

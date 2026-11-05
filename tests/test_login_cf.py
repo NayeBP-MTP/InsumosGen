@@ -14,6 +14,7 @@ from utils.offer_id_allocator import OfferIdAllocator
 from utils.birthdate_allocator import BirthdateAllocator
 from utils.catalog_db import CatalogDB
 from utils.mexican_names import MexicanNames
+from utils.allure_utils import take_step_screenshot
 from utils.progress import Progress
 
 from pages.legalario_page import LegalarioPage
@@ -27,12 +28,22 @@ from tests.test_login import (
 RUN_RESULTS_PATH = Path("data/run_results_cf.json")
 
 
+# Finabien solo aparece en "Método de entrega" si el monto elegido es menor a esto.
+MONTO_MAXIMO_FINABIEN = 10000
+
 def _limite_monto_agencia(agencia_label: str):
-    """Límite EXCLUSIVO de monto CF para la agencia (p. ej. Tijuana: < 10,000), o None."""
-    for prefijo, tope in Settings.MONTO_MAXIMO_CF_POR_AGENCIA.items():
-        if agencia_label.startswith(prefijo):
-            return tope
-    return None
+    """
+    Límite EXCLUSIVO del monto a elegir en CF: el de la agencia (p. ej. Tijuana: < 10,000)
+    y, con método de entrega Finabien, < 10,000 (el portal solo muestra Finabien con
+    montos menores; ver Context.md). Devuelve el más restrictivo, o None.
+    """
+    topes = [
+        tope for prefijo, tope in Settings.MONTO_MAXIMO_CF_POR_AGENCIA.items()
+        if agencia_label.startswith(prefijo)
+    ]
+    if Settings.METODO_ENTREGA == "Finabien":
+        topes.append(MONTO_MAXIMO_FINABIEN)
+    return min(topes) if topes else None
 
 
 def _monto_para_agencia(agencia_label: str) -> int:
@@ -332,6 +343,12 @@ class TestLoginProvidentCF:
                         "error",
                     )
                     _capturar_diagnostico_falla(driver, ciclo)
+                    # Evidencia del estado real en el momento del fallo, antes de que la
+                    # recuperación de sesión navegue al login.
+                    try:
+                        take_step_screenshot(driver, "fallo_en_ciclo", force=True)
+                    except Exception:
+                        pass
                     LoginPage(driver).recuperar_sesion_tras_fallo()
 
         exitosos = sum(1 for r in resultados if r["estado"] == "exitoso")

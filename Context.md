@@ -90,7 +90,8 @@ Código compartido en `tests/test_login.py`: `_flujo_metodo_entrega`, `_flujo_id
 | CF con BBVA | ✅ (corrida del 23/09 13:01) |
 | CF con HSBC | ✅ (ciclo completo del 23/09) |
 | CF con Efectivo / Cheque | ⬜ sin probar |
-| CF con Finabien | 🟡 llegó hasta el contrato (16:22); falló en "Enviar SMS" (§5), corregido; falta corrida completa |
+| CF con Finabien | ✅ ciclo completo del 03/11 (Izcalli 335, monto $9,900, folio capturado). Con monto ≥ 10,000 el botón no aparece: el test elige monto < 10,000 si el método es Finabien |
+| CN con BBVA / HSBC / Finabien | ✅ corridas del 03/11 (Izcalli 335) |
 | Ciclos múltiples (≥2) | ⬜ sin corrida exitosa con el código final |
 | Regla de Tijuana (monto < 10,000 en pantalla "Oferta") | ✅ implementada · ⬜ falta corrida end-to-end que la confirme |
 
@@ -131,7 +132,7 @@ Nota: un menú hamburguesa abierto en una captura de falla normalmente es la rec
 
 ## 8. Pendientes
 
-- [ ] Completar una corrida **Finabien** hasta "Finalizar Venta" (el modal de oficina postal ya funcionó en CF con Puebla).
+- [x] Completar una corrida **Finabien** hasta "Finalizar Venta" (hecha el 03/11 en CN y CF, Izcalli 335).
 - [ ] Verificar los nombres de estado/ciudad de la oficina postal para Tijuana y para el resto de agencias (§3).
 - [ ] Probar **Efectivo** y **Cheque** en CF.
 - [ ] Corrida de **2 o más ciclos** consecutivos sin intervención.
@@ -156,3 +157,14 @@ Nota: un menú hamburguesa abierto en una captura de falla normalmente es la rec
 | `utils/generate_fake_camera_video.py` | Genera `data/selfie.y4m` |
 | `conftest.py` | Driver, cierre garantizado de Chrome |
 | `config/settings.py` | Configuración; lee `data/run_config.json` (incluye `monto` y topes) |
+
+## 9. Cámara fake y facematch de Legalario (observado el 03/11/2026)
+
+- El facematch lo debe completar **el SDK** con la cámara fake. El fallback `force_facematch_request` **no sirve**: Legalario/Rekognition lo rechaza siempre con 400 `CompareFaces InvalidParameterException` (envía la INE completa como `front`, un JPEG etiquetado como mp4 y no lleva `organization_id`/`requested_by`; la request real del SDK trae un recorte de cara de ~37 KB y un video webm real).
+- **No usar un video de cara fija** (`HOLD_ONLY=True` en `utils/generate_fake_camera_video.py`, probado con 0.58 y 0.68): el SDK se queda en "Ajusta tu cara dentro del óvalo" y nunca valida, incluso donde el video original pasaba. El SDK necesita ver el acercamiento progresivo (cara pequeña → grande).
+- Chrome comparte un solo dispositivo fake durante la sesión y el video se repite cada 30 s, así que la fase en que arranca el facematch es arbitraria. Con el video original la tasa de éxito observada fue ~2/3; los fallos restantes siguen sin causa confirmada.
+- Modos de fallo vistos: (a) "Inicializando la cámara" colgado con el stream `ended` (causa probable: pulsar "Comenzar a grabar" antes de que termine la inicialización; corregido esperando a que desaparezca el overlay), (b) SDK en "Ajusta tu cara" sin completar, (c) SDK sin mensaje tras detectar. El diagnóstico `>>> CÁMARA t=…` en consola y la captura `facematch_atascado_30s` ayudan a distinguirlos.
+- Finabien solo aparece con monto < 10,000: en CF el test ya elige un monto menor cuando el método es Finabien.
+- Con `run.py` en paralelo (CN 334 + CF 335) fallaron ambas. El fallo de facematch de la CN se reproduce también en secuencial, así que ese no se debe al paralelismo. El de la CF (OTP de Legalario con 3 clicks en "Enviar SMS" y luego `legalarioButtonDocumentAccept` no clickable) **no se reprodujo en secuencial pero tampoco se repitió en paralelo**: causa sin determinar.
+- **OTP de Legalario ("Enviar SMS").** El SMS puede tardar más de 25 s. Volver a pulsar "Enviar SMS" genera un código nuevo e invalida el anterior: el 03/11 se tecleó un código expirado (pantalla con campos vacíos y "El código expirará en: 00:00") y `legalarioButtonDocumentAccept` nunca fue clickable. El test solo re-pulsa si no salió ninguna request `/sdk/invites/send-code` (a los 10 s); si salió, espera hasta 90 s los inputs (`OTP_ESPERA_INPUTS`, `OTP_CLICK_PERDIDO_TRAS` en `tests/test_login.py`). Una corrida CF/HSBC pasó con esto; falta más muestra.
+- **Video fake de 12 s** (`DURATION_SECONDS=12` en `utils/generate_fake_camera_video.py`; respaldo del de 30 s en `data/selfie_phased.y4m`): 3 de 3 CN y 1 CF sin fallos de cámara, frente a ~2/3 con el de 30 s. Muestra pequeña: no es una mejora demostrada.
