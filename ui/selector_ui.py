@@ -408,13 +408,13 @@ class SelectorUI:
             bg=BG,
             activebackground=BG,
             cursor="hand2"
-        ).pack(anchor="w", pady=(6, 0))
+        ).grid(row=12, column=0, sticky="w", pady=(6, 0))
 
         tk.Label(
             self.panel_venta, text="Navegador:", font=FONT_LABEL, bg=BG, anchor="w"
-        ).pack(fill="x", pady=(10, 4))
+        ).grid(row=13, column=0, sticky="w", pady=(10, 4))
         navegador_frame = tk.Frame(self.panel_venta, bg=BG)
-        navegador_frame.pack(fill="x", pady=(0, 4))
+        navegador_frame.grid(row=14, column=0, sticky="w", pady=(0, 4))
         tk.Radiobutton(
             navegador_frame, text="Ver el navegador paso a paso", value="visible",
             variable=self.navegador_var, font=FONT_LABEL, bg=BG, activebackground=BG,
