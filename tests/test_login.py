@@ -19,7 +19,53 @@ from pages.prestamo_personal_page import PrestamoPersonalPage
 from utils.birthdate_allocator import BirthdateAllocator
 
 
+# Facematch forzado (fallback cuando el SDK no lo completa solo): intentos y pausa entre ellos.
+# Espera al facematch automático del SDK. La cámara fake a veces tarda ~30s en dar
+# stream vivo; el fallback forzado no es fiable (Rekognition lo rechaza con 400).
+FACEMATCH_ESPERA_SDK = 120
+FACEMATCH_KICK_CAMARA_TRAS = 15
+
+# "Enviar SMS" (OTP Legalario): espera máxima de los inputs tras cada click y a los cuántos
+# segundos sin inputs (y sin request send-code) se considera perdido el click. El SMS de
+# Legalario llegó a tardar 33-67s: con un umbral corto se re-pulsaba y cada click genera
+# un código nuevo que invalida el anterior.
+OTP_ESPERA_INPUTS = 90
+OTP_CLICK_PERDIDO_TRAS = 60
+FACEMATCH_CORTE_SIN_CAMARA = 45
+FACEMATCH_REINTENTOS = 3
+FACEMATCH_ESPERA_REINTENTO = 3
+
+# Foto INE (frontal/trasera): espera máxima de la request del SDK y a los cuántos
+# segundos sin request se vuelve a pulsar "Tomar Foto" (cámara aún no lista / click perdido).
+FOTO_ESPERA_REQUEST = 40
+FOTO_REINTENTO_CLICK_TRAS = 15
+
 RUN_RESULTS_PATH = Path(Settings.RUN_RESULTS_PATH) if Settings.RUN_RESULTS_PATH else Path("data/run_results.json")
+
+
+def _esperar_request_foto(interceptor, legalario_page, endpoint: str) -> list:
+    """
+    Espera a que el SDK de Legalario envíe la request de la foto (`endpoint`). En vez
+    de un sleep fijo, hace polling hasta FOTO_ESPERA_REQUEST segundos y, si pasados
+    FOTO_REINTENTO_CLICK_TRAS no hay request, vuelve a pulsar "Tomar Foto" una vez.
+    Devuelve las requests encontradas (lista vacía si no llegó ninguna).
+    """
+    inicio = time.time()
+    reintento_hecho = False
+    while time.time() - inicio < FOTO_ESPERA_REQUEST:
+        requests_foto = interceptor.get_legalario_requests_by_endpoint(endpoint)
+        if requests_foto:
+            return requests_foto
+        if not reintento_hecho and time.time() - inicio >= FOTO_REINTENTO_CLICK_TRAS:
+            reintento_hecho = True
+            print(f"Sin request '{endpoint}' tras {FOTO_REINTENTO_CLICK_TRAS}s — reintentando 'Tomar Foto'")
+            Progress.emit("Sin respuesta del SDK, reintentando 'Tomar Foto'", "info")
+            try:
+                legalario_page.click_tomar_foto()
+            except Exception as exc:
+                print(f"No se pudo reintentar 'Tomar Foto': {exc}")
+        time.sleep(1)
+    return interceptor.get_legalario_requests_by_endpoint(endpoint)
 
 
 def _ejecutar_venta(driver, numero_ciclo: int) -> None:
