@@ -136,6 +136,15 @@ def driver(request, screenshots_dir):
     chrome_options.add_argument("--use-fake-ui-for-media-stream")
     chrome_options.add_argument("--enable-geolocation")
 
+    # Evita que Chrome reduzca la prioridad de esta ventana cuando otra la tapa o está
+    # en segundo plano (la corrida se hace en un escritorio en uso): el SDK de Legalario
+    # detecta el rostro en JS y, throttleado, la cámara fake tardaba en inicializar o el
+    # SDK no validaba la cara a tiempo.
+    chrome_options.add_argument("--disable-renderer-backgrounding")
+    chrome_options.add_argument("--disable-background-timer-throttling")
+    chrome_options.add_argument("--disable-backgrounding-occluded-windows")
+    chrome_options.add_argument("--disable-features=CalculateNativeWinOcclusion")
+
     # Estabilidad WebRTC con cámara fake en Windows
     # NOTA: NO usar --disable-gpu en Windows con display real, causa crashes
     chrome_options.add_argument("--no-sandbox")

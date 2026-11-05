@@ -147,15 +147,23 @@ class NetworkInterceptor:
                     );
                 }
 
-                window.__capturedRequests.push({
+                const capturedEntry = {
                     transport: "fetch",
                     url: requestUrl,
                     method: options?.method || "GET",
                     headers: headersObj,
                     body: options?.body || null
-                });
+                };
+                window.__capturedRequests.push(capturedEntry);
 
                 const response = await originalFetch.apply(this, [url, options]);
+
+                capturedEntry.status = response.status;
+                try {
+                    response.clone().text().then(function(t) {
+                        capturedEntry.responseText = t.slice(0, 500);
+                    }).catch(function() {});
+                } catch (e) {}
 
                 captureOtpResponse(requestUrl, response);
 
@@ -201,6 +209,14 @@ class NetworkInterceptor:
 
                     this.__requestData.body = body;
                     window.__capturedRequests.push(this.__requestData);
+
+                    const xhrEntry = this.__requestData;
+                    this.addEventListener("loadend", function() {
+                        xhrEntry.status = this.status;
+                        try {
+                            xhrEntry.responseText = String(this.responseText).slice(0, 500);
+                        } catch (e) {}
+                    });
 
                     if (isSendConfirmationSms(this.__requestData.url)) {
                         this.addEventListener("load", function() {

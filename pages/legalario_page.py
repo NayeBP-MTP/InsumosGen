@@ -59,13 +59,36 @@ class LegalarioPage:
         take_step_screenshot(self.driver, "legalario_antes_tomar_foto")
         button.click()
 
-    def click_comenzar_grabar(self) -> None:
-        """Click en el botón 'Comenzar a grabar' que aparece antes del facematch."""
+    def click_comenzar_grabar(self, timeout_camara: int = 60) -> None:
+        """
+        Click en 'Comenzar a grabar' (pantalla previa al facematch), solo cuando la
+        cámara terminó de inicializar. Pulsarlo mientras el SDK muestra "Inicializando
+        la cámara…" se perdía (o estorbaba la inicialización) y la cámara fake se
+        quedaba sin stream. Si el SDK avanza solo, el botón ya no está visible y no
+        se pulsa nada.
+        """
         import time as _time
+        inicializando = (
+            By.XPATH,
+            "//*[contains(normalize-space(text()),'Inicializando la cámara')]",
+        )
+        fin = _time.time() + timeout_camara
+        while _time.time() < fin:
+            if not any(e.is_displayed() for e in self.driver.find_elements(*inicializando)):
+                break
+            _time.sleep(1)
+        else:
+            print(f"'Inicializando la cámara…' sigue visible tras {timeout_camara}s")
+
         try:
-            button = WebDriverWait(self.driver, 15).until(
-                EC.presence_of_element_located(self.BTN_COMENZAR_GRABAR)
-            )
+            botones = [
+                b for b in self.driver.find_elements(*self.BTN_COMENZAR_GRABAR)
+                if b.is_displayed() and b.is_enabled()
+            ]
+            if not botones:
+                print("Botón 'Comenzar a grabar' no visible/habilitado — el SDK avanzó solo")
+                return
+            button = botones[0]
             take_step_screenshot(self.driver, "legalario_comenzar_grabar")
             self.driver.execute_script("arguments[0].scrollIntoView(true);", button)
             _time.sleep(0.3)
