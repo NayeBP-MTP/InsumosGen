@@ -1,13 +1,9 @@
-import os
 import time
 from dataclasses import dataclass, fields
 from datetime import datetime
 from typing import Optional
 
-import pyodbc
-from dotenv import load_dotenv
-
-load_dotenv()
+from services.db import SqlServerRepository
 
 
 @dataclass
@@ -52,48 +48,15 @@ class OfferData:
             self.FechaActualizacion = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
 
 
-class OfferRepository:
+class OfferRepository(SqlServerRepository):
     """
     Acceso a la tabla botDB.dbo.Ofertas usada por el flujo de Cliente Frecuente.
-    La cadena de conexiÃ³n se lee de variables de entorno (.env), nunca hardcodeada.
+    La conexión (host Pesos_Offer, base botDB) la resuelve SqlServerRepository con las
+    variables PESOS_OFFER_* del .env; nunca se hardcodea.
     """
 
-    def __init__(self):
-        self.server = os.environ["BOTDB_SERVER"]
-        self.database = os.environ["BOTDB_DATABASE"]
-        self.user = os.environ["BOTDB_USER"]
-        self.password = os.environ["BOTDB_PASSWORD"]
-        self.driver = os.environ.get("BOTDB_DRIVER", "ODBC Driver 17 for SQL Server")
-
-    def _get_connection(self, intentos: int = 3):
-        """
-        Reintenta la conexión ante errores transitorios ("Named pipe provider: no se
-        pudo abrir...", '08001'/'08S01'): con varias corridas en paralelo abriendo
-        conexiones al mismo tiempo contra la VPN, el primer intento a veces falla
-        aunque el servidor esté disponible.
-        """
-        connection_string = (
-            f"DRIVER={{{self.driver}}};"
-            f"SERVER={self.server};"
-            f"DATABASE={self.database};"
-            f"UID={self.user};"
-            f"PWD={self.password};"
-        )
-        for intento in range(1, intentos + 1):
-            try:
-                return pyodbc.connect(connection_string)
-            except pyodbc.Error as exc:
-                sqlstate = exc.args[0] if exc.args else ""
-                if sqlstate not in ("08001", "08S01") or intento == intentos:
-                    raise
-                print(f"Conexión a botDB falló (intento {intento}/{intentos}, {sqlstate}), reintentando…")
-                time.sleep(2 * intento)
-
-    def test_connection(self) -> bool:
-        """Verifica que la conexiÃ³n a botDB pueda establecerse. Ãštil para diagnÃ³stico."""
-        with self._get_connection() as conn:
-            conn.execute("SELECT 1").fetchone()
-        return True
+    def __init__(self, dry_run: bool = False):
+        super().__init__("botDB", dry_run=dry_run)
 
     def insert_offer(self, offer: OfferData) -> None:
         """Inserta una fila en dbo.Ofertas a partir de un OfferData."""
@@ -104,11 +67,7 @@ class OfferRepository:
         placeholders_sql = ", ".join("?" for _ in columns)
 
         query = f"INSERT INTO [dbo].[Ofertas] ({columns_sql}) VALUES ({placeholders_sql})"
-
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(query, values)
-            conn.commit()
+        self._escribir(query, values)
 
     def offer_exists(self, id_oferta: int) -> bool:
         """Comprueba si ya existe una oferta con ese idOferta (para evitar duplicados)."""
@@ -184,10 +143,7 @@ class OfferRepository:
 
     def delete_offer(self, id_oferta: int) -> None:
         """Elimina una oferta por idOferta. Uso previsto: limpieza de datos de prueba."""
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM [dbo].[Ofertas] WHERE [idOferta] = ?", (id_oferta,))
-            conn.commit()
+        self._escribir("DELETE FROM [dbo].[Ofertas] WHERE [idOferta] = ?", (id_oferta,))
 
 
 if __name__ == "__main__":

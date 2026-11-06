@@ -11,8 +11,8 @@ Cada paso tiene tres casillas:
 - **Review** — la persona que revisa dio el visto bueno.
 
 Reglas de trabajo: **los commits y PRs no llevan atribución a Claude Code** (ni `Co-Authored-By`
-ni "Generated with Claude Code"; ver `CLAUDE.md`, "Convenciones de git"); un commit por paso
-(mensaje con el número de paso); ningún paso rompe lo ya
+ni "Generated with Claude Code"; ver `CLAUDE.md`, "Convenciones de git"); **los mensajes de
+commit van en inglés**; un commit por paso (mensaje con el número de paso); ningún paso rompe lo ya
 existente (ventas CN/CF, ofertas y agencia siguen funcionando); las pruebas contra UAT se indican
 en cada paso y requieren VPN.
 
@@ -39,14 +39,24 @@ en cada paso y requieren VPN.
 - **Hecho:** `config/databases.py`, `services/db.py` (`SqlServerRepository`, `credenciales_de_host`,
   reintentos, `_escribir` con `dry_run`) y `tests/test_databases.py` (18 pruebas, sin red:
   `python -m pytest tests/test_databases.py`). Aún nada usa la clase base (eso es el 1.2 y 1.3).
-- [x] Impl. · [x] Verif. · [ ] Review
+- [x] Impl. · [x] Verif. · [x] Review
 
 ### 1.2 Migrar `OfferRepository`
 - **Qué:** `services/offer_repository.py` hereda de la clase base y usa `PESOS_OFFER_*` (base
   `botDB`). Sin cambios de comportamiento.
 - **Verificación:** `python -m services.offer_repository` conecta; `tests/test_oferta.py` inserta y
   verifica una oferta (UAT).
-- [ ] Impl. · [ ] Verif. · [ ] Review
+- **Hecho:** `OfferRepository` hereda de `SqlServerRepository` (base `botDB`, host `PESOS_OFFER`);
+  se quitaron su `__init__` con `BOTDB_*`, `_get_connection` y `test_connection` propios;
+  `insert_offer` y `delete_offer` pasan por `_escribir` (ahora soportan `dry_run`). API pública
+  sin cambios (`OfferRepository()` sigue funcionando). Pruebas: `tests/test_offer_repository.py`.
+- **Verificado:** 21 pruebas unitarias; `python -m services.offer_repository` conecta a UAT;
+  `get_max_semana()` = 202645; `tests/test_oferta.py` con una oferta real (config temporal fuera
+  de `data/`) insertó y verificó `idOferta=26110019`, que se borró después con `delete_offer`
+  (comprobado que ya no existe).
+- **Aviso:** `agency_repository.py` (clase que usa `BOTDB_*`), `vpn_check.py` y el `.env` actual
+  (sin `BOTDB_*`) hacen que el chequeo de VPN de `run.py` y el flujo de agencia fallen hasta el 1.3.
+- [x] Impl. · [x] Verif. · [ ] Review
 
 ### 1.3 Migrar `ChallengerRepository` y `utils/vpn_check.py`
 - **Qué:** `services/agency_repository.py` y `utils/vpn_check.py` usan la clase base y los nombres
