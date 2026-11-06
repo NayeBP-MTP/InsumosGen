@@ -237,3 +237,20 @@ Métodos disponibles en el portal: **BBVA**, **HSBC**, **Finabien**, **Efectivo*
   la sesión del lado del cliente (cookies + storage).
 - **Requisito de red:** `botDB` solo es accesible con red/VPN corporativa (`BOTDB_SERVER:1433`).
   Sin acceso, el ciclo CF falla en el insert antes de abrir el navegador.
+
+## 7. Insumo "cliente para la Mobile App" (clientes creados tras una venta)
+
+Diseño completo y módulos en `config/Context/crearClientesFC/CREAR_CLIENTES.md`. Reglas de negocio:
+
+- **Tipo de cliente en CNFS:** `Customer_Table.Customer_Status_Code` = `CC` para un CF y `AA` para
+  un CN.
+- **Número de cliente de un CN** (`ExpedienteCliente.Cliente`, 13 dígitos):
+  `AA + MM + DD + colaborador (2) + 02 (UAT) + consecutivo (3)`. En un CN recién vendido `Cliente`
+  está en `0`; en un CF ya viene con valor.
+- **CN: registro por QA.** QA registra al usuario en la Mobile App con `numeroContrato` y fecha de
+  nacimiento, **antes** de que exista el número de cliente; por eso el contrato se da de alta con
+  `Customer_Id = 0` y el número se asigna después.
+- **Dispersado:** `ExpedienteCliente.IdPaso = 22`.
+- **Montos del contrato:** dependen de si la venta fue con o sin seguro (columnas `*Seguro` de
+  `ExpedienteOferta`).
+

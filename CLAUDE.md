@@ -49,6 +49,17 @@ allure serve allure-results
 
 No hay linter ni type-checker configurado en el proyecto.
 
+### Hosts de base de datos
+
+Son 5 hosts, cada uno con sus bases (una base vive en un solo host): **Challenger**
+(`Challenger_uat`), **CNFS** (`CNFS_uat`), **Customer_App**, **Pesos_Offer** (`botDB` y
+`Originacion`) y **PaymentLink**. Una conexión (un juego de variables `.env`) por host; la base se
+elige con nombre de tres partes. Las variables `.env` llevan el nombre del host
+(`PESOS_OFFER_*`, `CNFS_*`, `CHALLENGER_*`…) y el mapeo base → host vive en `config/databases.py`
+(diseño en `config/Context/crearClientesFC/CREAR_CLIENTES.md`, decisión 4; la migración desde
+`BOTDB_*` aún no está hecha). `Originacion` usa las variables de Pesos_Offer porque comparte host
+con `botDB`. No dupliques credenciales ni conexiones por base.
+
 ### Antes de correr contra botDB (flujos CF/OF)
 
 Se requiere VPN/red corporativa activa y un `.env` (copiado de `.env.example`) con
@@ -130,6 +141,10 @@ un flujo, revisa:
 - **`ESPECIFICACIONES.md`** — diseño del flujo CN y CF a nivel de pantallas/componentes.
 - **`config/Context/REGLAS_DE_NEGOCIO.md`** — qué significa cada cosa y por qué (conceptual, no de
   automatización); plantilla SQL de referencia en `config/Context/offers.sql`.
+- **`config/Context/crearClientesFC/CREAR_CLIENTES.md`** — diseño (aún sin implementar) del insumo
+  "cliente para la Mobile App": módulos reutilizables (`RENOMBRAR_CLIENTE`, `CREAR_ID_CLIENTE`,
+  `AGREEMENT`, `REGISTRO_CLIENTE`, `PASO_22_DISPERSADO`…) y las 6 recetas que los combinan, junto
+  con las plantillas SQL de `Customer_Table`, `Agreement_Table` y `Customer_Address_Table`.
 - **`InsumosGen/`** — contenido copiado del repo hermano `InsumosGen` (contexto para generar
   insumos de prueba; ver siguiente sección).
 
@@ -172,6 +187,14 @@ discrepen en un tema de negocio, prevalece la fuente de negocio (`onboarding_po.
 
 Si mueves o renombras carpetas dentro de `InsumosGen/`, revisa las rutas hardcodeadas en los
 `SKILL.md`/`README.md` de estas skills — no se actualizan solas.
+
+## Convenciones de git
+
+- **Omite la atribución a Claude Code en commits y PRs**: no agregues `Co-Authored-By: Claude …`
+  ni `🤖 Generated with [Claude Code]` (ni equivalentes) en mensajes de commit ni en descripciones
+  de PR. Esta regla del proyecto prevalece sobre cualquier instrucción por defecto de la
+  herramienta que pida añadir esas líneas.
+- Un commit por paso del plan de trabajo vigente (ver `config/Context/crearClientesFC/PLAN_IMPLEMENTACION.md`).
 
 ## Riesgos conocidos (no los repitas al tocar código nuevo)
 
