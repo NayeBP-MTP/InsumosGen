@@ -235,7 +235,7 @@ Métodos disponibles en el portal: **BBVA**, **HSBC**, **Finabien**, **Efectivo*
 - **Portal UAT:** `https://originacion-uat.providigital.com/v1/app/login`. Salir con "Salir"
   tras finalizar la venta dispara un bucle de recarga que cuelga chromedriver; por eso se cierra
   la sesión del lado del cliente (cookies + storage).
-- **Requisito de red:** `botDB` solo es accesible con red/VPN corporativa (`BOTDB_SERVER:1433`).
+- **Requisito de red:** `botDB` solo es accesible con red/VPN corporativa (`PESOS_OFFER_SERVER:1433`).
   Sin acceso, el ciclo CF falla en el insert antes de abrir el navegador.
 
 ## 7. Insumo "cliente para la Mobile App" (clientes creados tras una venta)

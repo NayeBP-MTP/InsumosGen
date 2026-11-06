@@ -56,15 +56,17 @@ Son 5 hosts, cada uno con sus bases (una base vive en un solo host): **Challenge
 `Originacion`) y **PaymentLink**. Una conexión (un juego de variables `.env`) por host; la base se
 elige con nombre de tres partes. Las variables `.env` llevan el nombre del host
 (`PESOS_OFFER_*`, `CNFS_*`, `CHALLENGER_*`…) y el mapeo base → host vive en `config/databases.py`
-(diseño en `config/Context/crearClientesFC/CREAR_CLIENTES.md`, decisión 4; la migración desde
-`BOTDB_*` aún no está hecha). `Originacion` usa las variables de Pesos_Offer porque comparte host
-con `botDB`. No dupliques credenciales ni conexiones por base.
+(diseño en `config/Context/crearClientesFC/CREAR_CLIENTES.md`, decisión 4). Los repositorios
+heredan de `services/db.py` (`SqlServerRepository`), que se construye con el nombre de la **base**
+y resuelve el host y las credenciales. `Originacion` usa las variables de Pesos_Offer porque
+comparte host con `botDB`. No dupliques credenciales ni conexiones por base.
 
 ### Antes de correr contra botDB (flujos CF/OF)
 
 Se requiere VPN/red corporativa activa y un `.env` (copiado de `.env.example`) con
-`BOTDB_SERVER`, `BOTDB_DATABASE`, `BOTDB_USER`, `BOTDB_PASSWORD`, `BOTDB_DRIVER`. `utils/vpn_check.py`
-verifica alcanzabilidad del portal UAT y del SQL Server antes de correr; `run.py` la invoca desde la UI.
+`PESOS_OFFER_SERVER`, `PESOS_OFFER_USER`, `PESOS_OFFER_PASSWORD`, `PESOS_OFFER_DRIVER` (host de
+`botDB`; el flujo de agencia también usa `CHALLENGER_*`). `utils/vpn_check.py` verifica
+alcanzabilidad del portal UAT y del SQL Server antes de correr; `run.py` la invoca desde la UI.
 
 ## Arquitectura
 

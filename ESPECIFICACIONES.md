@@ -360,13 +360,14 @@ inserta el registro en `dbo.Ofertas` **antes de abrir el navegador** (se ejecuta
 
 #### Conexión a base de datos
 - Dependencia: `pyodbc`. Credenciales y cadena de conexión **vía variables de entorno** (no hardcodear ni commitear):
-  - `BOTDB_SERVER`
-  - `BOTDB_DATABASE` (`botDB`)
-  - `BOTDB_USER`
-  - `BOTDB_PASSWORD`
-  - Opcional: `BOTDB_DRIVER` (default `ODBC Driver 17 for SQL Server`)
+  - `PESOS_OFFER_SERVER`
+  - `PESOS_OFFER_USER`
+  - `PESOS_OFFER_PASSWORD`
+  - Opcional: `PESOS_OFFER_DRIVER` (default `ODBC Driver 17 for SQL Server`)
+  - Las variables llevan el nombre del **host** (Pesos_Offer, que aloja `botDB` y `Originacion`),
+    no el de la base; la base (`botDB`) y su host se mapean en `config/databases.py`.
 - Se cargan con `python-dotenv` desde `.env` (ignorado por git; plantilla en `.env.example`).
-- Módulo: `services/offer_repository.py`.
+- Módulo: `services/offer_repository.py` (sobre `services/db.py`, clase base común de conexión).
 
 #### Construcción de la oferta
 `_construir_oferta_cf(numero_ciclo)` en `tests/test_login_cf.py`:
@@ -498,7 +499,7 @@ Si un ciclo falla, `LoginPage.recuperar_sesion_tras_fallo()` intenta cerrar sesi
 `services/offer_repository.py`:
 
 - **`OfferData`** (`dataclass`): representa una fila de `dbo.Ofertas`, con los campos fijos/`NULL` ya con su valor por defecto, y `FechaActualizacion` autogenerado en `__post_init__` si no se provee.
-- **`OfferRepository`**: lee `BOTDB_*` desde variables de entorno vía `python-dotenv`.
+- **`OfferRepository`**: hereda de `SqlServerRepository` (base `botDB`, host Pesos_Offer; lee `PESOS_OFFER_*` del `.env`).
   - `test_connection()`: valida la conexión (`SELECT 1`).
   - `insert_offer(offer: OfferData)`: construye el `INSERT` dinámicamente a partir de los campos del dataclass y ejecuta con parámetros (`?`) — nunca por interpolación de strings, para evitar inyección SQL.
   - `offer_exists(id_oferta)`: chequeo de duplicados antes de insertar.

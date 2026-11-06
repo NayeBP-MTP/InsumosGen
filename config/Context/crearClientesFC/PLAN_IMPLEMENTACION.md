@@ -85,8 +85,18 @@ en cada paso y requieren VPN.
 ### 1.4 `.env.example` y referencias documentales
 - **Qué:** `.env.example` con los nombres por host (sin `*_DATABASE`); actualizar las menciones de
   `BOTDB_*` en `CLAUDE.md`, `Context.md`, `ESPECIFICACIONES.md` y `REGLAS_DE_NEGOCIO.md`.
-- **Verificación:** `grep -rn "BOTDB_" .` no devuelve nada fuera de `InsumosGen/`/historial git.
-- [ ] Impl. · [ ] Verif. · [ ] Review
+- **Verificación:** `grep -rn "BOTDB_" .` no devuelve nada fuera de `InsumosGen/`, del historial git
+  y de los documentos de `crearClientesFC/` (que lo citan solo para describir el renombrado).
+- **Hecho:**
+  - `.env.example`: nombres por host desde `59a5ea7` (sin `*_DATABASE`); ahora incluye **los 5
+    hosts** (Customer_App y PaymentLink dejaron de ir comentados). Las variables de los 3 hosts en
+    uso coinciden con las del `.env` real (solo cambia el orden de los bloques).
+  - Referencias a `BOTDB_*` actualizadas a `PESOS_OFFER_*` en `CLAUDE.md` (hosts, `services/db.py`
+    y "Antes de correr contra botDB"), `ESPECIFICACIONES.md` (conexión y `OfferRepository`),
+    `Context.md` y `REGLAS_DE_NEGOCIO.md`.
+- **Verificado:** el `grep` de arriba no devuelve nada fuera de las exclusiones; tampoco quedan
+  `*_DATABASE` en el código ni en los documentos.
+- [x] Impl. · [x] Verif. · [x] Review
 
 ### 1.5 Sacar los flujos de venta de `tests/`
 - **Qué:** mover los flujos compartidos (`_flujo_metodo_entrega`, `_flujo_identidad_a_otp`,
