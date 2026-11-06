@@ -1,10 +1,11 @@
 import json
 import math
 import re
+import subprocess
 import sys
 import tkinter as tk
 from pathlib import Path
-from tkinter import messagebox, ttk
+from tkinter import filedialog, messagebox, ttk
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -22,6 +23,7 @@ from utils.vpn_check import verificar_vpn
 from utils.paths import app_data_dir
 
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 RUN_CONFIG_PATH = app_data_dir() / "run_config.json"
 ENV_LEGADO = Path(__file__).resolve().parents[1] / ".env"
 INSUMOS = [
@@ -43,7 +45,20 @@ INSUMO_PLACEHOLDER = "Selecciona una opción"
 USER_SETTINGS_PATH = app_data_dir() / "user_settings.json"
 DEFAULT_CELULAR = "5513096751"
 DEFAULT_CORREO = "luis.andrade@mtpinternational.mx"
-EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+EMAIL_REGEX = re.compile(
+    r"^[A-Za-z0-9]+([._%+-][A-Za-z0-9]+)*"       # parte local: sin puntos al borde ni dobles
+    r"@([A-Za-z0-9]+(-[A-Za-z0-9]+)*\.)+[A-Za-z]{2,}$"  # dominio con TLD de 2+ letras
+)
+
+
+def correo_valido(correo: str) -> bool:
+    """Checks básicos: sin espacios, un solo @, parte local/dominio bien formados y longitudes."""
+    local, _, _dominio = correo.partition("@")
+    return len(correo) <= 254 and len(local) <= 64 and bool(EMAIL_REGEX.match(correo))
+NOMBRE_INE_REGEX = re.compile(r"^[A-ZÁÉÍÓÚÜÑ]+( [A-ZÁÉÍÓÚÜÑ]+)*$")
+COLABORADOR_REGEX = re.compile(r"^[0-9]{2}$")
+CELULAR_REGEX = re.compile(r"^[0-9]{10}$")
+AJUSTES_INCOMPLETOS_TEXTO = "Completa los ajustes de usuario para continuar"
 
 
 class SelectorUI:
@@ -82,6 +97,9 @@ class SelectorUI:
         self.user_settings = self._load_user_settings()
         self.celular_var = tk.StringVar(value=self.user_settings.get("celular", DEFAULT_CELULAR))
         self.correo_var = tk.StringVar(value=self.user_settings.get("correo", DEFAULT_CORREO))
+        # Sin valor por defecto: el usuario debe capturarlos antes de poder operar.
+        self.nombre_ine_var = tk.StringVar(value=self.user_settings.get("nombre_ine", ""))
+        self.colaborador_var = tk.StringVar(value=self.user_settings.get("numero_colaborador", ""))
 
         self.confirmed = False
 
@@ -91,6 +109,71 @@ class SelectorUI:
         self._agregar_fila_agencia()
         self._agregar_fila_venta()
         self._lock_window_size()
+        self._actualizar_gate_ajustes()
+        # Si faltan ajustes, abre el diálogo de una vez (tras mostrar la ventana).
+        if not self._ajustes_completos()[0]:
+            self.root.after(300, self._open_settings_dialog)
+
+    @staticmethod
+    def _estado_archivos() -> list:
+        """Checks obligatorios de archivos: [(etiqueta, ok, detalle)]."""
+        selfie = Path(Settings.LEGALARIO_SELFIE_IMAGE_PATH)
+        frente = Path(Settings.LEGALARIO_FRONT_IMAGE_PATH)
+        trasera = Path(Settings.LEGALARIO_BACK_IMAGE_PATH)
+        video = Path(Settings.LEGALARIO_SELFIE_VIDEO_PATH)
+
+        selfie_ok = selfie.is_file() and selfie.stat().st_size > 0
+        ine_ok = all(p.is_file() and p.stat().st_size > 0 for p in (frente, trasera))
+        video_ok = (
+            video.is_file() and video.stat().st_size > 0
+            and selfie_ok and video.stat().st_mtime >= selfie.stat().st_mtime
+        )
+        if video_ok:
+            video_detalle = ""
+        elif not video.is_file():
+            video_detalle = "Falta generarlo: python utils/generate_fake_camera_video.py"
+        elif not selfie_ok:
+            video_detalle = "Requiere primero la foto de frente"
+        else:
+            video_detalle = "Es anterior a la foto de frente; vuelve a generarlo"
+        return [
+            ("Foto de frente cargada (data/selfie.jpeg)", selfie_ok,
+             "" if selfie_ok else "Falta data/selfie.jpeg"),
+            ("Foto INE frontal y trasera cargadas", ine_ok,
+             "" if ine_ok else "Faltan data/ine_frente.jpeg y/o data/ine_tras.jpeg"),
+            ("Video generado a partir de la foto de frente", video_ok, video_detalle),
+        ]
+
+    def _ajustes_completos(self) -> tuple:
+        """(ok, motivos) — todos los ajustes de usuario deben estar llenos y válidos."""
+        motivos = []
+        celular = self.celular_var.get().strip()
+        if not CELULAR_REGEX.match(celular):
+            motivos.append("Número de celular")
+        if not correo_valido(self.correo_var.get().strip()):
+            motivos.append("Correo electrónico")
+        if not NOMBRE_INE_REGEX.match(self.nombre_ine_var.get().strip()):
+            motivos.append("Nombre como aparece en la INE")
+        if not COLABORADOR_REGEX.match(self.colaborador_var.get().strip()):
+            motivos.append("Número de colaborador")
+        motivos += [etiqueta for etiqueta, ok, _ in self._estado_archivos() if not ok]
+        return not motivos, motivos
+
+    def _actualizar_gate_ajustes(self):
+        """Bloquea la elección de insumo mientras los ajustes no estén completos."""
+        ok, motivos = self._ajustes_completos()
+        if ok:
+            self.ajustes_aviso.pack_forget()
+            self.insumo_combo.configure(state="readonly")
+            return
+        self.ajustes_aviso.configure(
+            text="⚠ Completa los ajustes de usuario (⚙) para continuar.\nPendiente: "
+                 + ", ".join(motivos)
+        )
+        self.ajustes_aviso.pack(fill="x", pady=(0, 8), before=self.insumo_combo)
+        self.insumo_combo.configure(state="disabled")
+        if self.insumo_var.get():
+            self._volver_al_menu()
 
     @staticmethod
     def _load_user_settings() -> dict:
@@ -308,6 +391,10 @@ class SelectorUI:
             values=[texto for _, texto in INSUMOS], state="readonly", width=40
         )
         self.insumo_combo.pack(fill="x", pady=(0, 12))
+        self.ajustes_aviso = tk.Label(
+            self.step1_frame, text="", font=("Segoe UI", 9), bg=BG, fg="#c62828",
+            wraplength=480, justify="left", anchor="w"
+        )
         self.insumo_combo.bind("<<ComboboxSelected>>", lambda _e: self._on_insumo_changed())
 
         # ── Paso 2a: opciones de Oferta (lista de filas independientes) ──
@@ -915,7 +1002,11 @@ class SelectorUI:
 
         self.insumo_var.set("")
         self.insumo_label_var.set(INSUMO_PLACEHOLDER)
-        self.confirm_btn.configure(text="Elige un insumo para continuar", state="disabled")
+        self.confirm_btn.configure(
+            text="Elige un insumo para continuar"
+            if self._ajustes_completos()[0] else AJUSTES_INCOMPLETOS_TEXTO,
+            state="disabled"
+        )
 
         self.title_label.pack(fill="x")
         self.step1_frame.pack(fill="x")
@@ -935,7 +1026,7 @@ class SelectorUI:
         dialog.transient(self.root)
         dialog.grab_set()
 
-        width, height = 380, 300
+        width, height = 440, 720
         self.root.update_idletasks()
         x = self.root.winfo_x() + (self.root.winfo_width() - width) // 2
         y = self.root.winfo_y() + (self.root.winfo_height() - height) // 2
@@ -963,29 +1054,170 @@ class SelectorUI:
 
         correo_entry = tk.Entry(form, font=FONT_LABEL, width=25)
         correo_entry.insert(0, self.correo_var.get())
-        correo_entry.pack(fill="x", pady=(4, 4))
+        correo_entry.pack(fill="x", pady=(4, 10))
+
+        tk.Label(
+            form, text="Nombre como aparece en la INE (MAYÚSCULAS):", font=FONT_LABEL, bg=BG,
+            anchor="w"
+        ).pack(fill="x")
+
+        nombre_var = tk.StringVar(value=self.nombre_ine_var.get())
+        # Fuerza mayúsculas mientras se escribe.
+        nombre_var.trace_add("write", lambda *_: nombre_var.set(nombre_var.get().upper())
+                             if nombre_var.get() != nombre_var.get().upper() else None)
+        nombre_entry = tk.Entry(form, font=FONT_LABEL, width=25, textvariable=nombre_var)
+        nombre_entry.pack(fill="x", pady=(4, 10))
+
+        tk.Label(
+            form, text="Número de colaborador (2 dígitos):", font=FONT_LABEL, bg=BG, anchor="w"
+        ).pack(fill="x")
+
+        colaborador_entry = tk.Entry(form, font=FONT_LABEL, width=25)
+        colaborador_entry.insert(0, self.colaborador_var.get())
+        colaborador_entry.pack(fill="x", pady=(4, 10))
+
+        tk.Label(
+            form, text="Checks obligatorios:", font=FONT_LABEL, bg=BG, anchor="w"
+        ).pack(fill="x")
+        checks_frame = tk.Frame(form, bg=BG)
+        checks_frame.pack(fill="x", pady=(4, 0))
+
+        def _subir(destino: str, titulo: str):
+            ruta = filedialog.askopenfilename(
+                parent=dialog, title=titulo,
+                filetypes=[("Imágenes", "*.jpg *.jpeg *.png"), ("Todos", "*.*")]
+            )
+            if not ruta:
+                return
+            try:
+                from PIL import Image
+                Path(destino).parent.mkdir(parents=True, exist_ok=True)
+                with Image.open(ruta) as img:
+                    img.convert("RGB").save(destino, "JPEG", quality=95)
+            except Exception as exc:
+                error_label.config(text=f"No se pudo cargar la imagen: {exc}")
+                return
+            error_label.config(text="")
+            _refrescar_checks()
+
+        gen = {"proc": None}
+
+        def _generar_video():
+            if gen["proc"] is not None:
+                return
+            error_label.config(text="")
+            flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            gen["proc"] = subprocess.Popen(
+                [sys.executable, str(PROJECT_ROOT / "utils" / "generate_fake_camera_video.py")],
+                cwd=PROJECT_ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, creationflags=flags
+            )
+            _refrescar_checks()
+            dialog.after(300, _esperar_video)
+
+        def _esperar_video():
+            proc = gen["proc"]
+            if proc is None or not dialog.winfo_exists():
+                return
+            if proc.poll() is None:
+                dialog.after(300, _esperar_video)
+                return
+            salida = proc.stdout.read() or ""
+            gen["proc"] = None
+            if proc.returncode != 0:
+                error_label.config(
+                    text="No se pudo generar el video: " + (salida.strip().splitlines() or ["error"])[-1]
+                )
+            _refrescar_checks()
+
+        def _boton(parent, texto, comando, habilitado=True):
+            tk.Button(
+                parent, text=texto, font=("Segoe UI", 8), relief="flat", bg="#e3f2fd",
+                command=comando, state="normal" if habilitado else "disabled"
+            ).pack(side="left", padx=(0, 6))
+
+        def _refrescar_checks():
+            for child in checks_frame.winfo_children():
+                child.destroy()
+            estado = self._estado_archivos()
+            selfie_ok, video_ok = estado[0][1], estado[2][1]
+            generando = gen["proc"] is not None
+            for i, (etiqueta, ok, detalle) in enumerate(estado):
+                tk.Label(
+                    checks_frame, text=("✔ " if ok else "✘ ") + etiqueta,
+                    font=("Segoe UI", 9), bg=BG, fg="#2e7d32" if ok else "#c62828",
+                    anchor="w", wraplength=350, justify="left"
+                ).pack(fill="x")
+                if detalle:
+                    tk.Label(
+                        checks_frame, text=detalle, font=("Segoe UI", 8), bg=BG, fg="#757575",
+                        anchor="w", wraplength=350, justify="left", padx=14
+                    ).pack(fill="x")
+                fila = tk.Frame(checks_frame, bg=BG, padx=14)
+                fila.pack(fill="x", pady=(0, 4))
+                if i == 0:
+                    _boton(fila, "Subir foto de frente…", lambda: _subir(
+                        Settings.LEGALARIO_SELFIE_IMAGE_PATH, "Foto de frente (selfie)"))
+                elif i == 1:
+                    _boton(fila, "Subir INE frontal…", lambda: _subir(
+                        Settings.LEGALARIO_FRONT_IMAGE_PATH, "INE frontal"))
+                    _boton(fila, "Subir INE trasera…", lambda: _subir(
+                        Settings.LEGALARIO_BACK_IMAGE_PATH, "INE trasera"))
+                else:
+                    if generando:
+                        texto = "Generando video…"
+                    else:
+                        texto = "Regenerar video" if (Path(Settings.LEGALARIO_SELFIE_VIDEO_PATH).is_file())                             else "Generar video"
+                    # Solo con la selfie cargada, y solo si falta o está viejo.
+                    _boton(fila, texto, _generar_video,
+                           habilitado=selfie_ok and not video_ok and not generando)
+            return all(ok for _, ok, _ in estado)
+
+        _refrescar_checks()
 
         error_label = tk.Label(
-            form, text="", font=("Segoe UI", 8), bg=BG, fg="#c62828", wraplength=300, justify="left"
+            form, text="", font=("Segoe UI", 8), bg=BG, fg="#c62828", wraplength=350, justify="left"
         )
         error_label.pack(fill="x", pady=(4, 0))
 
         def _save():
             celular = celular_entry.get().strip()
             correo = correo_entry.get().strip()
+            nombre = " ".join(nombre_var.get().split())
+            colaborador = colaborador_entry.get().strip()
 
-            if not celular.isdigit() or len(celular) != 10:
-                error_label.config(text="Ingresa un número de celular válido (10 dígitos).")
+            if not CELULAR_REGEX.match(celular):
+                error_label.config(text="Ingresa un número de celular válido: exactamente 10 dígitos (solo números).")
                 return
-            if not EMAIL_REGEX.match(correo):
-                error_label.config(text="Ingresa un correo electrónico válido.")
+            if not correo_valido(correo):
+                error_label.config(text="Ingresa un correo electrónico válido (ej. nombre@dominio.com, sin espacios).")
+                return
+            if not NOMBRE_INE_REGEX.match(nombre):
+                error_label.config(
+                    text="Ingresa el nombre tal como aparece en la INE, solo letras en mayúsculas."
+                )
+                return
+            if not COLABORADOR_REGEX.match(colaborador):
+                error_label.config(text="El número de colaborador debe ser de 2 dígitos.")
                 return
 
             self.celular_var.set(celular)
             self.correo_var.set(correo)
+            self.nombre_ine_var.set(nombre)
+            self.colaborador_var.set(colaborador)
             self.user_settings["celular"] = celular
             self.user_settings["correo"] = correo
+            self.user_settings["nombre_ine"] = nombre
+            self.user_settings["numero_colaborador"] = colaborador
             self._save_user_settings()
+
+            if not _refrescar_checks():
+                error_label.config(
+                    text="Datos guardados, pero los checks obligatorios deben cumplirse "
+                         "para poder operar."
+                )
+                self._actualizar_gate_ajustes()
+                return
             dialog.destroy()
 
         btn_frame = tk.Frame(dialog, bg=BG, pady=10)
@@ -1007,6 +1239,7 @@ class SelectorUI:
 
         celular_entry.focus_set()
         dialog.wait_window()
+        self._actualizar_gate_ajustes()
 
     def _importar_env_legado(self):
         """
@@ -1047,6 +1280,16 @@ class SelectorUI:
             return False
 
     def _on_confirm(self):
+        ajustes_ok, pendientes = self._ajustes_completos()
+        if not ajustes_ok:
+            messagebox.showwarning(
+                "Ajustes incompletos",
+                "Completa los ajustes de usuario antes de continuar.\n\nPendiente:\n  • "
+                + "\n  • ".join(pendientes)
+            )
+            self._actualizar_gate_ajustes()
+            return
+
         insumo = self.insumo_var.get()
 
         if not insumo:
@@ -1130,14 +1373,14 @@ class SelectorUI:
                 return
             celular = self.celular_var.get().strip()
             correo = self.correo_var.get().strip()
-            if not celular.isdigit() or len(celular) != 10:
+            if not CELULAR_REGEX.match(celular):
                 messagebox.showwarning(
-                    "Campo requerido", "Ingresa un número de celular válido (10 dígitos)."
+                    "Campo requerido", "Ingresa un número de celular válido: exactamente 10 dígitos (solo números)."
                 )
                 return
-            if not EMAIL_REGEX.match(correo):
+            if not correo_valido(correo):
                 messagebox.showwarning(
-                    "Campo requerido", "Ingresa un correo electrónico válido."
+                    "Campo requerido", "Ingresa un correo electrónico válido (ej. nombre@dominio.com, sin espacios)."
                 )
                 return
             tomar_capturas = self.tomar_capturas_var.get()
@@ -1197,6 +1440,8 @@ class SelectorUI:
                 "ventas_batches": ventas_batches,
                 "celular":        self.celular_var.get(),
                 "correo":         self.correo_var.get(),
+                "nombre_ine":     self.nombre_ine_var.get(),
+                "numero_colaborador": self.colaborador_var.get(),
                 "tomar_capturas": tomar_capturas,
                 "headless":       self.navegador_var.get() == "headless",
             }

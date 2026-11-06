@@ -33,6 +33,8 @@ class Settings:
     PASSWORD  = _run_config.get("password",  "Estrella1*")
     CELULAR   = _run_config.get("celular",   "5513096751")
     CORREO    = _run_config.get("correo",    "luis.andrade@mtpinternational.mx")
+    NOMBRE_INE         = _run_config.get("nombre_ine", "")
+    NUMERO_COLABORADOR = _run_config.get("numero_colaborador", "")
 
     # Selección de la UI
     TIPO_CLIENTE    = _run_config.get("tipo_cliente",   "CN")
