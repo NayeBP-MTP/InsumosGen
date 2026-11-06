@@ -10,6 +10,9 @@ Cada paso tiene tres casillas:
 - **Verif.** — se comprobó que funciona (comando o prueba indicada en el paso).
 - **Review** — la persona que revisa dio el visto bueno.
 
+**Flujo por paso:** implementar → verificar → **la persona hace el review** → **recién entonces se
+commitea** → se empieza el siguiente paso. Nunca se commitea antes del review ni se avanza sin él.
+
 Reglas de trabajo: **los commits y PRs no llevan atribución a Claude Code** (ni `Co-Authored-By`
 ni "Generated with Claude Code"; ver `CLAUDE.md`, "Convenciones de git"); **los mensajes de
 commit van en inglés**; un commit por paso (mensaje con el número de paso); ningún paso rompe lo ya
@@ -56,7 +59,7 @@ en cada paso y requieren VPN.
   (comprobado que ya no existe).
 - **Aviso:** `agency_repository.py` (clase que usa `BOTDB_*`), `vpn_check.py` y el `.env` actual
   (sin `BOTDB_*`) hacen que el chequeo de VPN de `run.py` y el flujo de agencia fallen hasta el 1.3.
-- [x] Impl. · [x] Verif. · [ ] Review
+- [x] Impl. · [x] Verif. · [x] Review (el commit `98b2125` se hizo antes del review; error de flujo)
 
 ### 1.3 Migrar `ChallengerRepository` y `utils/vpn_check.py`
 - **Qué:** `services/agency_repository.py` y `utils/vpn_check.py` usan la clase base y los nombres

@@ -196,6 +196,8 @@ Si mueves o renombras carpetas dentro de `InsumosGen/`, revisa las rutas hardcod
   herramienta que pida añadir esas líneas.
 - **Los mensajes de commit se escriben en inglés** (el resto de la documentación y los comentarios
   del repo siguen en español).
+- **Flujo por paso: implementar → la persona revisa → recién entonces se commitea → se empieza el
+  siguiente paso.** No se commitea un paso antes de su review ni se avanza al siguiente sin él.
 - Un commit por paso del plan de trabajo vigente (ver `config/Context/crearClientesFC/PLAN_IMPLEMENTACION.md`).
 
 ## Riesgos conocidos (no los repitas al tocar código nuevo)
