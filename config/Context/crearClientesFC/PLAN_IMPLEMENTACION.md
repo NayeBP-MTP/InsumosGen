@@ -22,8 +22,9 @@ en cada paso y requieren VPN.
 
 ### 0.1 Rama y base
 - [x] Rama `feat/recipes` creada; lo de `feat/parallelization` ya está commiteado.
-- [ ] **Commit de los documentos de diseño** (`config/Context/crearClientesFC/`, `CLAUDE.md`,
-  `REGLAS_DE_NEGOCIO.md`, `.env.example`) como primer commit de la rama.
+- [x] **Commit de los documentos de diseño** (`config/Context/crearClientesFC/`, `CLAUDE.md`,
+  `REGLAS_DE_NEGOCIO.md`, `.env.example`) como primer commit de la rama (`59a5ea7`; el feature de
+  ajustes de usuario de `SelectorUI`, también sin commitear, fue `3b2da83`).
 
 ---
 
@@ -35,7 +36,10 @@ en cada paso y requieren VPN.
   como hoy hace `OfferRepository`). Incluye `dry_run`.
 - **Verificación:** prueba unitaria del mapeo (cada base resuelve su host; una base desconocida
   falla con mensaje claro).
-- [ ] Impl. · [ ] Verif. · [ ] Review
+- **Hecho:** `config/databases.py`, `services/db.py` (`SqlServerRepository`, `credenciales_de_host`,
+  reintentos, `_escribir` con `dry_run`) y `tests/test_databases.py` (18 pruebas, sin red:
+  `python -m pytest tests/test_databases.py`). Aún nada usa la clase base (eso es el 1.2 y 1.3).
+- [x] Impl. · [x] Verif. · [ ] Review
 
 ### 1.2 Migrar `OfferRepository`
 - **Qué:** `services/offer_repository.py` hereda de la clase base y usa `PESOS_OFFER_*` (base
