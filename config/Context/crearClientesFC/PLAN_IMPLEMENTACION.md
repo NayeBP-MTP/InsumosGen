@@ -66,7 +66,21 @@ en cada paso y requieren VPN.
   por host (`CHALLENGER_*`, `PESOS_OFFER_*`). Revisar cualquier otro `os.environ[...]` de BD.
 - **Verificación:** `tests/test_agencia_structure.py` (o su ejecución desde `run.py`) y el chequeo
   de VPN de `run.py` siguen funcionando (UAT).
-- [ ] Impl. · [ ] Verif. · [ ] Review
+- **Hecho:**
+  - `ChallengerRepository` (base `Challenger_uat`, host `CHALLENGER`) y `BotDbAgencyRepository`
+    (base `botDB`, host `PESOS_OFFER`) heredan de `SqlServerRepository`; se quitaron sus
+    `__init__` con variables, `_get_connection` y `test_connection` propios (ahora con reintentos).
+    Sus constructores no aceptan `dry_run`: sus escrituras aún no pasan por `_escribir`.
+  - `utils/vpn_check.py`: `_host_puerto(host)` único (lee `<HOST>_SERVER`) en lugar de dos
+    funciones por base; `verificar_vpn(requiere_bd, requiere_challenger)` conserva su firma.
+  - Pruebas: `tests/test_vpn_check.py`.
+- **Verificado:** 30 pruebas unitarias; en UAT solo lectura: `python -m services.agency_repository`
+  (conecta; siguientes DM/AM Izcalli 64/4351), `verificar_vpn(True, True)` = `(True, [])`,
+  `get_dm_am_combos(2075)` = 11 combos, `BotDbAgencyRepository().test_connection()` OK.
+  **No** se ejecutó el alta completa de una agencia (`test_agencia_structure.py`): inserta en dos
+  hosts y no cambió ninguna sentencia SQL, solo la conexión; se puede correr con rollback
+  (`eliminar_agencia`) si se quiere.
+- [x] Impl. · [x] Verif. · [x] Review
 
 ### 1.4 `.env.example` y referencias documentales
 - **Qué:** `.env.example` con los nombres por host (sin `*_DATABASE`); actualizar las menciones de

@@ -1,17 +1,13 @@
-import os
 import random
 import re
 import unicodedata
 from dataclasses import dataclass
 from typing import Optional
 
-import pyodbc
-from dotenv import load_dotenv
-
+from services.db import SqlServerRepository
 from utils.agency_id_allocator import AgencyIdAllocator, AgencySectionAllocator
 from utils.mexican_names import MexicanNames
 
-load_dotenv()
 
 
 def _sin_acentos(texto: str) -> str:
@@ -31,34 +27,16 @@ class PersonaEstructura:
     tipo_representante: int  # 1=DM, 2=Estrellas, 3=AM (ver representative-types.md)
 
 
-class ChallengerRepository:
+class ChallengerRepository(SqlServerRepository):
     """
     Acceso a Challenger_uat para el flujo "Nueva estructura de agencia":
     AgencyStructure, tblRepresentative_Table_AWS, P_ESTRELLAS_MENSUAL_CATEGORIAS.
     Ver config/Context/NUEVA_ESTRUCTURA_AGENCIA.md para el diseño completo.
+    La conexión (host Challenger) la resuelve SqlServerRepository con CHALLENGER_* del .env.
     """
 
     def __init__(self):
-        self.server = os.environ["CHALLENGER_SERVER"]
-        self.database = os.environ["CHALLENGER_DATABASE"]
-        self.user = os.environ["CHALLENGER_USER"]
-        self.password = os.environ["CHALLENGER_PASSWORD"]
-        self.driver = os.environ.get("CHALLENGER_DRIVER", "ODBC Driver 17 for SQL Server")
-
-    def _get_connection(self):
-        connection_string = (
-            f"DRIVER={{{self.driver}}};"
-            f"SERVER={self.server};"
-            f"DATABASE={self.database};"
-            f"UID={self.user};"
-            f"PWD={self.password};"
-        )
-        return pyodbc.connect(connection_string)
-
-    def test_connection(self) -> bool:
-        with self._get_connection() as conn:
-            conn.execute("SELECT 1").fetchone()
-        return True
+        super().__init__("Challenger_uat")
 
     # ---- Consultas en vivo para los consecutivos de DM/AM ----
 
@@ -205,29 +183,15 @@ class ChallengerRepository:
             conn.commit()
 
 
-class BotDbAgencyRepository:
+class BotDbAgencyRepository(SqlServerRepository):
     """
     Acceso a botDB para el flujo "Nueva estructura de agencia":
-    Agency_Representative_AWS y tblRepresentative_Table_AWS. Reutiliza las mismas
-    variables BOTDB_* de .env que services/offer_repository.py.
+    Agency_Representative_AWS y tblRepresentative_Table_AWS. Usa el host Pesos_Offer
+    (PESOS_OFFER_* del .env), igual que services/offer_repository.py.
     """
 
     def __init__(self):
-        self.server = os.environ["BOTDB_SERVER"]
-        self.database = os.environ["BOTDB_DATABASE"]
-        self.user = os.environ["BOTDB_USER"]
-        self.password = os.environ["BOTDB_PASSWORD"]
-        self.driver = os.environ.get("BOTDB_DRIVER", "ODBC Driver 17 for SQL Server")
-
-    def _get_connection(self):
-        connection_string = (
-            f"DRIVER={{{self.driver}}};"
-            f"SERVER={self.server};"
-            f"DATABASE={self.database};"
-            f"UID={self.user};"
-            f"PWD={self.password};"
-        )
-        return pyodbc.connect(connection_string)
+        super().__init__("botDB")
 
     def insert_agency_representative(self, agency_id: int, representative_id: int, branch: int) -> None:
         with self._get_connection() as conn:

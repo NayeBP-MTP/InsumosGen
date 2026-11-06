@@ -4,6 +4,7 @@ from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 
+from config.databases import CHALLENGER, PESOS_OFFER
 from config.settings import Settings
 
 load_dotenv()
@@ -11,18 +12,12 @@ load_dotenv()
 TIMEOUT_SEG = 4
 
 
-def _host_puerto_botdb():
-    r"""Host y puerto de BOTDB_SERVER (formatos 'host', 'host,1433', 'host\instancia')."""
-    server = os.environ.get("BOTDB_SERVER", "").strip()
-    if not server:
-        return None
-    host, _, puerto = server.replace("tcp:", "").partition(",")
-    return host.split("\\")[0], int(puerto) if puerto.strip().isdigit() else 1433
-
-
-def _host_puerto_challenger():
-    r"""Host y puerto de CHALLENGER_SERVER, igual formato que BOTDB_SERVER."""
-    server = os.environ.get("CHALLENGER_SERVER", "").strip()
+def _host_puerto(host_bd: str):
+    r"""
+    Host y puerto de `<HOST_BD>_SERVER` del .env (formatos 'host', 'host,1433', 'host\instancia').
+    `host_bd` es el host de base de datos (ver config/databases.py), p. ej. PESOS_OFFER.
+    """
+    server = os.environ.get(f"{host_bd}_SERVER", "").strip()
     if not server:
         return None
     host, _, puerto = server.replace("tcp:", "").partition(",")
@@ -45,14 +40,14 @@ def verificar_vpn(requiere_bd: bool = True, requiere_challenger: bool = False):
     """
     destinos = [("Portal UAT de Provident", urlparse(Settings.BASE_URL).hostname, 443)]
     if requiere_bd:
-        botdb = _host_puerto_botdb()
+        botdb = _host_puerto(PESOS_OFFER)
         if botdb is None:
-            return False, ["Variable BOTDB_SERVER no configurada en .env"]
+            return False, [f"Variable {PESOS_OFFER}_SERVER no configurada en .env"]
         destinos.append(("Base de datos botDB", *botdb))
     if requiere_challenger:
-        challenger = _host_puerto_challenger()
+        challenger = _host_puerto(CHALLENGER)
         if challenger is None:
-            return False, ["Variable CHALLENGER_SERVER no configurada en .env"]
+            return False, [f"Variable {CHALLENGER}_SERVER no configurada en .env"]
         destinos.append(("Base de datos Challenger_uat", *challenger))
 
     faltantes = [f"{nombre} ({host}:{puerto})" for nombre, host, puerto in destinos
