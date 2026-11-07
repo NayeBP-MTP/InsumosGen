@@ -59,8 +59,14 @@ Providigital_Ventas/
 │   ├── historial_ventas.json   # Historial de todos los intentos
 │   └── diagnostico_cf/         # Captura de la falla de un ciclo CF
 ├── tests/
-│   ├── test_login.py           # Flujo CN + funciones compartidas (_flujo_*)
-│   └── test_login_cf.py        # Flujo CF
+│   ├── test_login.py           # Test CN (envoltorio)
+│   ├── test_login_cf.py        # Test CF (envoltorio)
+│   └── test_oferta.py          # Test OF (solo inserta la oferta)
+├── flows/
+│   ├── venta_comun.py          # Tramos compartidos CN/CF (flujo_*)
+│   ├── venta_cn.py             # Flujo de venta CN
+│   ├── venta_cf.py             # Flujo de venta CF
+│   └── oferta_cf.py            # Construcción/inserción de la oferta
 └── run.py                      # Entry point: menú → fases CF/CN → pantalla de resultados
 ```
 
@@ -358,7 +364,7 @@ reglas de negocio del documento de contexto (ver [§1 y §2](config/Context/REGL
 
 Paso previo de preparación de datos: el test se conecta directamente a SQL Server (`botDB`) e
 inserta el registro en `dbo.Ofertas` **antes de abrir el navegador** (se ejecuta dentro de
-`_ejecutar_venta_cf`).
+`ejecutar_venta_cf`).
 
 #### Conexión a base de datos
 - Dependencia: `pyodbc`. Credenciales y cadena de conexión **vía variables de entorno** (no hardcodear ni commitear):
@@ -372,11 +378,11 @@ inserta el registro en `dbo.Ofertas` **antes de abrir el navegador** (se ejecuta
 - Módulo: `services/offer_repository.py` (sobre `services/db.py`, clase base común de conexión).
 
 #### Construcción de la oferta
-`_construir_oferta_cf(numero_ciclo)` en `tests/test_login_cf.py`:
+`construir_oferta_cf(numero_ciclo)` en `flows/oferta_cf.py`:
 1. Resuelve la agencia configurada (`Settings.AGENCIA_LABEL`) contra `utils/catalog_db.py`: `agenciaCliente` = código de 13 dígitos, `branchOferta` = sus primeros 4.
 2. `OfferIdAllocator.get_unique_ids(branch)` → `idOferta`, `Customer_Id`, `Agreement_Num`, `semana`.
 3. `BirthdateAllocator.get_unique_birthdate()` → `FechaNacimiento` (se convierte a formato SQL).
-4. `_monto_para_agencia()` → monto (de `run_config.json` o aleatorio; valida el tope por agencia).
+4. `monto_para_agencia()` → monto (de `run_config.json` o aleatorio; valida el tope por agencia).
 5. `MexicanNames.generar()` / `MexicanNames.rfc()` → nombre completo y RFC.
 6. `descOferta = "TARIFA MÁX {monto} AGREGAR {plazo1}/{tasa1} A"` con plazo/tasa fijos (`14000/65`).
 7. Devuelve un `OfferData` con los valores fijos por defecto (`Customer_Status_Code='CC'`, `Agreement_Status_Code='AC'`, `idEstatusOferta=1`, etc.). Las reglas de cada columna están en el documento de contexto.
@@ -480,17 +486,17 @@ Los XPaths siguen el patrón "buscar el texto del nombre y subir al ancestro má
 
 ### Test end-to-end CF — implementado
 
-Se refactorizó `tests/test_login.py` para extraer los tramos comunes a ambos flujos en funciones reutilizables (`_flujo_metodo_entrega`, `_flujo_identidad_a_otp`, `_flujo_beneficiario_a_finalizar`), sin cambiar el comportamiento de CN. **`tests/test_login_cf.py`** contiene:
+Los tramos comunes a ambos flujos viven en `flows/venta_comun.py` (`flujo_metodo_entrega`, `flujo_identidad_a_otp`, `flujo_beneficiario_a_finalizar`). **`flows/oferta_cf.py`**, **`flows/venta_cf.py`** y **`tests/test_login_cf.py`** contienen:
 
-- `_construir_oferta_cf(numero_ciclo)` (ver "Construcción de la oferta").
-- `_ejecutar_venta_cf(driver, numero_ciclo)`: inserta la oferta vía `OfferRepository`, hace login, navega **Ventas → Registrar Venta → Cliente frecuente**, busca y selecciona la tarjeta con `OfertasListadoPage.seleccionar_cliente()`, confirma la oferta con `PrestamoPersonalPage.confirmar_oferta_cf()` y continúa con el flujo compartido. Devuelve `idOferta`, `nombreCliente` y `folio`.
-- `_capturar_diagnostico_falla(driver, ciclo)`: guarda screenshot, HTML, URL y requests del punto de falla en `data/diagnostico_cf/`.
+- `construir_oferta_cf(numero_ciclo)` (ver "Construcción de la oferta").
+- `ejecutar_venta_cf(driver, numero_ciclo)`: inserta la oferta vía `OfferRepository`, hace login, navega **Ventas → Registrar Venta → Cliente frecuente**, busca y selecciona la tarjeta con `OfertasListadoPage.seleccionar_cliente()`, confirma la oferta con `PrestamoPersonalPage.confirmar_oferta_cf()` y continúa con el flujo compartido. Devuelve `idOferta`, `nombreCliente` y `folio`.
+- `capturar_diagnostico_falla(driver, ciclo)`: guarda screenshot, HTML, URL y requests del punto de falla en `data/diagnostico_cf/`.
 - `TestLoginProvidentCF.test_login_exitoso_cf`: ciclos/resumen igual que el test CN, guardando resultados en `data/run_results_cf.json`.
 
 **Estado (23/09/2026):** el flujo CF llegó hasta finalizar la venta en UAT (folio generado). Los fallos intermedios encontrados y corregidos: pantalla de OTP Provident inexistente en CF, consentimiento de geolocalización, espera larga del facematch y modal "Aceptar" ausente al finalizar. Pendiente: una corrida completa sin intervención con el código final, y ciclos múltiples.
 
 #### Validado sin abrir navegador
-- `_construir_oferta_cf()` genera una `OfferData` completa y consistente (ids únicos, agencia resuelta, `descOferta` con formato esperado).
+- `construir_oferta_cf()` genera una `OfferData` completa y consistente (ids únicos, agencia resuelta, `descOferta` con formato esperado).
 - `pytest --collect-only` recolecta correctamente tanto `tests/test_login.py` como `tests/test_login_cf.py` sin errores de import.
 
 #### Recuperación entre ciclos

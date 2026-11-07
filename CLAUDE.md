@@ -16,9 +16,9 @@ Automatiza tres tipos de operación:
 - **OF (Oferta)** — `tests/test_oferta.py`: solo inserta y verifica la oferta en `botDB`, sin
   ejecutar la venta en el navegador.
 
-`tests/test_login_cf.py` reutiliza los flujos compartidos definidos en `tests/test_login.py`
-(`_flujo_metodo_entrega`, `_flujo_identidad_a_otp`, `_flujo_beneficiario_a_finalizar`); `test_oferta.py`
-reutiliza `_insertar_oferta_cf` de `test_login_cf.py`. Las diferencias de negocio entre CN y CF están
+Los flujos viven en `flows/` y los tests son envoltorios delgados: `flows/venta_comun.py`
+(`flujo_metodo_entrega`, `flujo_identidad_a_otp`, `flujo_beneficiario_a_finalizar`, compartidos por CN y CF),
+`flows/venta_cn.py`, `flows/venta_cf.py` y `flows/oferta_cf.py` (`insertar_oferta_cf`, usado por CF y OF). Las diferencias de negocio entre CN y CF están
 documentadas en `Context.md` y `config/Context/REGLAS_DE_NEGOCIO.md`.
 
 ## Comandos

@@ -138,7 +138,11 @@ en cada paso y requieren VPN.
   `tests/test_login_cf.py` a `flows/` (`venta_cf.py` y `oferta_cf.py`); `test_login_cf.py` y
   `test_oferta.py` quedan como envoltorios delgados (`test_oferta.py` ya no importa de otro test).
 - **Verificación:** igual que 1.5a, con una venta **CF** real y `test_oferta` en UAT.
-- [ ] Impl. · [ ] Verif. · [ ] Review
+- **Resultado:** movido sin cambiar el cuerpo de las funciones (AST idéntico, 7 funciones/clases;
+  renombradas sin guion bajo). Nuevos: `flows/oferta_cf.py` y `flows/venta_cf.py`.
+  Verificado en UAT: venta CF completa (Izcalli 335, BBVA, oferta 26110020, 392 s) y `test_oferta`
+  (oferta 26110021 insertada y verificada, luego borrada). El `folio` sigue `None` también en CF.
+- [x] Impl. · [x] Verif. · [x] Review
 
 ### 1.6 Resultado de las ventas
 - **Qué:** `VENTA_CN` y `VENTA_CF` devuelven nombre de la INE, agencia, `con_seguro`, hora de

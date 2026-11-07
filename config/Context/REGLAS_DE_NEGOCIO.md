@@ -147,7 +147,7 @@ Las agencias con **1 sola muestra** vienen de archivos de generación de insumos
   **miércoles** en lugar del lunes de ISO 8601 (de lunes a martes sigue siendo la semana
   anterior; el cambio ocurre al llegar el miércoles). Implementado en
   `OfferIdAllocator.calcular_semana` (`utils/offer_id_allocator.py`).
-  ⚠ Importante: `_insertar_oferta_cf` (`tests/test_login_cf.py`) usa
+  ⚠ Importante: `insertar_oferta_cf` (`flows/oferta_cf.py`) usa
   `max(semana_calculada, semana_tabla)` — la semana MÁS RECIENTE ya presente en
   `botDB.dbo.Ofertas` — porque el listado del front solo muestra ofertas de la semana
   más reciente de la tabla. Esto significa que si la tabla ya tiene registros en la

@@ -6,7 +6,7 @@ from pathlib import Path
 from config.settings import Settings
 from services.offer_repository import OfferRepository
 from utils.progress import Progress
-from tests.test_login_cf import _insertar_oferta_cf
+from flows.oferta_cf import insertar_oferta_cf
 
 
 RUN_RESULTS_PATH = Path(Settings.RUN_RESULTS_PATH) if Settings.RUN_RESULTS_PATH else Path("data/run_results_of.json")
@@ -38,7 +38,7 @@ class TestInsertarOferta:
                 f"{cfg['tipo_oferta']} / nivel {cfg['nivel_precio'] or 'ninguno'}"
             ):
                 try:
-                    oferta = _insertar_oferta_cf(
+                    oferta = insertar_oferta_cf(
                         repo, ciclo,
                         agencia_label=agencia_label,
                         tipo_oferta_elegido=cfg["tipo_oferta"],

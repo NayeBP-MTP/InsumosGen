@@ -77,8 +77,8 @@ en una receta. Contrato común:
 | Módulo | Qué hace hoy | Archivo |
 |---|---|---|
 | **`OFERTA`** | Inserta y verifica la oferta en `botDB.dbo.Ofertas`. | `tests/test_oferta.py` |
-| **`VENTA_CF`** | Venta de Cliente Frecuente; **incluye** `OFERTA` (inserta la oferta antes de vender). | `tests/test_login_cf.py` |
-| **`VENTA_CN`** | Venta de Cliente Nuevo, sin oferta previa. | `tests/test_login.py` |
+| **`VENTA_CF`** | Venta de Cliente Frecuente; **incluye** `OFERTA` (inserta la oferta antes de vender). | `flows/venta_cf.py` |
+| **`VENTA_CN`** | Venta de Cliente Nuevo, sin oferta previa. | `flows/venta_cn.py` |
 
 Cambio requerido: `VENTA_CF` y `VENTA_CN` deben **devolver** `numeroContrato`, nombre de la INE,
 hora de inicio de la venta, agencia y `con_seguro` para poblar el `ContextoVenta`.
