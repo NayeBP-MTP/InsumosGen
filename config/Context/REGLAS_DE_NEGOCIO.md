@@ -226,8 +226,9 @@ Métodos disponibles en el portal: **BBVA**, **HSBC**, **Finabien**, **Efectivo*
   fallback puede responder HTTP 400 (AWS Rekognition `InvalidParameterException`), pero el SDK
   permite avanzar igualmente vía el botón Firmar con JS click.
 - **OTP Provident** (SMS, `/v1/sendconfirmationsms`, campo `body.code`) vs **OTP Legalario**
-  (`/sdk/invites/send-code`, campo `data.otp_code`, 4 dígitos): son dos OTP distintos; CF solo
-  usa el de Legalario.
+  (`/sdk/invites/send-code`, campo `data.otp_code`, 4 dígitos; el SDK envía el SMS con
+  `send-code-new`, que no devuelve el código, ver `Context.md` sección 10): son dos OTP distintos;
+  CF solo usa el de Legalario.
 - **Pantalla `singleoffer`:** oferta opcional que a veces aparece tras confirmar plazo/monto; se
   omite con "No aceptar oferta".
 - **Contador de contrato:** tras "Finalizar Venta" en CF el portal permanece en la misma pantalla

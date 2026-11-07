@@ -168,3 +168,25 @@ Nota: un menú hamburguesa abierto en una captura de falla normalmente es la rec
 - Con `run.py` en paralelo (CN 334 + CF 335) fallaron ambas. El fallo de facematch de la CN se reproduce también en secuencial, así que ese no se debe al paralelismo. El de la CF (OTP de Legalario con 3 clicks en "Enviar SMS" y luego `legalarioButtonDocumentAccept` no clickable) **no se reprodujo en secuencial pero tampoco se repitió en paralelo**: causa sin determinar.
 - **OTP de Legalario ("Enviar SMS").** El SMS puede tardar más de 25 s. Volver a pulsar "Enviar SMS" genera un código nuevo e invalida el anterior: el 03/11 se tecleó un código expirado (pantalla con campos vacíos y "El código expirará en: 00:00") y `legalarioButtonDocumentAccept` nunca fue clickable. El test solo re-pulsa si no salió ninguna request `/sdk/invites/send-code` (a los 10 s); si salió, espera hasta 90 s los inputs (`OTP_ESPERA_INPUTS`, `OTP_CLICK_PERDIDO_TRAS` en `tests/test_login.py`). Una corrida CF/HSBC pasó con esto; falta más muestra.
 - **Video fake de 12 s** (`DURATION_SECONDS=12` en `utils/generate_fake_camera_video.py`; respaldo del de 30 s en `data/selfie_phased.y4m`): 3 de 3 CN y 1 CF sin fallos de cámara, frente a ~2/3 con el de 30 s. Muestra pequeña: no es una mejora demostrada.
+
+## 10. OTP de Legalario: cambio de endpoint (observado el 06/11/2026)
+
+- **Síntoma:** el paso "Obtener OTP Legalario" fallaba siempre con `TimeoutException` (la venta CN
+  llegaba hasta la firma del contrato y ahí se caía). Reproducido también con el código anterior
+  a la reorganización, así que no era del test.
+- **Causa:** el SDK de Legalario dejó de usar `/sdk/invites/send-code` y ahora envía el SMS con
+  `/sdk/invites/send-code-new`, cuya respuesta (`"message": "Código único enviado"`) **ya no trae
+  `data.otp_code`**. Tampoco depende del número de celular (se probó con el de prueba por defecto).
+- **Arreglo:** el endpoint anterior `/sdk/invites/send-code` sigue activo y sí devuelve
+  `data.otp_code` (entero, p. ej. `2947`, con `otp_status: "active"`). Tras el click en "Enviar SMS",
+  `NetworkInterceptor.solicitar_otp_legalario()` lo invoca con el mismo firmante y las mismas
+  cabeceras de la request real capturada. Eso genera un código **nuevo** (invalida el del SMS),
+  por eso se llama justo antes de teclearlo. El código se rellena a 4 dígitos (`zfill`) porque la
+  API lo devuelve como entero. Si el SDK vuelve a devolverlo en la respuesta, se usa ese.
+- **Segundo hallazgo (pantalla "Revisa tus documentos"):** el visor tarda en cargar cada documento;
+  un segundo click inmediato en "Estoy de acuerdo" se pierde y el canvas de la firma nunca aparece.
+  Ahora, tras el primer click, se espera a que el primer documento diga "Revisado"
+  (`flows/venta_comun.py`, `_esperar_documentos_revisados`).
+- **Estado:** 3 ventas CN completas seguidas con esto (Izcalli 335, BBVA, con seguro).
+- **Pendiente:** el `folio` de finalización sigue llegando `None` en CN (no se capturan requests
+  `useractivitylogger`); ver el plan de la sección 1.6 en `config/Context/crearClientesFC/`.

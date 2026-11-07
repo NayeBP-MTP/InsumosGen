@@ -315,9 +315,45 @@ class NetworkInterceptor:
             return None
 
         data = response.get("data", {})
-        code = data.get("otp_code")
+        return self._formatear_otp_legalario(data.get("otp_code"))
 
-        return str(code) if code else None
+    @staticmethod
+    def _formatear_otp_legalario(code):
+        """El código es de 4 dígitos; la API lo devuelve como entero (se pierden ceros a la izquierda)."""
+        if code is None or code == "":
+            return None
+        texto = str(code)
+        return texto.zfill(4) if texto.isdigit() else texto
+
+    def solicitar_otp_legalario(self):
+        """
+        Desde ~nov-2026 el SDK de Legalario envía el SMS con `/sdk/invites/send-code-new`, cuya
+        respuesta ya NO trae `data.otp_code`. El endpoint anterior `/sdk/invites/send-code` sigue
+        activo y sí lo devuelve, así que se le pide el código con el mismo firmante y las mismas
+        cabeceras de la request real capturada. Genera un código NUEVO (invalida el anterior), por
+        eso se llama justo antes de teclearlo. Devuelve el código (str) o None si no se pudo.
+        """
+        envios = [
+            r for r in self.get_captured_requests()
+            if "/sdk/invites/send-code" in str(r.get("url", ""))
+        ]
+        if not envios:
+            return None
+        base = envios[-1]
+        url = str(base["url"]).replace("send-code-new", "send-code")
+        resultado = self.driver.execute_async_script(
+            "const [url, headers, body, done] = arguments;"
+            "fetch(url, {method: 'POST', headers: headers, body: body})"
+            ".then(r => r.json().then(j => done(j)))"
+            ".catch(e => done({error: String(e)}));",
+            url, base.get("headers") or {}, base.get("body"),
+        )
+        if not isinstance(resultado, dict):
+            return None
+        self.driver.execute_script(
+            "window.__lastLegalarioOtpResponse = arguments[0];", resultado
+        )
+        return self._formatear_otp_legalario((resultado.get("data") or {}).get("otp_code"))
 
     def set_mock_image_content(self, data_url: str):
         self.driver.execute_script(

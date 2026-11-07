@@ -208,7 +208,9 @@ Pasos:
 ### 11. Contrato y firma Legalario
 1. Marcar checks del contrato
 2. Click **Continuar**
-3. Click **Enviar SMS** → interceptor captura OTP desde `/sdk/invites/send-code` (campo `data.otp_code`)
+3. Click **Enviar SMS** → el SDK usa `/sdk/invites/send-code-new` (sin código en la respuesta); el
+   código se pide a `/sdk/invites/send-code` (campo `data.otp_code`) con
+   `NetworkInterceptor.solicitar_otp_legalario()`. Ver `Context.md` sección 10.
 4. Esperar inputs OTP → ingresar OTP de 4 dígitos
 5. Click **Estoy de acuerdo** (dos veces, para dos documentos)
 6. **Dibujar firma** en canvas vía JavaScript (simulación de trazo)
@@ -324,7 +326,7 @@ python -m pytest tests/test_login.py    --alluredir=allure-results -s -v
 | Facematch fallback requiere campo `front` | Pasar `front_data_url=mock_image_data_url_1` (data URI de INE frontal) |
 | ChromeDriver crash con `GetHandleVerifier` sin mensaje | Era stale element en `(//select)[N]` — resuelto con `find_elements` fresco antes de cada operación |
 | Pantalla singleoffer opcional | Detectar por URL, click "No aceptar oferta", esperar cambio de URL |
-| OTP Legalario en formato de 4 dígitos | Interceptar response de `/sdk/invites/send-code` campo `data.otp_code` |
+| OTP Legalario en formato de 4 dígitos | Pedirlo a `/sdk/invites/send-code` (`data.otp_code`, entero → `zfill(4)`); el SDK ahora usa `send-code-new`, que no lo devuelve |
 | Modal "firma completada" bloquea avance | Detectar botón "Continuar" con timeout 15s y JS click |
 | Tras un ciclo fallido la sesión queda abierta y el siguiente ciclo falla en el login | `LoginPage.recuperar_sesion_tras_fallo()` (ver "Recuperación entre ciclos") |
 | El botón del método de entrega no existe en `paymenttypepage` (p. ej. Finabien) | El ciclo falla tras 30s de espera; la recuperación abre el menú hamburguesa y "Salir". No es un bug del código: ver observación en el documento de contexto |
