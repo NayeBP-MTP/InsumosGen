@@ -98,13 +98,46 @@ en cada paso y requieren VPN.
   `*_DATABASE` en el código ni en los documentos.
 - [x] Impl. · [x] Verif. · [x] Review
 
-### 1.5 Sacar los flujos de venta de `tests/`
-- **Qué:** mover los flujos compartidos (`_flujo_metodo_entrega`, `_flujo_identidad_a_otp`,
-  `_flujo_beneficiario_a_finalizar`, `_ejecutar_venta`, `_ejecutar_venta_cf`, `_insertar_oferta_cf`
-  y auxiliares) a un módulo propio (`flows/`). `test_login.py`, `test_login_cf.py` y
-  `test_oferta.py` quedan como envoltorios delgados; ya no se importa de un test a otro.
-- **Verificación (UAT):** una venta **CN** y una **CF** completas desde `run.py` con el mismo
-  resultado que antes; `test_oferta` sin cambios.
+### 1.5a Flujos compartidos y de CN a `flows/`
+- **Qué:** mover de `tests/test_login.py` a `flows/` los flujos compartidos
+  (`flows/venta_comun.py`: `flujo_identidad_a_otp`, `flujo_metodo_entrega`,
+  `flujo_beneficiario_a_finalizar`, `esperar_request_foto`, `obtener_folio_finalizacion` y sus
+  constantes de espera) y el de CN (`flows/venta_cn.py`: `ejecutar_venta_cn`). `test_login.py`
+  queda con la clase de test (ciclos, resumen y `run_results.json`). Movimiento **mecánico**: el
+  cuerpo de las funciones no cambia; solo pierden el guion bajo inicial las que ahora cruzan
+  módulos. `test_login_cf.py` ya no importa de `tests.test_login`, sino de `flows.venta_comun`.
+- **Verificación:** AST de las 9 funciones igual al original salvo renombres, sin imports sin usar
+  ni nombres sin definir; los dos tests se recolectan; una venta **CN** real en UAT con el mismo
+  resultado que antes.
+- **Hecho:** `flows/__init__.py`, `flows/venta_comun.py` (885 líneas), `flows/venta_cn.py` (93);
+  `tests/test_login.py` pasó de 1050 a 98 líneas; `test_login_cf.py` importa de
+  `flows.venta_comun`. Renombres: `_flujo_identidad_a_otp` → `flujo_identidad_a_otp`,
+  `_flujo_metodo_entrega` → `flujo_metodo_entrega`,
+  `_flujo_beneficiario_a_finalizar` → `flujo_beneficiario_a_finalizar`,
+  `_esperar_request_foto` → `esperar_request_foto`, `_obtener_folio_finalizacion` →
+  `obtener_folio_finalizacion`, `_ejecutar_venta` → `ejecutar_venta_cn`.
+- **Verificado:** las 9 funciones tienen el mismo AST que en el original salvo los renombres; sin
+  imports sin usar ni nombres sin definir; los 2 tests se recolectan; 30 pruebas unitarias OK.
+- **Venta CN real en UAT: investigada y resuelta.** Al principio no se podía completar ni con el
+  código original (3 corridas fallaban igual en `Obtener OTP Legalario`). Causas encontradas
+  (detalle en `Context.md` sección 10):
+  1. Legalario cambió el SDK a `/sdk/invites/send-code-new`, que ya no devuelve `data.otp_code`.
+     Arreglo: `NetworkInterceptor.solicitar_otp_legalario()` lo pide al endpoint anterior
+     (`/sdk/invites/send-code`, que sigue devolviéndolo). Pruebas: `tests/test_network_interceptor.py`.
+  2. En "Revisa tus documentos" un segundo click inmediato en "Estoy de acuerdo" se perdía.
+     Arreglo: esperar a que el primer documento diga "Revisado" (`_esperar_documentos_revisados`).
+  - Resultado: 3 ventas CN completas seguidas (Izcalli 335, BBVA, con seguro); la última con el
+    código final y sin sondas. El `folio` sigue `None` en CN (pendiente para el 1.6).
+  - Estos arreglos van en el mismo commit que el movimiento (tocan `flows/venta_comun.py` y
+    `services/network_interceptor.py`); se pueden separar si se prefiere.
+- [x] Impl. · [x] Verif. · [ ] Review
+
+### 1.5b Flujo de CF a `flows/`
+- **Qué:** mover `_ejecutar_venta_cf`, `_insertar_oferta_cf`, `_construir_oferta_cf`,
+  `_limite_monto_agencia`, `_monto_para_agencia` y `_capturar_diagnostico_falla` de
+  `tests/test_login_cf.py` a `flows/` (`venta_cf.py` y `oferta_cf.py`); `test_login_cf.py` y
+  `test_oferta.py` quedan como envoltorios delgados (`test_oferta.py` ya no importa de otro test).
+- **Verificación:** igual que 1.5a, con una venta **CF** real y `test_oferta` en UAT.
 - [ ] Impl. · [ ] Verif. · [ ] Review
 
 ### 1.6 Resultado de las ventas

@@ -18,10 +18,10 @@ from utils.allure_utils import take_step_screenshot
 from utils.progress import Progress
 
 from pages.legalario_page import LegalarioPage
-from tests.test_login import (
-    _flujo_metodo_entrega,
-    _flujo_identidad_a_otp,
-    _flujo_beneficiario_a_finalizar,
+from flows.venta_comun import (
+    flujo_metodo_entrega,
+    flujo_identidad_a_otp,
+    flujo_beneficiario_a_finalizar,
 )
 
 
@@ -285,14 +285,14 @@ def _ejecutar_venta_cf(driver, numero_ciclo: int, contexto_falla: dict = None) -
             monto_maximo_exclusivo=_limite_monto_agencia(Settings.AGENCIA_LABEL)
         )
 
-    _flujo_metodo_entrega(driver, login_page, interceptor, prestamo_personal_page)
+    flujo_metodo_entrega(driver, login_page, interceptor, prestamo_personal_page)
 
-    _flujo_identidad_a_otp(
+    flujo_identidad_a_otp(
         driver, login_page, legalario_page, interceptor, prestamo_personal_page,
         incluir_otp_provident=False,
     )
 
-    folio = _flujo_beneficiario_a_finalizar(
+    folio = flujo_beneficiario_a_finalizar(
         driver, login_page, interceptor, prestamo_personal_page
     )
 

@@ -1,0 +1,919 @@
+"""Flujos de venta compartidos por CN y CF (Selenium). Movidos de tests/test_login.py."""
+import json
+import re
+import time
+
+import allure
+from selenium.common.exceptions import TimeoutException
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+
+from config.settings import Settings
+from pages.login_page import LoginPage
+from pages.legalario_page import LegalarioPage
+from pages.prestamo_personal_page import PrestamoPersonalPage
+from services.network_interceptor import NetworkInterceptor
+from utils.allure_utils import take_step_screenshot
+from utils.birthdate_allocator import BirthdateAllocator
+from utils.progress import Progress
+from utils.utils import save_base64_to_json
+
+
+# Facematch forzado (fallback cuando el SDK no lo completa solo): intentos y pausa entre ellos.
+# Espera al facematch automático del SDK. La cámara fake a veces tarda ~30s en dar
+# stream vivo; el fallback forzado no es fiable (Rekognition lo rechaza con 400).
+FACEMATCH_ESPERA_SDK = 120
+FACEMATCH_KICK_CAMARA_TRAS = 15
+
+# "Enviar SMS" (OTP Legalario): espera máxima de los inputs tras cada click y a los cuántos
+# segundos sin inputs (y sin request send-code) se considera perdido el click. El SMS de
+# Legalario llegó a tardar 33-67s: con un umbral corto se re-pulsaba y cada click genera
+# un código nuevo que invalida el anterior.
+OTP_ESPERA_INPUTS = 90
+OTP_CLICK_PERDIDO_TRAS = 60
+FACEMATCH_CORTE_SIN_CAMARA = 45
+FACEMATCH_REINTENTOS = 3
+FACEMATCH_ESPERA_REINTENTO = 3
+
+# Foto INE (frontal/trasera): espera máxima de la request del SDK y a los cuántos
+# segundos sin request se vuelve a pulsar "Tomar Foto" (cámara aún no lista / click perdido).
+FOTO_ESPERA_REQUEST = 40
+FOTO_REINTENTO_CLICK_TRAS = 15
+
+
+DOCUMENTOS_REVISADOS_ESPERA = 30
+
+
+def _esperar_documentos_revisados(driver, cantidad: int) -> None:
+    """Espera (máx. DOCUMENTOS_REVISADOS_ESPERA s) a que `cantidad` documentos digan "Revisado"."""
+    try:
+        WebDriverWait(driver, DOCUMENTOS_REVISADOS_ESPERA).until(
+            lambda d: d.execute_script(
+                "return (document.body.innerText.match(/Revisado/g) || []).length;"
+            ) >= cantidad
+        )
+    except TimeoutException:
+        print(f"Sin {cantidad} documento(s) 'Revisado' tras {DOCUMENTOS_REVISADOS_ESPERA}s — se continúa")
+
+
+def esperar_request_foto(interceptor, legalario_page, endpoint: str) -> list:
+    """
+    Espera a que el SDK de Legalario envíe la request de la foto (`endpoint`). En vez
+    de un sleep fijo, hace polling hasta FOTO_ESPERA_REQUEST segundos y, si pasados
+    FOTO_REINTENTO_CLICK_TRAS no hay request, vuelve a pulsar "Tomar Foto" una vez.
+    Devuelve las requests encontradas (lista vacía si no llegó ninguna).
+    """
+    inicio = time.time()
+    reintento_hecho = False
+    while time.time() - inicio < FOTO_ESPERA_REQUEST:
+        requests_foto = interceptor.get_legalario_requests_by_endpoint(endpoint)
+        if requests_foto:
+            return requests_foto
+        if not reintento_hecho and time.time() - inicio >= FOTO_REINTENTO_CLICK_TRAS:
+            reintento_hecho = True
+            print(f"Sin request '{endpoint}' tras {FOTO_REINTENTO_CLICK_TRAS}s — reintentando 'Tomar Foto'")
+            Progress.emit("Sin respuesta del SDK, reintentando 'Tomar Foto'", "info")
+            try:
+                legalario_page.click_tomar_foto()
+            except Exception as exc:
+                print(f"No se pudo reintentar 'Tomar Foto': {exc}")
+        time.sleep(1)
+    return interceptor.get_legalario_requests_by_endpoint(endpoint)
+
+
+def flujo_identidad_a_otp(
+    driver,
+    login_page: LoginPage,
+    legalario_page: LegalarioPage,
+    interceptor: NetworkInterceptor,
+    prestamo_personal_page: PrestamoPersonalPage,
+    incluir_otp_provident: bool = True,
+) -> None:
+    """
+    Tramo compartido CN/CF: verificación de identidad Legalario, documentos,
+    datos personales y OTP Provident (este último solo CN: en CF el portal
+    salta de "dirección diferente" directo a beneficiario). En CN se llega tras "Registrar una
+    venta"; en CF se llega tras confirmar el método de entrega de la oferta
+    preautorizada (pantalla "Iniciar Proceso de Identidad").
+    """
+    with allure.step("Presionar 'Iniciar proceso de identidad'"):
+        login_page.click_iniciar_proceso_de_identidad()
+
+    with allure.step("Ingresar 'Celular'"):
+        login_page.ingresar_celular(Settings.CELULAR)
+
+    with allure.step("Presionar 'Comenzar'"):
+        login_page.click_continuar()
+
+    with allure.step("Presionar 'Check de Privacidad'"):
+        login_page.marcar_check_privacidad()
+
+    with allure.step("Presionar 'Continuar'"):
+        login_page.click_continuar()
+
+    with allure.step("Presionar 'Continuar Legalario OK'"):
+        legalario_page.click_continuar_legalario_ok()
+
+    # =========================
+    # INTERCEPTOR
+    # =========================
+    with allure.step("Instalar interceptor de red"):
+        interceptor.install_network_interceptor()
+        interceptor.clear_captured_requests()
+        interceptor.clear_all_otp_responses()
+
+    # =========================
+    # FOTO 1 - FRONTAL
+    # =========================
+    with allure.step("Preparar imagen mock frontal"):
+        mock_image_data_url_1 = legalario_page.prepare_mock_image(
+            Settings.LEGALARIO_FRONT_IMAGE_PATH
+        )
+        interceptor.set_mock_image_content(mock_image_data_url_1)
+
+    with allure.step("Presionar 'Tomar Foto' para frontal"):
+        legalario_page.click_tomar_foto()
+
+    with allure.step("Esperar requests del SDK frontal"):
+        esperar_request_foto(interceptor, legalario_page, "sdk/onboarding/identify/front")
+
+    with allure.step("Guardar requests capturadas frontal"):
+        all_path = interceptor.save_all_requests_to_file("captured_requests_front.json")
+        legalario_path = interceptor.save_legalario_requests_to_file("legalario_requests_front.json")
+        print(f"Todas las requests frontal: {all_path}")
+        print(f"Requests Legalario frontal: {legalario_path}")
+
+    with allure.step("Validar requests frontal"):
+        legalario_requests = interceptor.get_legalario_requests_by_endpoint(
+            "sdk/onboarding/identify/front"
+        )
+        print(f"Requests Legalario frontal: {len(legalario_requests)}")
+        assert legalario_requests, "No hubo requests de Legalario en frontal"
+
+    with allure.step("Guardar base64 frontal"):
+        base64_clean_1 = legalario_page.extract_base64_from_data_url(mock_image_data_url_1)
+        json_path_1 = save_base64_to_json(base64_clean_1, "debug_base64_front.json")
+        print(f"Base64 frontal guardado en: {json_path_1}")
+
+    with allure.step("Cambiar fecha de nacimiento OCR"):
+        fecha_unica = BirthdateAllocator.get_unique_birthdate()
+        print(f"Fecha nacimiento única asignada: {fecha_unica}")
+        legalario_page.cambiar_fecha_nacimiento_ocr(fecha_unica)
+
+    # =========================
+    # AVANZAR FLUJO
+    # =========================
+    with allure.step("Continuar después de frontal"):
+        legalario_page.click_continuar_legalario_ok()
+        time.sleep(2)
+
+    with allure.step("Continuar hacia captura trasera"):
+        legalario_page.click_continuar_legalario_ok()
+        time.sleep(2)
+
+    # =========================
+    # FOTO 2 - TRASERA
+    # =========================
+    with allure.step("Limpiar requests antes de trasera"):
+        interceptor.clear_captured_requests()
+
+    with allure.step("Preparar imagen mock trasera"):
+        mock_image_data_url_2 = legalario_page.prepare_mock_image(
+            Settings.LEGALARIO_BACK_IMAGE_PATH
+        )
+        interceptor.set_mock_image_content(mock_image_data_url_2)
+
+    with allure.step("Presionar 'Tomar Foto' para trasera"):
+        legalario_page.click_tomar_foto()
+
+    with allure.step("Esperar requests del SDK trasera"):
+        esperar_request_foto(interceptor, legalario_page, "sdk/onboarding/identify/reverse")
+
+    with allure.step("Guardar requests capturadas trasera"):
+        all_path = interceptor.save_all_requests_to_file("captured_requests_back.json")
+        legalario_path = interceptor.save_legalario_requests_to_file("legalario_requests_back.json")
+        print(f"Todas las requests trasera: {all_path}")
+        print(f"Requests Legalario trasera: {legalario_path}")
+
+    with allure.step("Validar requests trasera"):
+        legalario_requests = interceptor.get_legalario_requests_by_endpoint(
+            "sdk/onboarding/identify/reverse"
+        )
+        print(f"Requests Legalario trasera: {len(legalario_requests)}")
+        assert legalario_requests, "No hubo requests de Legalario en trasera"
+
+    with allure.step("Guardar base64 trasera"):
+        base64_clean_2 = legalario_page.extract_base64_from_data_url(mock_image_data_url_2)
+        json_path_2 = save_base64_to_json(base64_clean_2, "debug_base64_back.json")
+        print(f"Base64 trasera guardado en: {json_path_2}")
+
+    # =========================
+    # FACEMATCH
+    # =========================
+    with allure.step("Continuar después de trasera"):
+        legalario_page.click_continuar_legalario_ok()
+        time.sleep(2)
+
+    with allure.step("Guardar token Legalario antes de limpiar requests"):
+        _legalario_reqs_previos = interceptor.get_legalario_requests()
+        _auth_token = None
+        _legalario_base_url = "https://sandbox-api.legalario.com"
+        for _req in reversed(_legalario_reqs_previos):
+            _hdrs = _req.get("headers", {})
+            _tok = _hdrs.get("Authorization") or _hdrs.get("authorization")
+            if _tok:
+                _auth_token = _tok
+                _m = re.match(r"(https?://[^/]+)", _req.get("url", ""))
+                if _m:
+                    _legalario_base_url = _m.group(1)
+                break
+        print(f"Auth token guardado: {'Sí' if _auth_token else 'No'} — base URL: {_legalario_base_url}")
+
+    with allure.step("Limpiar requests antes de facematch"):
+        interceptor.clear_captured_requests()
+
+    with allure.step("Preparar imagen mock selfie para facematch"):
+        mock_selfie_data_url = legalario_page.prepare_mock_image(
+            Settings.LEGALARIO_SELFIE_IMAGE_PATH
+        )
+        interceptor.set_mock_image_content(mock_selfie_data_url)
+
+    with allure.step("Click en 'Comenzar a grabar' (pantalla previa al facematch)"):
+        legalario_page.click_comenzar_grabar()
+        time.sleep(2)
+
+    with allure.step("Esperar facematch automático del SDK (120s) o forzar como fallback"):
+        deadline = time.time() + FACEMATCH_ESPERA_SDK
+        legalario_requests_auto = []
+        sdk_exitoso = False
+        _inicio_espera = time.time()
+        _ultimo_diag = 0
+        _kick_hecho = False
+        _captura_atascado = False
+        while time.time() < deadline:
+            # Diagnóstico cada ~10s: estado de la cámara falsa y mensaje que muestra el SDK
+            if time.time() - _ultimo_diag >= 10:
+                _ultimo_diag = time.time()
+                try:
+                    _estado_cam = driver.execute_script(
+                        """
+                        const vids = [...document.querySelectorAll('video')].map(v => ({
+                            rs: v.readyState, w: v.videoWidth, h: v.videoHeight, paused: v.paused,
+                            tracks: v.srcObject ? v.srcObject.getVideoTracks().map(t => t.readyState + '/' + (t.muted ? 'muted' : 'live')) : null
+                        }));
+                        const m = (document.body.innerText.match(
+                            /Inicializando la cámara|Ajusta tu cara dentro del óvalo|Mantén esta posición|Acércate|Aléjate|Proceso exitoso/i) || [null])[0];
+                        return JSON.stringify({videos: vids, mensaje: m});
+                        """
+                    )
+                except Exception as _ce:
+                    _estado_cam = f"error: {_ce}"
+                print(f">>> CÁMARA t={int(time.time() - _inicio_espera)}s: {_estado_cam}")
+                if not _captura_atascado and time.time() - _inicio_espera >= 30:
+                    # Qué ve realmente el SDK si lleva 30s sin completar (cara/óvalo).
+                    _captura_atascado = True
+                    take_step_screenshot(driver, "facematch_atascado_30s", force=True)
+            legalario_requests_auto = interceptor.get_legalario_requests_by_endpoint(
+                "sdk/onboarding/identify/facematch"
+            )
+            if legalario_requests_auto:
+                print(f"Facematch capturado automáticamente por el SDK")
+                break
+            if not _kick_hecho and time.time() - _inicio_espera >= FACEMATCH_KICK_CAMARA_TRAS:
+                _camara_viva = driver.execute_script(
+                    "return [...document.querySelectorAll('video')].some(v => v.srcObject && "
+                    "v.srcObject.getVideoTracks().some(t => t.readyState === 'live'));"
+                )
+                if not _camara_viva:
+                    _kick_hecho = True
+                    # Intenta "despertar" el dispositivo fake: pide y suelta un stream.
+                    try:
+                        _kick = driver.execute_async_script(
+                            """
+                            const cb = arguments[arguments.length - 1];
+                            const t0 = Date.now();
+                            const timer = setTimeout(() => cb('timeout 10s'), 10000);
+                            navigator.mediaDevices.getUserMedia({video: true}).then(s => {
+                                s.getTracks().forEach(t => t.stop());
+                                clearTimeout(timer);
+                                cb('ok en ' + (Date.now() - t0) + 'ms');
+                            }).catch(e => { clearTimeout(timer); cb('error: ' + e); });
+                            """
+                        )
+                    except Exception as _ke:
+                        _kick = f"excepción: {_ke}"
+                    print(f">>> CÁMARA kick getUserMedia (sin stream vivo a los {FACEMATCH_KICK_CAMARA_TRAS}s): {_kick}")
+            if time.time() - _inicio_espera >= FACEMATCH_CORTE_SIN_CAMARA:
+                # Sin stream vivo el SDK nunca arranca y el fallback forzado siempre da
+                # 400: se corta pronto con un error claro en vez de esperar todo el plazo.
+                _camara_viva = driver.execute_script(
+                    "return [...document.querySelectorAll('video')].some(v => v.srcObject && "
+                    "v.srcObject.getVideoTracks().some(t => t.readyState === 'live'));"
+                )
+                if not _camara_viva:
+                    take_step_screenshot(driver, "facematch_camara_sin_stream", force=True)
+                    raise AssertionError(
+                        "Cámara fake sin stream vivo tras "
+                        f"{FACEMATCH_CORTE_SIN_CAMARA}s: el SDK de Legalario no inició el facematch"
+                    )
+            if driver.find_elements(
+                By.XPATH, "//*[contains(normalize-space(.),'procesamiento de las fotograf')]"
+            ):
+                # El SDK ya terminó ("¡Proceso exitoso!") aunque el interceptor
+                # no haya capturado la request: no hace falta esperar ni forzar.
+                print("Facematch completado por el SDK (pantalla 'Proceso exitoso')")
+                sdk_exitoso = True
+                break
+            time.sleep(1)
+
+        facematch_result = {"ok": bool(legalario_requests_auto) or sdk_exitoso, "status": 200 if (legalario_requests_auto or sdk_exitoso) else 0}
+        if not legalario_requests_auto and not sdk_exitoso:
+            print(f"SDK no completó facematch en {FACEMATCH_ESPERA_SDK}s — enviando request forzado como fallback")
+            # Legalario/Rekognition rechaza a veces (400 CompareFaces) el mismo payload
+            # que otras veces acepta (200): se reintenta antes de dar el paso por fallido.
+            for _intento in range(1, FACEMATCH_REINTENTOS + 1):
+                facematch_result = interceptor.force_facematch_request(
+                    mock_selfie_data_url,
+                    Settings.LEGALARIO_ONBOARDING_ID,
+                    auth_token=_auth_token,
+                    base_url=_legalario_base_url,
+                    front_data_url=mock_image_data_url_1,
+                )
+                print(
+                    f"Facematch forzado (intento {_intento}/{FACEMATCH_REINTENTOS}): "
+                    f"status={facematch_result.get('status')}, ok={facematch_result.get('ok')}, "
+                    f"error={facematch_result.get('error')}"
+                )
+                if facematch_result.get("body"):
+                    print(f"Facematch body: {str(facematch_result.get('body'))[:500]}")
+                if facematch_result.get("ok"):
+                    break
+                if _intento < FACEMATCH_REINTENTOS:
+                    Progress.emit(
+                        f"Facematch rechazado (status {facematch_result.get('status')}), "
+                        f"reintentando {_intento + 1}/{FACEMATCH_REINTENTOS}",
+                        "info",
+                    )
+                    time.sleep(FACEMATCH_ESPERA_REINTENTO)
+
+    with allure.step("Guardar requests capturadas facematch"):
+        all_path = interceptor.save_all_requests_to_file("captured_requests_facematch.json")
+        legalario_path = interceptor.save_legalario_requests_to_file("legalario_requests_facematch.json")
+        print(f"Todas las requests facematch: {all_path}")
+        print(f"Requests Legalario facematch: {legalario_path}")
+
+    with allure.step("Validar facematch"):
+        legalario_requests = interceptor.get_legalario_requests_by_endpoint(
+            "sdk/onboarding/identify/facematch"
+        )
+        print(f"Requests Legalario facematch: {len(legalario_requests)}")
+        for _r in legalario_requests:
+            # Estructura (no el contenido) de la request: permite comparar la del SDK
+            # con la forzada sin volcar megas de base64 a la consola.
+            try:
+                _b = json.loads(_r["body"]) if isinstance(_r.get("body"), str) else (_r.get("body") or {})
+                _estructura = {
+                    k: (f"{len(v)}ch '{v[:28]}'" if isinstance(v, str) else v)
+                    for k, v in _b.items()
+                }
+            except Exception as _e:
+                _estructura = f"no analizable: {_e}"
+            print(f"Facematch request status={_r.get('status')} estructura={_estructura}")
+        assert facematch_result.get("ok"), (
+            f"Facematch rechazado tras {FACEMATCH_REINTENTOS} intento(s): "
+            f"status={facematch_result.get('status')} error={facematch_result.get('error')} "
+            f"body={str(facematch_result.get('body'))[:500]}"
+        )
+        for _r in legalario_requests:
+            print(
+                f"Facematch respuesta: status={_r.get('status')} "
+                f"body={_r.get('responseText')}"
+            )
+
+    with allure.step("Guardar base64 selfie"):
+        base64_clean_selfie = legalario_page.extract_base64_from_data_url(mock_selfie_data_url)
+        json_path_selfie = save_base64_to_json(base64_clean_selfie, "debug_base64_selfie.json")
+        print(f"Base64 selfie guardado en: {json_path_selfie}")
+
+    with allure.step("Esperar resultado del facematch en la UI"):
+        # Se espera la pantalla de éxito del SDK ("¡Proceso exitoso!" con su botón
+        # Continuar) antes de liberar la cámara. No se busca la ausencia del texto
+        # "Ajusta tu cara…": sigue en el DOM, oculto tras el modal de éxito.
+        _fin_ui = time.time() + 45
+        while time.time() < _fin_ui:
+            if any(
+                e.is_displayed()
+                for e in driver.find_elements(
+                    By.XPATH,
+                    "//*[@id='legalarioModalButtonOk'] | "
+                    "//*[contains(normalize-space(.),'validación de las fotograf')]",
+                )
+            ):
+                break
+            time.sleep(1)
+        else:
+            _resp = [
+                (r.get("status"), r.get("responseText"))
+                for r in interceptor.get_legalario_requests_by_endpoint(
+                    "sdk/onboarding/identify/facematch"
+                )
+            ]
+            take_step_screenshot(driver, "facematch_no_completo", force=True)
+            raise AssertionError(
+                "Facematch no completó en la UI de Legalario: no apareció "
+                f"'Proceso exitoso' en 45s. Respuestas facematch: {_resp}"
+            )
+
+    with allure.step("Liberar cámara fake post-facematch"):
+        try:
+            driver.execute_script("""
+                if (window.__fakeMediaStreams) {
+                    window.__fakeMediaStreams.forEach(function(s) {
+                        s.getTracks().forEach(function(t) { t.stop(); });
+                    });
+                    window.__fakeMediaStreams = [];
+                }
+                if (navigator.mediaDevices && navigator.mediaDevices._streams) {
+                    navigator.mediaDevices._streams.forEach(function(s) {
+                        s.getTracks().forEach(function(t) { t.stop(); });
+                    });
+                }
+                var videos = document.querySelectorAll('video');
+                videos.forEach(function(v) {
+                    if (v.srcObject) {
+                        v.srcObject.getTracks().forEach(function(t) { t.stop(); });
+                        v.srcObject = null;
+                    }
+                });
+            """)
+            print(">>> DIAG: streams de cámara detenidos")
+        except Exception as _se:
+            print(f">>> DIAG: no se pudieron detener streams: {_se}")
+
+    with allure.step("Click continuar proceso finalizado"):
+        print(">>> DIAG: esperando botón Continuar post-facematch (máx 15s)")
+        try:
+            WebDriverWait(driver, 15).until(
+                EC.element_to_be_clickable((By.ID, "legalarioModalButtonOk"))
+            )
+        except Exception:
+            print(">>> DIAG: legalarioModalButtonOk no apareció en 15s")
+        print(">>> DIAG: tomando screenshot post-facematch")
+        take_step_screenshot(driver, "post_facematch_antes_continuar")
+        print(f">>> DIAG: URL post-facematch: {driver.current_url}")
+        try:
+            print(">>> DIAG: intentando click legalarioModalButtonOk")
+            legalario_page.click_continuar_legalario_ok()
+            print(">>> DIAG: click legalarioModalButtonOk OK")
+        except Exception as _bok_e:
+            print(f"legalarioModalButtonOk no disponible ({_bok_e}) — intentando JS click")
+            try:
+                _bok = driver.find_element(By.ID, "legalarioModalButtonOk")
+                driver.execute_script("arguments[0].click();", _bok)
+                print(">>> DIAG: JS click legalarioModalButtonOk OK")
+            except Exception:
+                print("legalarioModalButtonOk no encontrado — continuando de todas formas")
+        time.sleep(2)
+
+    with allure.step("Click continuar"):
+        print(f">>> DIAG: antes click_continuar URL={driver.current_url}")
+        time.sleep(3)
+        login_page.click_continuar()
+        time.sleep(2)
+        print(f">>> DIAG: después click_continuar URL={driver.current_url}")
+
+    # =========================
+    # PRÉSTAMO PERSONAL
+    # =========================
+    with allure.step("Continuar en préstamo personal"):
+        print(">>> DIAG: click_continuar prestamo_personal")
+        prestamo_personal_page.click_continuar()
+        print(f">>> DIAG: después click_continuar prestamo URL={driver.current_url}")
+
+    with allure.step("Subir comprobante de domicilio"):
+        print(">>> DIAG: upload_comprobante_domicilio")
+        prestamo_personal_page.upload_comprobante_domicilio(
+            Settings.COMPROBANTE_DOMICILIO_PATH
+        )
+        print(">>> DIAG: upload_comprobante_domicilio OK")
+
+    with allure.step("Subir comprobante"):
+        print(">>> DIAG: click_subir_comprobante")
+        prestamo_personal_page.click_subir_comprobante()
+        print(">>> DIAG: click_subir_comprobante OK")
+
+    with allure.step("Continuar modal comprobante"):
+        print(">>> DIAG: click_continuar_modal (comprobante)")
+        prestamo_personal_page.click_continuar_modal()
+        print(">>> DIAG: click_continuar_modal (comprobante) OK")
+
+    with allure.step("Subir fachada de domicilio"):
+        print(">>> DIAG: upload fachada")
+        prestamo_personal_page.upload_comprobante_domicilio(
+            Settings.COMPROBANTE_DOMICILIO_PATH
+        )
+        print(">>> DIAG: upload fachada OK")
+
+    with allure.step("Subir fotografía"):
+        print(">>> DIAG: click_subir_fotografia")
+        prestamo_personal_page.click_subir_fotografia()
+        print(">>> DIAG: click_subir_fotografia OK")
+
+    with allure.step("Continuar modal comprobante"):
+        print(">>> DIAG: click_continuar_modal (fotografia)")
+        prestamo_personal_page.click_continuar_modal()
+        print(">>> DIAG: click_continuar_modal (fotografia) OK")
+
+    with allure.step("Aceptar confirmación"):
+        try:
+            _acepto_btn = WebDriverWait(driver, 25).until(
+                EC.presence_of_element_located((By.XPATH, "//button[contains(@class,'btn-continue-validate') and normalize-space()='Acepto']"))
+            )
+            driver.execute_script("arguments[0].scrollIntoView(true);", _acepto_btn)
+            time.sleep(0.3)
+            driver.execute_script("arguments[0].click();", _acepto_btn)
+            print("Click en Acepto OK")
+        except Exception as _ae:
+            print(f"Acepto no encontrado: {_ae}")
+        # En CF aparece antes una pantalla de consentimiento de geolocalización
+        # (locationpage: "No Acepto" / "Acepto"); se atiende si aparece.
+        _deadline = time.time() + 25
+        _direccion_lista = False
+        while time.time() < _deadline:
+            if driver.find_elements(By.XPATH, "//button[contains(.,'Confirmar dirección')]"):
+                _direccion_lista = True
+                print(f"Página Confirmar dirección cargada — URL: {driver.current_url}")
+                break
+            if "locationpage" in driver.current_url:
+                try:
+                    _geo_btn = driver.find_element(
+                        By.XPATH, "//button[contains(@class,'btn-continue-validate') and normalize-space()='Acepto']"
+                    )
+                    take_step_screenshot(driver, "consentimiento_geolocalizacion")
+                    driver.execute_script("arguments[0].click();", _geo_btn)
+                    print("Consentimiento de geolocalización aceptado (locationpage)")
+                    time.sleep(2)
+                except Exception as _ge:
+                    print(f"locationpage detectada pero sin botón Acepto: {_ge}")
+            time.sleep(1)
+        if not _direccion_lista:
+            time.sleep(5)
+
+    with allure.step("Confirmar dirección"):
+        print(">>> DIAG: entrando a click_confirmar_direccion")
+        prestamo_personal_page.click_confirmar_direccion()
+        print(">>> DIAG: click_confirmar_direccion OK")
+
+    with allure.step("Seleccionar dirección actual"):
+        prestamo_personal_page.seleccionar_segunda_direccion()
+
+    with allure.step("Llenar datos personales"):
+        prestamo_personal_page.llenar_datos_personales()
+
+    with allure.step("Continuar datos personales"):
+        prestamo_personal_page.click_continuar_datos_personales()
+
+    with allure.step("Llenar datos laborales y financieros"):
+        prestamo_personal_page.llenar_datos_laborales_financieros()
+
+    with allure.step("Continuar datos laborales y financieros"):
+        prestamo_personal_page.click_continuar_datos_personales()
+
+    with allure.step("Seleccionar dirección diferente"):
+        prestamo_personal_page.seleccionar_direccion_diferente()
+
+    with allure.step("Continuar dirección diferente"):
+        prestamo_personal_page.click_continuar_datos_personales()
+
+    if not incluir_otp_provident:
+        return
+
+    # =========================
+    # OTP PROVIDENT
+    # =========================
+    with allure.step("Aceptar autorización"):
+        prestamo_personal_page.click_checkbox_autorizacion()
+
+    with allure.step("Presionar Autorizo"):
+        interceptor.clear_last_sms_otp_response()
+        prestamo_personal_page.click_autorizo()
+
+    with allure.step("Obtener OTP Provident desde response"):
+        WebDriverWait(driver, 30).until(
+            lambda d: interceptor.get_last_sms_otp_code() is not None
+        )
+        otp = interceptor.get_last_sms_otp_code()
+        assert otp, "No se pudo obtener OTP desde response de sendconfirmationsms"
+        print(f"OTP Provident capturado: {otp}")
+
+    with allure.step("Ingresar OTP Provident"):
+        prestamo_personal_page.ingresar_otp_nip(otp)
+        time.sleep(2)
+
+    with allure.step("Continuar OTP Provident"):
+        prestamo_personal_page.click_continuar_datos_personales()
+        time.sleep(10)
+
+
+def flujo_metodo_entrega(
+    driver,
+    login_page: LoginPage,
+    interceptor: NetworkInterceptor,
+    prestamo_personal_page: PrestamoPersonalPage,
+) -> None:
+    """Pantalla opcional singleoffer + selección y confirmación del método de entrega."""
+    with allure.step("Manejar pantalla de oferta opcional (singleoffer)"):
+        _singleoffer_deadline = time.time() + 8
+        while time.time() < _singleoffer_deadline:
+            if "singleoffer" in driver.current_url:
+                print("Pantalla singleoffer detectada — intentando salir")
+                try:
+                    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                    time.sleep(1)
+                    _btn = WebDriverWait(driver, 10).until(
+                        EC.presence_of_element_located(
+                            (By.XPATH, "//button[contains(.,'No aceptar oferta')]")
+                        )
+                    )
+                    driver.execute_script("arguments[0].click();", _btn)
+                    WebDriverWait(driver, 15).until(
+                        lambda d: "singleoffer" not in d.current_url
+                    )
+                    print(f"Singleoffer superada (No aceptar) — nueva URL: {driver.current_url}")
+                except Exception as _e:
+                    print(f"Error en singleoffer con 'No aceptar': {_e}")
+                    try:
+                        _btn2 = driver.find_element(By.XPATH, "//button[contains(.,'Continuar')]")
+                        driver.execute_script("arguments[0].click();", _btn2)
+                        WebDriverWait(driver, 15).until(
+                            lambda d: "singleoffer" not in d.current_url
+                        )
+                        print(f"Singleoffer superada (Continuar) — nueva URL: {driver.current_url}")
+                    except Exception as _e2:
+                        print(f"Error en singleoffer con 'Continuar': {_e2}")
+                break
+            time.sleep(1)
+
+    with allure.step(f"Seleccionar método de entrega: {Settings.METODO_ENTREGA}"):
+        take_step_screenshot(driver, "antes_metodo_entrega")
+        print(f"DIAG antes método entrega — URL: {driver.current_url}")
+        prestamo_personal_page.click_metodo_entrega(Settings.METODO_ENTREGA)
+
+    with allure.step("Confirmar opción Sí"):
+        prestamo_personal_page.click_si()
+
+    if "FINABIEN" in Settings.METODO_ENTREGA.upper():
+        with allure.step("Seleccionar oficina postal Finabien"):
+            _estado_postal, _ciudad_postal = Settings.ubicacion_oficina_postal(
+                Settings.AGENCIA_LABEL
+            )
+            prestamo_personal_page.seleccionar_oficina_postal_finabien(
+                estado=_estado_postal, ciudad=_ciudad_postal
+            )
+
+
+def flujo_beneficiario_a_finalizar(
+    driver,
+    login_page: LoginPage,
+    interceptor: NetworkInterceptor,
+    prestamo_personal_page: PrestamoPersonalPage,
+):
+    """Compartido CN/CF: beneficiario, contrato/OTP Legalario, firma y finalización de venta."""
+    with allure.step("Llenar datos beneficiario"):
+        hubo_beneficiario = prestamo_personal_page.llenar_datos_beneficiario()
+
+    # El beneficiario es del Seguro Integral: si se rechazó el seguro, esta
+    # pantalla no aparece y el flujo ya está en "Consentimientos legales" —
+    # no hay que pulsar Continuar de nuevo.
+    if hubo_beneficiario:
+        with allure.step("Continuar beneficiario"):
+            prestamo_personal_page.click_continuar_datos_personales()
+
+    # =========================
+    # CONTRATO / OTP LEGALARIO
+    # =========================
+    with allure.step("Marcar checks contrato"):
+        prestamo_personal_page.marcar_checks_contrato()
+
+    with allure.step("Continuar contrato"):
+        prestamo_personal_page.click_continuar_datos_personales()
+
+    # El click en "Enviar SMS" a veces no dispara nada (la pantalla aún está recargando
+    # el expediente y el componente se vuelve a renderizar): no sale la request
+    # send-code. Pero Legalario también puede tardar >25s en responder: volver a pulsar
+    # entonces genera un código NUEVO que invalida el anterior (el 03/11 el código
+    # tecleado llegó expirado/inválido y el contrato nunca se desbloqueó). Por eso solo
+    # se vuelve a pulsar si NO salió ninguna request send-code; si salió, se espera.
+    def _send_code_capturados():
+        return [
+            r for r in interceptor.get_captured_requests()
+            if "/sdk/invites/send-code" in str(r.get("url", ""))
+        ]
+
+    with allure.step("Enviar SMS Legalario y esperar inputs OTP"):
+        time.sleep(3)  # dejar que la pantalla termine de cargar antes del primer click
+        _otp_visible = False
+        for _intento in range(1, 4):
+            interceptor.clear_last_legalario_otp_response()
+            _envios_antes = len(_send_code_capturados())
+            prestamo_personal_page.click_enviar_sms()
+            _inicio_click = time.time()
+            while time.time() - _inicio_click < OTP_ESPERA_INPUTS:
+                if any(
+                    e.is_displayed()
+                    for e in driver.find_elements(*prestamo_personal_page.INPUT_OTP_1)
+                ):
+                    _otp_visible = True
+                    break
+                if (
+                    time.time() - _inicio_click >= OTP_CLICK_PERDIDO_TRAS
+                    and len(_send_code_capturados()) == _envios_antes
+                ):
+                    break  # no salió send-code: el click se perdió
+                time.sleep(1)
+            if _otp_visible:
+                break
+            _vistos = len(_send_code_capturados()) - _envios_antes
+            print(
+                f"Enviar SMS: click #{_intento} sin inputs OTP tras "
+                f"{int(time.time() - _inicio_click)}s (send-code vistos por el interceptor: {_vistos}) — reintentando"
+            )
+        if not _otp_visible:
+            _envios = [
+                (r.get("status"), str(r.get("responseText"))[:200])
+                for r in _send_code_capturados()
+            ]
+            print(f"send-code capturados ({len(_envios)}): {_envios}")
+            take_step_screenshot(driver, "enviar_sms_sin_inputs_otp", force=True)
+        assert _otp_visible, (
+            "No aparecieron los inputs OTP de Legalario tras 3 clicks en 'Enviar SMS'"
+            + ("" if _otp_visible else f" (send-code: {_envios})")
+        )
+
+    with allure.step("Obtener OTP Legalario"):
+        # Antes el código venía en la respuesta de send-code; hoy el SDK usa send-code-new (sin
+        # código) y hay que pedirlo al endpoint anterior (ver NetworkInterceptor.solicitar_otp_legalario).
+        otp_legalario = None
+        try:
+            WebDriverWait(driver, 5).until(
+                lambda d: interceptor.get_last_legalario_otp_code() is not None
+            )
+            otp_legalario = interceptor.get_last_legalario_otp_code()
+        except TimeoutException:
+            otp_legalario = interceptor.solicitar_otp_legalario()
+        if not otp_legalario:
+            _respuestas = [
+                (r.get("status"), str(r.get("responseText"))[:300])
+                for r in _send_code_capturados()
+            ]
+            _ultima = interceptor.get_last_legalario_otp_response()
+            print(f"send-code capturados ({len(_respuestas)}): {_respuestas}")
+            print(f"Última respuesta send-code: {json.dumps(_ultima, ensure_ascii=False)[:1500]}")
+        assert otp_legalario, (
+            "No se pudo obtener el OTP de Legalario (ni de la respuesta de send-code-new ni "
+            "pidiéndolo a /sdk/invites/send-code)"
+        )
+        print(f"OTP Legalario capturado: {otp_legalario}")
+
+    with allure.step("Ingresar OTP Legalario"):
+        prestamo_personal_page.ingresar_otp_legalario(otp_legalario)
+
+    with allure.step("Aceptar contrato 1"):
+        prestamo_personal_page.click_estoy_de_acuerdo()
+        # El visor tarda en cargar cada documento: un segundo click inmediato se pierde y
+        # luego nunca aparece el canvas de la firma. Se espera a que el primero quede "Revisado".
+        _esperar_documentos_revisados(driver, 1)
+
+    with allure.step("Aceptar contrato 2"):
+        prestamo_personal_page.click_estoy_de_acuerdo()
+
+    with allure.step("Dibujar firma Legalario"):
+        prestamo_personal_page.dibujar_firma_legalario()
+
+    with allure.step("Firmar contrato Legalario"):
+        prestamo_personal_page.click_firmar_legalario()
+        time.sleep(5)
+
+    with allure.step("Finalizar contrato"):
+        prestamo_personal_page.click_firmar_legalario()
+        time.sleep(5)
+
+    with allure.step("Cerrar modal firma completada"):
+        # El modal de Legalario pasa por estados (firmando → "Contrato exitoso"); un
+        # click temprano cierra el estado equivocado. Se reintenta hasta que aparece
+        # "Finalizar Venta" (pantalla posterior al modal).
+        _fin_modal = time.time() + 90
+        _clicks_modal = 0
+        while time.time() < _fin_modal:
+            if driver.find_elements(*prestamo_personal_page.BTN_FINALIZAR_VENTA):
+                break
+            _exito = driver.find_elements(
+                By.XPATH, "//*[contains(normalize-space(.),'Contrato exitoso')]"
+            )
+            _botones = driver.find_elements(
+                By.XPATH,
+                "//button[@data-action='finishProcess'] | "
+                "//button[@id='legalarioButtonNext' and normalize-space()='Continuar']",
+            )
+            if _exito and _botones:
+                driver.execute_script("arguments[0].click();", _botones[0])
+                _clicks_modal += 1
+                print(f"Modal 'Contrato exitoso' — click Continuar #{_clicks_modal}")
+                time.sleep(4)
+            else:
+                time.sleep(1)
+        else:
+            print("Modal firma completada: no se llegó a 'Finalizar Venta' en 90s")
+
+    # =========================
+    # FINALIZAR VENTA
+    # =========================
+    with allure.step("Finalizar venta"):
+        interceptor.clear_captured_requests()
+        prestamo_personal_page.click_finalizar_venta()
+        time.sleep(5)
+        # Leer el folio ya: si después aparece "Aceptar" y la página se recarga, se
+        # pierden las requests capturadas por el interceptor.
+        _folio_temprano = obtener_folio_finalizacion(interceptor)
+
+    # En CN aparece un modal "Aceptar" tras finalizar; en CF el portal se queda
+    # en la misma pantalla (contador de contrato) sin ese modal. Se hace opcional,
+    # pero se exige la request de finalización exitosa para no ocultar fallos.
+    with allure.step("Aceptar confirmación final (si aparece)"):
+        _aceptar_deadline = time.time() + 15
+        _aceptar_clickeado = False
+        while time.time() < _aceptar_deadline:
+            # El log "Finalización — Exitoso <folio>" puede llegar después de los 5s
+            # iniciales; se sigue buscando antes de que "Aceptar" recargue la página.
+            _folio_temprano = _folio_temprano or obtener_folio_finalizacion(interceptor)
+            if driver.find_elements(*prestamo_personal_page.BTN_ACEPTAR):
+                _folio_temprano = _folio_temprano or obtener_folio_finalizacion(interceptor)
+                prestamo_personal_page.click_aceptar()
+                _aceptar_clickeado = True
+                time.sleep(10)
+                break
+            time.sleep(1)
+        if not _aceptar_clickeado:
+            print("Modal 'Aceptar' no apareció (esperado en CF) — se valida la finalización por red")
+
+    # Tras "Aceptar" (pantalla "¡Muchas felicidades!") aparece una última pantalla
+    # con el botón verde "Finalizar"; sin pulsarlo, "Salir" se queda colgado.
+    with allure.step("Finalizar (pantalla posterior a Aceptar)"):
+        _fin_deadline = time.time() + 25
+        _finalizar_ok = False
+        while time.time() < _fin_deadline:
+            _visibles = [
+                b for b in driver.find_elements(By.XPATH, "//button[normalize-space()='Finalizar']")
+                if b.is_displayed()
+            ]
+            if _visibles:
+                take_step_screenshot(driver, "prestamo_personal_finalizar_final")
+                driver.execute_script("arguments[0].click();", _visibles[0])
+                _finalizar_ok = True
+                print("Click en 'Finalizar' final OK")
+                time.sleep(5)
+                break
+            time.sleep(1)
+        if not _finalizar_ok:
+            print("Botón 'Finalizar' final no apareció en 25s — se continúa a cerrar sesión")
+
+    with allure.step("Validar finalización de venta"):
+        folio = _folio_temprano or obtener_folio_finalizacion(interceptor)
+        if folio is None and not _aceptar_clickeado:
+            raise AssertionError(
+                "No se detectó la finalización de la venta (ni modal Aceptar ni "
+                "registro 'Finalización - Exitoso' en useractivitylogger)"
+            )
+        print(f"Folio de finalización: {folio}")
+        if folio is None:
+            _acciones = []
+            for _req in interceptor.get_captured_requests():
+                if "useractivitylogger" in str(_req.get("url", "")):
+                    _acciones.append(str(_req.get("body"))[:120])
+            print(f"Folio no detectado; useractivitylogger capturados ({len(_acciones)}): {_acciones[-5:]}")
+
+    with allure.step("Cerrar sesión"):
+        login_page.cerrar_sesion_local()
+
+    return folio
+
+
+def obtener_folio_finalizacion(interceptor):
+    """Devuelve el folio de 'Finalización — Exitoso <folio>' del log de actividad, o None."""
+    for req in reversed(interceptor.get_captured_requests()):
+        if "useractivitylogger" not in str(req.get("url", "")):
+            continue
+        body = req.get("body")
+        try:
+            data = json.loads(body) if isinstance(body, str) else body
+        except Exception:
+            continue
+        if not isinstance(data, dict):
+            continue
+        accion = str(data.get("accion", ""))
+        detalle = str(data.get("detalle", ""))
+        if accion.startswith("Finaliz") and detalle.startswith("Exitoso"):
+            partes = detalle.split()
+            return partes[1] if len(partes) > 1 else detalle
+    return None
