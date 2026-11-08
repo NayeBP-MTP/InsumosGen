@@ -9,7 +9,7 @@ from insumos.log_operacion import LogOperacion
 from insumos.modulo import Modulo
 
 EXPEDIENTE = {
-    "IdExpedienteCliente": 7329, "numeroContrato": "240021110", "IdExpedienteOferta": 555,
+    "IdExpedienteCliente": 7329, "numeroContrato": "240021110",
     "Agencia": 2075000000335, "Cliente": 0, "NombreCliente": "NAYELI BENITEZ PEREZ",
     "RFCCliente": "BEPN951222AB1", "DomicilioCliente": "CALLE 1", "FechaNacimiento": datetime(1995, 12, 22),
 }
@@ -29,8 +29,8 @@ class FakeFuente:
         self.lecturas.append(("expediente", numero_contrato, id_expediente))
         return self.expediente
 
-    def leer_montos(self, id_expediente_oferta):
-        self.lecturas.append(("montos", id_expediente_oferta))
+    def leer_montos(self, id_expediente):
+        self.lecturas.append(("montos", id_expediente))
         return self.oferta
 
 
@@ -84,7 +84,7 @@ class TestContextoVenta:
         fuente = FakeFuente()
         ctx = self._ctx(fuente, con_seguro=False).cargar_montos().cargar_montos()
         assert ctx.montos == Montos(10000.0, 530.39, 303.05)
-        assert fuente.lecturas == [("expediente", "240021110", None), ("montos", 555)]
+        assert fuente.lecturas == [("expediente", "240021110", None), ("montos", 7329)]
 
     def test_montos_en_cero_fallan_sin_dejar_el_contexto_a_medias(self):
         ctx = self._ctx(FakeFuente(oferta={**OFERTA, "MontoTotalSeguro": 0}))

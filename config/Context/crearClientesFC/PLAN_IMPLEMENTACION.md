@@ -198,7 +198,32 @@ en cada paso y requieren VPN.
   fecha, leer `ExpedienteOferta`, actualizar nombre/RFC, `Cliente`, `IdPaso`) y `CnfsRepository`
   (inserts/updates de Customer, Agreement y Address; las tres altas de CNFS en una transacción).
 - **Verificación:** lecturas reales en UAT; escrituras en `dry_run`.
-- [ ] Impl. · [ ] Verif. · [ ] Review
+- **Resultado:** `OriginacionRepository` (`services/originacion_repository.py`): `leer_expediente`
+  (por contrato o id), `buscar_por_nombre_ine`, `buscar_venta_finalizada`, `leer_montos`,
+  `max_cliente_con_prefijo`, `actualizar_nombre_rfc` / `actualizar_cliente` / `actualizar_id_paso`
+  (con `dry_run`); es la `fuente` de `ContextoVenta`. `CnfsRepository` (`services/cnfs_repository.py`):
+  `agreement_existe`, `customer_id_de_agreement`, `customer_existe`, `max_customer_id_con_prefijo`,
+  `insertar_agreement`, `insertar_cliente_y_direccion` (Customer + Address en una transacción, vía
+  el nuevo `SqlServerRepository._escribir_transaccion`) y `actualizar_customer_id_agreement`. Los
+  INSERT se arman de las plantillas del 2.1 (`sentencia_insert`).
+- **Hallazgos de las lecturas reales (UAT, 07/11/2026):**
+  - `ExpedienteCliente.IdExpedienteOferta` es **NULL en las 7206 filas**; el vínculo es
+    `ExpedienteOferta.IdExpedienteCliente` (casi siempre una fila; se toma la más reciente). Se
+    corrigió `ContextoVenta` y la `fuente` (`leer_montos(id_expediente)`). Los nombres de columna de
+    montos del diseño son correctos.
+  - Montos leídos para dos ventas reales con/sin seguro (p. ej. contrato 240021110: 11028.61 /
+    10520.39 de monto, 589.36 / 562.26 de primer pago, 336.75 / 321.23 de pago semanal).
+  - En una venta **CF** el expediente trae el nombre de la INE (`NAYELI BENITEZ PEREZ`) con el RFC y
+    la fecha de nacimiento de la oferta (`GURC...`, 1996-09-07): justo lo que corrige
+    `RENOMBRAR_CLIENTE`. En CN el RFC sí coincide con la INE.
+  - `max_cliente_con_prefijo` / `max_customer_id_con_prefijo` funcionan (CF de hoy: `2075261100023`;
+    sin clientes CN de hoy: `None` → `001`). Contratos de las ventas nuevas: no existen en
+    `Agreement_Table` (`agreement_existe` = False); uno histórico sí, con `Customer_Id = 0`.
+  - `FechaFinalizacion` es `datetime` (redondea a 3.3 ms): buscar con `desde` igual a la hora exacta
+    de un expediente lo deja fuera; usar la hora de inicio de la venta.
+- **Verificación:** lecturas reales en UAT (arriba) + `tests/test_repositorios_insumos.py`
+  (escrituras en `dry_run`, 79 pruebas unitarias pasan). Ninguna escritura real en este paso.
+- [x] Impl. · [x] Verif. · [x] Review
 
 ### 2.4 Módulo `RENOMBRAR_CLIENTE`
 - **Qué:** nombre mexicano aleatorio + RFC coherente (partes de `MexicanNames.generar`, no partir

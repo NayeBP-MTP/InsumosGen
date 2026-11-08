@@ -107,3 +107,23 @@ class SqlServerRepository:
         with self._get_connection() as conn:
             conn.cursor().execute(sql, params)
             conn.commit()
+
+    def _escribir_transaccion(self, sentencias) -> None:
+        """
+        Ejecuta varias escrituras [(sql, params), ...] en UNA transacción (un solo commit; si una
+        falla no queda ninguna). Con `dry_run` las deja en `dry_run_log` en el mismo orden.
+        """
+        sentencias = [(sql, tuple(params)) for sql, params in sentencias]
+        if self.dry_run:
+            self.dry_run_log.extend(sentencias)
+            return
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                for sql, params in sentencias:
+                    cursor.execute(sql, params)
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+

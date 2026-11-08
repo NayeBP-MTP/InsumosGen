@@ -12,11 +12,11 @@ class FuenteExpediente(Protocol):
     """Lectura de Originacion que necesita el contexto (la implementa OriginacionRepository)."""
 
     def leer_expediente(self, numero_contrato=None, id_expediente=None) -> dict:
-        """Fila de ExpedienteCliente: IdExpedienteCliente, numeroContrato, IdExpedienteOferta,
-        Agencia, Cliente, NombreCliente, RFCCliente, DomicilioCliente, FechaNacimiento."""
+        """Fila de ExpedienteCliente: IdExpedienteCliente, numeroContrato, Agencia, Cliente,
+        NombreCliente, RFCCliente, DomicilioCliente, FechaNacimiento."""
 
-    def leer_montos(self, id_expediente_oferta: int) -> dict:
-        """Fila de ExpedienteOferta: MontoTotal[Seguro], PrimerPagoSemanal[Seguro],
+    def leer_montos(self, id_expediente: int) -> dict:
+        """Fila de ExpedienteOferta del expediente: MontoTotal[Seguro], PrimerPagoSemanal[Seguro],
         PagoSubsecuente[Seguro]."""
 
 
@@ -68,7 +68,6 @@ class ContextoVenta:
     nombre_cliente: Optional[str] = None
     rfc: Optional[str] = None
     domicilio: Optional[str] = None
-    id_expediente_oferta: Optional[int] = None
     montos: Optional[Montos] = None
     fuente: Optional[FuenteExpediente] = field(default=None, repr=False, compare=False)
 
@@ -110,7 +109,6 @@ class ContextoVenta:
         )
         self.numero_contrato = str(fila["numeroContrato"])
         self.id_expediente = fila["IdExpedienteCliente"]
-        self.id_expediente_oferta = fila["IdExpedienteOferta"]
         self.agencia = fila["Agencia"]
         self.cliente = int(fila["Cliente"] or 0)
         self.nombre_cliente = fila["NombreCliente"]
@@ -124,9 +122,7 @@ class ContextoVenta:
         if self.montos is not None:
             return self
         self.cargar_expediente()
-        if not self.id_expediente_oferta:
-            raise ErrorContexto(f"El expediente {self.id_expediente} no tiene IdExpedienteOferta.")
-        self.montos = elegir_montos(self._fuente().leer_montos(self.id_expediente_oferta), self.con_seguro)
+        self.montos = elegir_montos(self._fuente().leer_montos(self.id_expediente), self.con_seguro)
         return self
 
     def _fuente(self) -> FuenteExpediente:
