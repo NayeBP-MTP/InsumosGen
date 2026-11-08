@@ -457,6 +457,23 @@ en cada paso y requieren VPN.
   `data/` los logs, pendientes y consecutivos de prueba.
 - [x] Impl. · [x] Verif. · [x] Review
 
+### 3.3b Catálogo de recetas validado (a pedido en el review del 3.3)
+- **Qué:** que no pueda existir un módulo de insumo sin receta ni una receta mal armada.
+  `insumos/recetas.py` declara `MODULOS` y `TIPOS_VENTA` y `validar_recetas()` comprueba: cada módulo está en
+  al menos una receta; cada tipo de venta (CN/CF) tiene recetas; cada paso existe y no se repite; una sola
+  pausa de QA; y el orden respeta las dependencias (RENOMBRAR antes de REGISTRO; ACTUALIZAR después de
+  AGREEMENT y CREAR_ID; en CN, REGISTRO después de CREAR_ID y, si AGREEMENT va antes de CREAR_ID, la receta
+  debe llevar ACTUALIZAR; en CF no se usa CREAR_ID ni ACTUALIZAR). Corre **al importar** el módulo
+  (`validar_o_fallar`), así un catálogo roto falla de inmediato y con todos los problemas listados, no a mitad
+  de una ejecución real. `fabrica_por_defecto` además exige que sus módulos coincidan exactamente con
+  `MODULOS`, de modo que agregar un módulo obliga a darle implementación y receta.
+- **Para el 3.4/3.5:** la UI y `run.py` deben ofrecer solo recetas de `RECETAS` (cada tipo CN/CF mostrará sus
+  recetas) y no inventar combinaciones.
+- **Verificación:** `tests/test_catalogo_recetas.py` (20 casos: el catálogo real sin problemas, cada módulo y
+  cada tipo cubiertos, fábrica y catálogo coincidentes, las variantes sin pausa válidas y cada regla
+  detectando su problema); 247 pruebas unitarias; `python -m insumos listar` sigue funcionando.
+- [x] Impl. · [x] Verif. · [x] Review
+
 ### 3.4 `run.py`: tipo `RECETA`
 - **Qué:** generalizar `ORDEN_TIPOS`, `TEST_FILE_BY_TIPO_CLIENTE` y las etiquetas de
   `_ejecutar_fase`; test delgado de recetas; resultados e historial.

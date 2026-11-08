@@ -8,7 +8,7 @@ from insumos.deshacer import Deshacedor, ResultadoDeshacer
 from insumos.log_operacion import LogOperacion
 from insumos.modulo import Modulo
 from insumos.pendientes import COMPLETADA, DESHECHA, EN_CURSO, ESPERANDO_QA, FALLIDA, PendientesStore
-from insumos.recetas import PAUSA_QA, RECETAS, Receta
+from insumos.recetas import MODULOS, PAUSA_QA, RECETAS, Receta
 
 
 @dataclass
@@ -51,6 +51,11 @@ def fabrica_por_defecto(dry_run: bool = False, originacion=None, cnfs=None, allo
         "REGISTRO_CLIENTE": lambda: RegistroCliente(repo=cnfs),
         "PASO_22_DISPERSADO": lambda: Paso22Dispersado(repo=originacion),
     }
+    if set(modulos) != set(MODULOS):
+        raise ValueError(
+            f"La fábrica y el catálogo de recetas no coinciden: sin fábrica {sorted(set(MODULOS) - set(modulos))}, "
+            f"sin catálogo {sorted(set(modulos) - set(MODULOS))}."
+        )
     fabrica = lambda nombre: modulos[nombre]()  # noqa: E731
     fabrica.fuente = originacion  # lo usa el runner como fuente de datos del ContextoVenta
     fabrica.repositorios = (originacion, cnfs)  # en dry_run: sus `dry_run_log` son lo que se habría escrito
