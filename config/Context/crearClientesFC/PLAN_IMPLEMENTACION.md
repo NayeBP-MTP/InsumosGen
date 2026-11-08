@@ -431,7 +431,31 @@ en cada paso y requieren VPN.
 - **Qué:** ejecutar una receta, reanudar o deshacer sin la UI (para QA), p. ej.
   `python -m recetas <receta> --contrato N`, `... reanudar`, `... deshacer`.
 - **Verificación:** las 6 recetas desde la terminal contra un contrato de prueba (UAT).
-- [ ] Impl. · [ ] Verif. · [ ] Review
+- **Resultado:** `insumos/cli.py` + `insumos/__main__.py`. El paquete se llama `insumos`, así que el comando es
+  `python -m insumos` (el plan decía `python -m recetas`):
+  - `listar` (recetas y sus módulos) y `pendientes` (en pausa de QA, en curso o fallidas; las en pausa
+    muestran contrato y fecha de nacimiento para QA).
+  - `ejecutar <RECETA> --contrato N [--con-seguro|--sin-seguro] [--sin-pausa-qa] [--colaborador NN] [--dry-run]`:
+    el tipo CN/CF sale de la receta; el seguro, por defecto, de `data/run_config.json`.
+  - `continuar <contrato>` (QA confirmó), `reanudar <contrato>` y `deshacer <contrato> [--dry-run]`.
+  - Códigos de salida: 0 bien (incluida la pausa de QA), 1 la receta falló o `deshacer` halló conflictos, 2
+    uso o datos inválidos (mensaje `Error: ...`, sin traceback). Tras una falla indica si se deshizo sola o
+    qué opciones hay (`reanudar` / `deshacer`).
+  - Dos correcciones que salieron al implementarlo: (1) `ContextoVenta.verificar_tipo()`: el runner
+    rechaza una receta CF sobre un contrato CN (o al revés) mirando `ExpedienteCliente.IdOferta` (0 = CN),
+    porque si no se escribiría `CC` en vez de `AA`; (2) el almacén guarda si la operación se lanzó
+    `--sin-pausa-qa` para que `reanudar` no reintroduzca la pausa.
+- **Verificación:** `tests/test_cli_insumos.py` (17 casos con un runner falso), pruebas de `verificar_tipo` y de
+  la variante sin pausa; 225 pruebas unitarias. **UAT real desde la terminal** (`python -m insumos` en
+  subprocesos, BD real, contratos de prueba 240021110 CN y 240021111 CF): `listar`, `pendientes`, receta de
+  tipo equivocado rechazada (salida 2, BD intacta) y, para **cada una de las 6 recetas**: `--dry-run` (BD
+  intacta) → `ejecutar` → (en las dos con pausa, `pendientes` y `continuar`) → comprobación en la BD (`Cliente`
+  de 13 dígitos igual en expediente y `Agreement_Table`, cliente y dirección en CNFS, `IdPaso` 22 solo en las
+  dispersadas) → `deshacer --dry-run` → `deshacer` (6 u 7 escrituras) → segunda vez sin nada que revertir →
+  BD idéntica a la original. Además: `reanudar` en pausa no la salta, `deshacer` en pausa, `reanudar` de una
+  operación deshecha y `continuar` de un id inexistente salen con 2. Estado final == original; limpié de
+  `data/` los logs, pendientes y consecutivos de prueba.
+- [x] Impl. · [x] Verif. · [x] Review
 
 ### 3.4 `run.py`: tipo `RECETA`
 - **Qué:** generalizar `ORDEN_TIPOS`, `TEST_FILE_BY_TIPO_CLIENTE` y las etiquetas de

@@ -68,6 +68,7 @@ class ContextoVenta:
     nombre_cliente: Optional[str] = None
     rfc: Optional[str] = None
     domicilio: Optional[str] = None
+    id_oferta: Optional[int] = None  # 0 en CN; el de la oferta en CF
     montos: Optional[Montos] = None
     # Partes del nombre generado por RENOMBRAR_CLIENTE (nombre, apellido_paterno, apellido_materno);
     # REGISTRO_CLIENTE las usa para Forename/Surname sin partir el nombre completo.
@@ -136,7 +137,22 @@ class ContextoVenta:
         self.nombre_cliente = fila["NombreCliente"]
         self.rfc = fila["RFCCliente"]
         self.domicilio = fila["DomicilioCliente"]
+        self.id_oferta = fila.get("IdOferta")
         self.fecha_nacimiento = fila["FechaNacimiento"]
+        return self
+
+    def verificar_tipo(self) -> "ContextoVenta":
+        """
+        Falla si el expediente es de otro tipo de venta que `tipo` (una receta CF sobre un contrato CN
+        escribiría `CC` en vez de `AA`). Solo se puede saber con el expediente cargado y `IdOferta`.
+        """
+        self.cargar_expediente()
+        if self.id_oferta is not None and (self.id_oferta != 0) != (self.tipo == "CF"):
+            real = "CF" if self.id_oferta else "CN"
+            raise ErrorContexto(
+                f"El contrato {self.numero_contrato} es una venta {real} (IdOferta={self.id_oferta}) y se "
+                f"pidió una receta {self.tipo}."
+            )
         return self
 
     def cargar_montos(self) -> "ContextoVenta":

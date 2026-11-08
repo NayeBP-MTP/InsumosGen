@@ -99,7 +99,7 @@ class RunnerRecetas:
             raise ErrorContexto(f"No hay una operación pendiente con id {operacion_id}.")
         if entrada["estado"] != ESPERANDO_QA:
             raise ErrorContexto(f"La operación {operacion_id} no está esperando QA (estado: {entrada['estado']}).")
-        receta = RECETAS[entrada["receta"]]
+        receta = self._receta_de(entrada)
         ctx = ContextoVenta.desde_dict(entrada["contexto"], fuente or getattr(self.fabrica, "fuente", None))
         LogOperacion(operacion_id, self.directorio_logs).modulo_completado(PAUSA_QA)
         return self._correr(receta, ctx)
@@ -114,7 +114,7 @@ class RunnerRecetas:
                 f"La operación {operacion_id} se deshizo; vuelve a ejecutar la receta desde el principio."
             )
         ctx = ContextoVenta.desde_dict(entrada["contexto"], fuente or getattr(self.fabrica, "fuente", None))
-        return self._correr(RECETAS[entrada["receta"]], ctx)
+        return self._correr(self._receta_de(entrada), ctx)
 
     def deshacer(self, operacion_id: str) -> ResultadoDeshacer:
         """Revierte lo que escribió la operación (log en orden inverso) y la marca como deshecha."""
@@ -124,6 +124,12 @@ class RunnerRecetas:
         return resultado
 
     # --- internos ---
+
+    @staticmethod
+    def _receta_de(entrada: dict) -> Receta:
+        """La receta de una operación guardada, con su variante sin pausa de QA si se lanzó así."""
+        receta = RECETAS[entrada["receta"]]
+        return receta.sin_pausa_qa() if entrada.get("sin_pausa_qa") else receta
 
     def _deshacedor_activo(self) -> Deshacedor:
         if self._deshacedor is None:
@@ -146,6 +152,8 @@ class RunnerRecetas:
             )
         if ctx.fuente is None:
             ctx.fuente = getattr(self.fabrica, "fuente", None)
+        if ctx.fuente is not None:
+            ctx.verificar_tipo()
 
     def _correr(self, receta: Receta, ctx: ContextoVenta) -> ResultadoReceta:
         operacion = str(ctx.numero_contrato)
@@ -199,4 +207,6 @@ class RunnerRecetas:
     def _guardar(self, operacion: str, receta: Receta, ctx: ContextoVenta, estado: str, **extra) -> None:
         if self.dry_run:
             return
-        self.pendientes.guardar(operacion, receta=receta.id, estado=estado, contexto=ctx.a_dict(), **extra)
+        sin_pausa = RECETAS[receta.id].tiene_pausa_qa and not receta.tiene_pausa_qa
+        self.pendientes.guardar(operacion, receta=receta.id, estado=estado, contexto=ctx.a_dict(),
+                                sin_pausa_qa=sin_pausa, **extra)

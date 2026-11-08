@@ -161,3 +161,25 @@ def test_modulo_es_abstracto_y_su_ejecutar_devuelve_el_contexto(tmp_path):
     ctx = ContextoVenta(tipo="CN")
     log = LogOperacion("x", tmp_path)
     assert Eco().ejecutar(ctx, log) is ctx and log.modulos_completados() == ["ECO"]
+
+
+class TestVerificarTipo:
+    def _ctx(self, tipo, id_oferta):
+        fila = {**EXPEDIENTE, "IdOferta": id_oferta}
+        return ContextoVenta(tipo=tipo, numero_contrato="240021110", fuente=FakeFuente(fila))
+
+    def test_cn_con_oferta_0_y_cf_con_oferta_pasan(self):
+        assert self._ctx("CN", 0).verificar_tipo().id_oferta == 0
+        assert self._ctx("CF", 26110020).verificar_tipo().id_oferta == 26110020
+
+    def test_receta_cf_sobre_contrato_cn_falla(self):
+        with pytest.raises(ErrorContexto, match="venta CN.*receta CF"):
+            self._ctx("CF", 0).verificar_tipo()
+
+    def test_receta_cn_sobre_contrato_cf_falla(self):
+        with pytest.raises(ErrorContexto, match="venta CF.*receta CN"):
+            self._ctx("CN", 26110020).verificar_tipo()
+
+    def test_sin_el_dato_no_valida(self):
+        ctx = ContextoVenta(tipo="CF", numero_contrato="240021110", fuente=FakeFuente())  # sin IdOferta
+        assert ctx.verificar_tipo().id_oferta is None
