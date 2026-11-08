@@ -169,7 +169,12 @@ en cada paso y requieren VPN.
 - **Qué:** los tres INSERT (`Customer_Table`, `Agreement_Table`, `Customer_Address_Table`) como
   diccionarios columna → valor por defecto; los `.sql` quedan como referencia.
 - **Verificación:** prueba que compara las columnas de cada diccionario contra las del `.sql`.
-- [ ] Impl. · [ ] Verif. · [ ] Review
+- **Resultado:** `insumos/plantillas.py` con `CUSTOMER` (155 columnas), `AGREEMENT` y
+  `CUSTOMER_ADDRESS` (dict columna → valor por defecto, en el orden del INSERT) más el nombre
+  completo de cada tabla (`*_TABLA`). Se generó leyendo los `.sql`, que quedan como referencia; los
+  comentarios `** ...` de los `.sql` (qué campos son "de la venta") se conservaron como comentarios
+  de línea. `tests/test_plantillas.py` compara columnas y orden contra cada `.sql`.
+- [x] Impl. · [x] Verif. · [x] Review
 
 ### 2.2 `ContextoVenta`, interfaz de módulo y log de operaciones
 - **Qué:** dataclass `ContextoVenta` (con carga perezosa de expediente y montos), interfaz común de
