@@ -334,7 +334,17 @@ en cada paso y requieren VPN.
 ### 2.9 Módulo `PASO_22_DISPERSADO`
 - **Qué:** `ExpedienteCliente.IdPaso` ← `22`, guardando el valor anterior.
 - **Verificación:** `dry_run`; UAT (con `Cliente` en `0` y con valor).
-- [ ] Impl. · [ ] Verif. · [ ] Review
+- **Resultado:** `insumos/modulos/paso_22_dispersado.py` (`Paso22Dispersado`). UPDATE de
+  `ExpedienteCliente.IdPaso` a 22; el `IdPaso` anterior se lee de la BD en cada ejecución (cambia con
+  el avance de la venta) y se anota en el log antes de escribir. Solo exige que exista el expediente
+  (`Cliente` puede ser 0). No cambia ningún otro dato. Idempotente: si ya está en 22 no escribe.
+- **Verificación:** `tests/test_paso_22_dispersado.py` (7 casos: con `Cliente` 0 y con valor, log del
+  paso anterior, solo `IdPaso`, idempotencia, `dry_run`). UAT sobre las ventas de prueba 7329 (CN,
+  `Cliente = 0`) y 7331 (CF, `Cliente 2075261100023`): `IdPaso` 30 → 22 sin cambiar ningún otro dato
+  del expediente, segunda ejecución omitida, y restauración a 30 usando solo el log.
+  *(Las ventas terminan en `IdPaso = 30`; el diseño pendiente de revisar si dispersar requiere más
+  cambios sigue en `CREAR_CLIENTES.md`, sección 6.)*
+- [x] Impl. · [x] Verif. · [x] Review
 
 ---
 
