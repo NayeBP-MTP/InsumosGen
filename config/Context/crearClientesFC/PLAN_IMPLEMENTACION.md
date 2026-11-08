@@ -293,7 +293,23 @@ en cada paso y requieren VPN.
 - **Qué:** INSERT en `Customer_Table` y `Customer_Address_Table` en una transacción;
   `Customer_Status_Code` `CC`/`AA` según el tipo de venta.
 - **Verificación:** `dry_run` para CF y CN; UAT.
-- [ ] Impl. · [ ] Verif. · [ ] Review
+- **Resultado:** `insumos/modulos/registro_cliente.py` (`RegistroCliente`, `construir_customer`,
+  `construir_direccion`, `persona_del_log`). Parte de las plantillas (155 y 27 columnas) y sobrescribe
+  los campos de la tabla del diseño (`Forename`/`Surname` salen de `ctx.persona`, no de partir el
+  nombre; segmento = 4 primeros dígitos de la agencia; fechas de ingreso +7 días;
+  `Customer_Status_Code` `CC`/`AA`). Si el expediente no trae domicilio se conserva el de la plantilla.
+  Customer y Address se insertan en **una transacción** (`insertar_cliente_y_direccion`); en el log
+  quedan en orden de alta, así que deshacer borra primero la dirección y luego el cliente. Requiere
+  `Cliente` ≠ 0 y la `persona` (del contexto o, al reanudar en otro proceso, del log de
+  `RENOMBRAR_CLIENTE`); si falta cualquiera, falla pidiendo el módulo que corresponde. Idempotente:
+  si el cliente ya está en `Customer_Table` no inserta.
+- **Verificación:** `tests/test_registro_cliente.py` (14 casos: columnas, valores, CF/CN, sin
+  domicilio, plantillas intactas, transacción, log y orden de deshacer, precondiciones, recuperar la
+  persona del log, idempotencia, `dry_run`). UAT con la venta CF de prueba (expediente 7331,
+  `Cliente 2075261100023`): `dry_run` CF y CN (`CC`/`AA`), alta real leída de vuelta en
+  `Customer_Table` y `Customer_Address_Table` (segmento 2075, semana 202645, domicilio del
+  expediente), segunda ejecución omitida, y borrado de ambas filas usando solo el log.
+- [x] Impl. · [x] Verif. · [x] Review
 
 ### 2.8 Módulo `ACTUALIZAR_ID_CLIENTE`
 - **Qué:** propaga `Cliente` a `Agreement_Table.Customer_Id` (y a `ExpedienteCliente` solo si
