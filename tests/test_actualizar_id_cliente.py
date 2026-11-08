@@ -110,3 +110,19 @@ def test_dry_run_distinto_al_de_los_repositorios_falla(tmp_path):
     m = _modulo(dry_run=True)
     with pytest.raises(ValueError, match="dry_run"):
         m.ejecutar(_ctx(m), LogOperacion("x", tmp_path), dry_run=False)
+
+
+def test_en_dry_run_da_por_hecho_el_agreement_simulado_y_sin_simular_lo_pide(tmp_path):
+    m = _modulo(en_agreement=None, dry_run=True)
+    ctx = _ctx(m)
+    with pytest.raises(ErrorContexto, match="AGREEMENT"):
+        m.ejecutar(ctx, LogOperacion("x", tmp_path), dry_run=True)
+    ctx.simulado.add("AGREEMENT")
+    m.ejecutar(ctx, LogOperacion("x", tmp_path), dry_run=True)
+    assert len(m.repo_cnfs.dry_run_log) == 1 and len(m.repo.dry_run_log) == 1
+    # fuera de dry_run un AGREEMENT "simulado" no cuenta: el contrato tiene que existir de verdad
+    real = _modulo(en_agreement=None)
+    ctx2 = _ctx(real)
+    ctx2.simulado.add("AGREEMENT")
+    with pytest.raises(ErrorContexto, match="AGREEMENT"):
+        real.ejecutar(ctx2, LogOperacion("y", tmp_path))

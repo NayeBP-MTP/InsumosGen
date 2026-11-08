@@ -355,7 +355,38 @@ en cada paso y requieren VPN.
   `PAUSA_QA` como estado persistido (`data/insumos_pendientes.json`).
 - **Verificación:** recetas ejecutadas en `dry_run` de punta a punta (sin venta, con
   `numeroContrato` dado).
-- [ ] Impl. · [ ] Verif. · [ ] Review
+- **Resultado:**
+  - `insumos/recetas.py`: `Receta` (inmutable) y `RECETAS` con las seis recetas como datos
+    (`CN_REGISTRO_INTERMEDIO`, `CN_REGISTRADO`, `CN_REGISTRO_DISPERSADO`, `CN_REGISTRADO_DISPERSION`,
+    `CF_DISPERSADO`, `CF_REGISTRADO`); `PAUSA_QA` es un paso más y `sin_pausa_qa()` devuelve la misma
+    receta sin él.
+  - `insumos/runner.py`: `RunnerRecetas.ejecutar(receta, ctx)` corre los módulos en orden anotando en el
+    log `modulo_iniciado`/`modulo_completado`; siempre arranca en el primer paso no completado, así que
+    volver a llamarlo retoma una operación a medias. Valida que el tipo de la receta coincida con la
+    venta (CN/CF) y que el contexto traiga `numero_contrato`. Una falla se guarda (`fallida`, módulo y
+    mensaje) y detiene la receta. `fabrica_por_defecto(dry_run)` arma los módulos con repositorios que
+    comparten `dry_run`.
+  - `insumos/pendientes.py`: `PendientesStore` (`data/insumos_pendientes.json`, escritura atómica) con los
+    estados `en_curso`/`esperando_qa`/`fallida`/`completada`; `pendientes()` devuelve los retomables.
+  - **`PAUSA_QA` es un estado persistido:** la receta termina con `esperando_qa` guardando lo que QA
+    necesita (`numero_contrato`, fecha de nacimiento y nombre); `continuar_tras_qa(operacion_id)` marca la
+    pausa cumplida en el log y sigue desde el paso siguiente, también desde un proceso nuevo (el contexto
+    se reconstruye con `ContextoVenta.a_dict`/`desde_dict` y lo demás se recarga de la BD).
+  - Se agregó `ContextoVenta.simulado`: en `dry_run` AGREEMENT marca que "hizo" su alta para que
+    ACTUALIZAR_ID_CLIENTE no exija un contrato que solo se simuló (fuera de `dry_run` no cuenta).
+  - En `dry_run` no se persiste nada (ni log ni pendientes) y la pausa se atraviesa para ver la receta
+    completa. Artefacto esperado: en las recetas 1 y 3 el `dry_run` lista dos UPDATE de `Cliente` (de
+    CREAR_ID y de ACTUALIZAR) porque el primero no se escribe de verdad; en una ejecución real
+    ACTUALIZAR lo encuentra ya escrito y solo toca `Agreement_Table`.
+- **Verificación:** `tests/test_runner_recetas.py` (21 casos: las seis recetas contra el diseño, orden y
+  log, tipo y contrato, pausa y su persistencia, retomar tras QA desde un runner nuevo sin repetir lo
+  anterior, falla y reanudación en el módulo que falló, `dry_run` sin persistencia, almacén) y las 172
+  pruebas unitarias. UAT: las seis recetas en `dry_run` de punta a punta con módulos reales y lecturas
+  reales (CN sobre el contrato 240021110 y CF sobre 240021111, con `numeroContrato` dado y sin venta),
+  todas `completada` con las sentencias esperadas (de 4 a 8 por receta), y la BD idéntica antes y después
+  (nombre, RFC, `Cliente`, `IdPaso`, contratos y cliente en CNFS). La ejecución real de punta a punta con
+  pausa y fallas forzadas queda para el 3.2.
+- [x] Impl. · [x] Verif. · [x] Review
 
 ### 3.2 Reanudar y deshacer
 - **Qué:** reanudar desde el primer módulo no completado (prioridad); deshacer recorriendo el log

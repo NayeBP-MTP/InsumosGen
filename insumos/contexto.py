@@ -72,6 +72,9 @@ class ContextoVenta:
     # Partes del nombre generado por RENOMBRAR_CLIENTE (nombre, apellido_paterno, apellido_materno);
     # REGISTRO_CLIENTE las usa para Forename/Surname sin partir el nombre completo.
     persona: Optional[dict] = None
+    # Módulos que en dry_run "hicieron" su escritura sin hacerla: los siguientes la dan por hecha
+    # (p. ej. ACTUALIZAR_ID_CLIENTE sin el contrato que AGREEMENT solo simuló).
+    simulado: set = field(default_factory=set, compare=False)
     fuente: Optional[FuenteExpediente] = field(default=None, repr=False, compare=False)
 
     def __post_init__(self):
@@ -90,6 +93,22 @@ class ContextoVenta:
             tipo=resultado.tipo, numero_contrato=resultado.numero_contrato,
             id_expediente=resultado.id_expediente, con_seguro=resultado.con_seguro,
             inicio=resultado.inicio, fuente=fuente,
+        )
+
+    def a_dict(self) -> dict:
+        """Lo mínimo para retomar la operación en otro proceso (el resto se recarga de la BD)."""
+        return {
+            "tipo": self.tipo, "numero_contrato": self.numero_contrato, "id_expediente": self.id_expediente,
+            "con_seguro": self.con_seguro, "inicio": self.inicio.isoformat() if self.inicio else None,
+        }
+
+    @classmethod
+    def desde_dict(cls, datos: dict, fuente: Optional[FuenteExpediente] = None):
+        inicio = datos.get("inicio")
+        return cls(
+            tipo=datos["tipo"], numero_contrato=datos.get("numero_contrato"),
+            id_expediente=datos.get("id_expediente"), con_seguro=datos.get("con_seguro", True),
+            inicio=datetime.fromisoformat(inicio) if inicio else None, fuente=fuente,
         )
 
     @property

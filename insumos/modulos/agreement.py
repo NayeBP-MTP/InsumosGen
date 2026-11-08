@@ -76,4 +76,6 @@ class Agreement(Modulo):
                           nuevo={"Agreement_Num": valores["Agreement_Num"], "Customer_Id": valores["Customer_Id"],
                                  "Issue_Value": valores["Issue_Value"]})
         self.repo.insertar_agreement(valores)
+        if dry_run:
+            ctx.simulado.add(self.nombre)
         return ctx

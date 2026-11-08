@@ -39,6 +39,8 @@ class ActualizarIdCliente(Modulo):
             )
 
         en_agreement = self.repo_cnfs.customer_id_de_agreement(ctx.numero_contrato)
+        if en_agreement is None and dry_run and "AGREEMENT" in ctx.simulado:
+            en_agreement = 0  # AGREEMENT solo se simuló en esta ejecución: se da por hecho
         if en_agreement is None:
             raise ErrorContexto(
                 f"El contrato {ctx.numero_contrato} no está en Agreement_Table: ejecuta AGREEMENT antes."

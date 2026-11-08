@@ -140,3 +140,12 @@ def test_idempotente_si_el_contrato_ya_existe(tmp_path):
 def test_dry_run_distinto_al_del_repositorio_falla(tmp_path):
     with pytest.raises(ValueError, match="dry_run"):
         Agreement(repo=RepoCnfs(dry_run=True), hoy=HOY).ejecutar(_ctx(True), LogOperacion("x", tmp_path))
+
+
+def test_en_dry_run_marca_el_contexto_como_simulado(tmp_path):
+    ctx = _ctx(False)
+    Agreement(repo=RepoCnfs(), hoy=HOY).ejecutar(ctx, LogOperacion("x", tmp_path), dry_run=True)
+    assert "AGREEMENT" in ctx.simulado
+    real = _ctx(False)
+    Agreement(repo=RepoCnfs(dry_run=False), hoy=HOY).ejecutar(real, LogOperacion("y", tmp_path))
+    assert real.simulado == set()
