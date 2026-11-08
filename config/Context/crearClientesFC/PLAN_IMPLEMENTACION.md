@@ -182,7 +182,16 @@ en cada paso y requieren VPN.
   anterior).
 - **Verificación:** pruebas unitarias del contexto (con/sin seguro, montos en `NULL`/`0` fallan) y
   del log.
-- [ ] Impl. · [ ] Verif. · [ ] Review
+- **Resultado:** `insumos/contexto.py` (`ContextoVenta` con carga perezosa vía una `fuente`
+  inyectable, `elegir_montos`, `ErrorContexto`), `insumos/modulo.py` (clase abstracta `Modulo`) e
+  `insumos/log_operacion.py` (`LogOperacion`: un `data/insumos/<contrato>.jsonl` por operación, con
+  marcas `modulo_iniciado`/`modulo_completado` para reanudar y escrituras `insert`/`update`/`delete`
+  que se recorren al revés para deshacer). `data/` ya está en `.gitignore`.
+  `ContextoVenta.desde_resultado_venta` arranca desde el `ResultadoVenta` del 1.6.
+- **Pendiente de validar en el 2.3** (la VPN estaba caída al hacer el 2.2): los nombres de columna
+  de `ExpedienteOferta` y la llave `ExpedienteCliente.IdExpedienteOferta` están tomados del diseño;
+  se comprueban con lecturas reales cuando exista la `fuente` en `OriginacionRepository`.
+- [x] Impl. · [x] Verif. · [x] Review
 
 ### 2.3 Repositorios `Originacion` y `CNFS`
 - **Qué:** `OriginacionRepository` (localizar expediente por contrato / id / nombre de la INE +
