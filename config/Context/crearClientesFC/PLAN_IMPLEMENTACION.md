@@ -275,7 +275,19 @@ en cada paso y requieren VPN.
   cinco montos alineados con la venta).
 - **Verificación:** `dry_run` imprime el INSERT esperado para venta con y sin seguro; UAT con un
   contrato de prueba.
-- [ ] Impl. · [ ] Verif. · [ ] Review
+- **Resultado:** `insumos/modulos/agreement.py` (`Agreement`, `construir_agreement`). Parte de la
+  plantilla de 76 columnas y sobrescribe solo los campos de la tabla del diseño (los cinco montos
+  alineados con la venta incluidos); el resto queda como la plantilla. Fechas `AAAA-MM-DD 00:00:00`
+  de hoy, `Actual_Paid_Up_Week` con `OfferIdAllocator.calcular_semana` (corte en miércoles),
+  `Customer_Id` = `Cliente` del contexto o `0`. Idempotente: si el contrato ya está en
+  `Agreement_Table` no inserta. Anota el INSERT en el log (`Agreement_Num`) antes de escribir.
+- **Verificación:** `tests/test_agreement.py` (columnas y orden, valores con/sin seguro, fechas y
+  semana, plantilla intacta, montos en cero fallan sin insertar, `dry_run`, idempotencia). UAT con el
+  contrato de prueba 240021110: `dry_run` con y sin seguro (p. ej. 10520.39 / 11028.61 de monto,
+  562.26 / 589.36 de primer pago, 321.23 / 336.75 de pago semanal), INSERT real con seguro leído de
+  vuelta en `CNFS_uat` (`Customer_Id = 0`, `AC`, semana 202645), segunda ejecución omitida y borrado
+  de la fila usando solo el log. `Agreement_Table` quedó sin el contrato.
+- [x] Impl. · [x] Verif. · [x] Review
 
 ### 2.7 Módulo `REGISTRO_CLIENTE`
 - **Qué:** INSERT en `Customer_Table` y `Customer_Address_Table` en una transacción;
