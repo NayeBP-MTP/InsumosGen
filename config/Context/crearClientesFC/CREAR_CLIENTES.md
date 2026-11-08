@@ -386,6 +386,15 @@ Cambios sobre lo existente que se hacen **antes** de los módulos nuevos, en la 
      `PESOS_OFFER_*` ya estén en el `.env` (depende del punto 2).
    - Si no coinciden o el folio falla, se localiza por nombre de la INE + `FechaFinalizacion`
      (sección 3.2).
+   - **Resultado (UAT, 06/11/2026):** cuando el folio se captura, **sí es igual a
+     `numeroContrato`** (CF: folio `240021111` = `ExpedienteCliente.numeroContrato`; `folioContrato`
+     es otro dato, `PR24003111`). Pero es **poco fiable**: en CN siempre y en una de dos CF salió
+     `None` (no se capturan requests `useractivitylogger`). **Decisión:** el contrato se localiza en
+     `Originacion.dbo.ExpedienteCliente` (`flows/resultado_venta.py`, `OriginacionRepository`) por
+     vendedor (`idAgente` = estrella) + `IdOferta` (la de la oferta en CF, `0` en CN) +
+     `FechaFinalizacion` ≥ hora de inicio (`SYSDATETIME()` del servidor); no por nombre de la INE,
+     que es el mismo en todas las ventas. Es el nombre de la INE lo que se lee del expediente, no se
+     usa para buscar. El folio del front queda solo como dato informativo.
 5. **Reloj del servidor:** tomar la hora de inicio de la venta con `SYSDATETIME()` del host
    (Pesos_Offer), no con el reloj local, para comparar contra `FechaFinalizacion`.
 6. **`run.py` genérico por tipo:** hoy el tipo (`OF`/`CF`/`CN`/`AGENCIA`) está fijo en

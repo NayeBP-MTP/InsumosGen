@@ -34,11 +34,12 @@ class TestLoginProvident:
 
             with allure.step(f"Ciclo {ciclo} de {total}"):
                 try:
-                    ejecutar_venta_cn(driver, ciclo)
+                    venta = ejecutar_venta_cn(driver, ciclo)
                     resultados.append({
                         "ciclo": ciclo,
                         "estado": "exitoso",
-                        "error": None
+                        "error": None,
+                        **venta.a_dict(),
                     })
                     print(f"--- Ciclo {ciclo} EXITOSO ---\n")
                     Progress.emit(f"Venta CN {ciclo}/{total} finalizada", "ok")

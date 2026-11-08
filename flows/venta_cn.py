@@ -1,9 +1,11 @@
 """Flujo de venta de Cliente Nuevo (CN). Movido de tests/test_login.py."""
 import time
+from typing import Optional
 
 import allure
 
 from config.settings import Settings
+from flows.resultado_venta import ResultadoVenta, hora_inicio_servidor, localizar_venta
 from flows.venta_comun import (
     flujo_beneficiario_a_finalizar,
     flujo_identidad_a_otp,
@@ -15,8 +17,12 @@ from pages.prestamo_personal_page import PrestamoPersonalPage
 from services.network_interceptor import NetworkInterceptor
 
 
-def ejecutar_venta_cn(driver, numero_ciclo: int) -> None:
-    """Flujo completo de venta para Cliente Nuevo (CN)."""
+def ejecutar_venta_cn(driver, numero_ciclo: int) -> ResultadoVenta:
+    """Flujo completo de venta para Cliente Nuevo (CN). Devuelve el resultado localizado en la BD."""
+    resultado = ResultadoVenta(
+        tipo="CN", agencia_label=Settings.AGENCIA_LABEL, con_seguro=Settings.CON_SEGURO,
+        inicio=hora_inicio_servidor(),
+    )
     login_page = LoginPage(driver)
     legalario_page = LegalarioPage(driver)
     interceptor = NetworkInterceptor(driver)
@@ -49,9 +55,10 @@ def ejecutar_venta_cn(driver, numero_ciclo: int) -> None:
     with allure.step("Presionar 'Registrar una venta'"):
         login_page.click_registrar_una_ventas()
 
-    _flujo_identidad_y_venta(
+    resultado.folio = _flujo_identidad_y_venta(
         driver, login_page, legalario_page, interceptor, prestamo_personal_page
     )
+    return localizar_venta(resultado)
 
 
 def _flujo_identidad_y_venta(
@@ -60,7 +67,7 @@ def _flujo_identidad_y_venta(
     legalario_page: LegalarioPage,
     interceptor: NetworkInterceptor,
     prestamo_personal_page: PrestamoPersonalPage,
-) -> None:
+) -> Optional[str]:
     """Cliente Nuevo (CN): identidad → OTP → plazo/monto → método de entrega → beneficiario → firma."""
     flujo_identidad_a_otp(
         driver, login_page, legalario_page, interceptor, prestamo_personal_page
@@ -77,7 +84,7 @@ def _flujo_identidad_y_venta(
         time.sleep(3)
         prestamo_personal_page.gestionar_rechazo_seguro_si_aplica()
 
-    _flujo_metodo_entrega_a_finalizar(
+    return _flujo_metodo_entrega_a_finalizar(
         driver, login_page, interceptor, prestamo_personal_page
     )
 
@@ -87,7 +94,7 @@ def _flujo_metodo_entrega_a_finalizar(
     login_page: LoginPage,
     interceptor: NetworkInterceptor,
     prestamo_personal_page: PrestamoPersonalPage,
-) -> None:
-    """Método de entrega + beneficiario en adelante (usado por CN)."""
+) -> Optional[str]:
+    """Método de entrega + beneficiario en adelante (usado por CN). Devuelve el folio del front."""
     flujo_metodo_entrega(driver, login_page, interceptor, prestamo_personal_page)
-    flujo_beneficiario_a_finalizar(driver, login_page, interceptor, prestamo_personal_page)
+    return flujo_beneficiario_a_finalizar(driver, login_page, interceptor, prestamo_personal_page)

@@ -8,6 +8,7 @@ from pages.ofertas_listado_page import OfertasListadoPage
 from services.network_interceptor import NetworkInterceptor
 from services.offer_repository import OfferRepository
 from pages.legalario_page import LegalarioPage
+from flows.resultado_venta import ResultadoVenta, hora_inicio_servidor, localizar_venta
 from flows.venta_comun import (
     flujo_beneficiario_a_finalizar,
     flujo_identidad_a_otp,
@@ -61,6 +62,7 @@ def ejecutar_venta_cf(driver, numero_ciclo: int, contexto_falla: dict = None) ->
     ofertas_listado_page = OfertasListadoPage(driver)
 
     repo = OfferRepository()
+    inicio = hora_inicio_servidor()
     oferta = insertar_oferta_cf(repo, numero_ciclo)
     if contexto_falla is not None:
         contexto_falla["idOferta"] = oferta.idOferta
@@ -122,8 +124,13 @@ def ejecutar_venta_cf(driver, numero_ciclo: int, contexto_falla: dict = None) ->
         driver, login_page, interceptor, prestamo_personal_page
     )
 
+    resultado = localizar_venta(ResultadoVenta(
+        tipo="CF", agencia_label=Settings.AGENCIA_LABEL, con_seguro=Settings.CON_SEGURO,
+        inicio=inicio, folio=folio, id_oferta=oferta.idOferta,
+    ))
     return {
         "idOferta": oferta.idOferta,
         "nombreCliente": oferta.nombreCliente,
         "folio": folio,
+        **resultado.a_dict(),
     }

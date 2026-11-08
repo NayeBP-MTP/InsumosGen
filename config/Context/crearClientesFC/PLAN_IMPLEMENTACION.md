@@ -151,7 +151,15 @@ en cada paso y requieren VPN.
   `numeroContrato` que aparece en `ExpedienteCliente`. Resultado anotado en `CREAR_CLIENTES.md`
   (sección 6, punto 4): si el folio es fiable se usa; si no, se localiza por nombre de la INE +
   `FechaFinalizacion`.
-- [ ] Impl. · [ ] Verif. · [ ] Review
+- **Resultado:** `ejecutar_venta_cn` ahora devuelve un `ResultadoVenta` y `ejecutar_venta_cf` suma
+  esos campos a su dict (`flows/resultado_venta.py`, `services/originacion_repository.py`; los
+  resultados `run_results*.json` los incluyen: `numero_contrato`, `nombre_ine`, `inicio`,
+  `agencia_label`, `con_seguro`, `id_expediente`...). La hora de inicio y la localización son
+  *best effort*: sin BD la venta no falla, solo queda `numero_contrato = None`.
+  Verificado en UAT: CN (contrato 240021110) y CF (240021111, folio capturado = contrato); la primera
+  CF falló por el facematch intermitente (oferta huérfana 26110022 borrada). Pruebas:
+  `tests/test_resultado_venta.py`. Decisión y hallazgo del folio en `CREAR_CLIENTES.md` §6.4.
+- [x] Impl. · [x] Verif. · [x] Review
 
 ---
 
