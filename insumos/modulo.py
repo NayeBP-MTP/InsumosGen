@@ -19,3 +19,17 @@ class Modulo(ABC):
     @abstractmethod
     def ejecutar(self, ctx: ContextoVenta, log: LogOperacion, dry_run: bool = False) -> ContextoVenta:
         ...
+
+    @staticmethod
+    def _es_dry_run(dry_run: bool, *repositorios) -> bool:
+        """
+        `dry_run` del módulo y de sus repositorios deben coincidir: un módulo en dry_run con un
+        repositorio real escribiría de verdad. Devuelve True si se debe simular.
+        """
+        reales = [r for r in repositorios if r.dry_run != dry_run]
+        if reales:
+            raise ValueError(
+                f"dry_run={dry_run} pero {[type(r).__name__ for r in reales]} se construyó con "
+                f"dry_run={not dry_run}: construye los repositorios con el mismo valor."
+            )
+        return dry_run

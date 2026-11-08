@@ -69,6 +69,9 @@ class ContextoVenta:
     rfc: Optional[str] = None
     domicilio: Optional[str] = None
     montos: Optional[Montos] = None
+    # Partes del nombre generado por RENOMBRAR_CLIENTE (nombre, apellido_paterno, apellido_materno);
+    # REGISTRO_CLIENTE las usa para Forename/Surname sin partir el nombre completo.
+    persona: Optional[dict] = None
     fuente: Optional[FuenteExpediente] = field(default=None, repr=False, compare=False)
 
     def __post_init__(self):

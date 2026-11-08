@@ -230,7 +230,19 @@ en cada paso y requieren VPN.
   el nombre completo).
 - **Verificación:** unitaria (RFC coincide con nombre y fecha de nacimiento); UAT sobre un
   expediente de prueba, con log y verificación del valor anterior.
-- [ ] Impl. · [ ] Verif. · [ ] Review
+- **Resultado:** `insumos/modulos/renombrar_cliente.py` (`RenombrarCliente`). Genera la persona con
+  `MexicanNames.generar`, deriva el RFC de sus partes y de `FechaNacimiento` (no se toca), anota en
+  el log el valor anterior y el nuevo (incluida la `persona`, que `REGISTRO_CLIENTE` usará para
+  `Forename`/`Surname`) **antes** de escribir, y deja `ctx.persona`. Idempotente: si el log ya trae
+  un renombrado y el expediente conserva ese nombre, lo omite y recupera la `persona` del log.
+  `Modulo._es_dry_run` obliga a que `dry_run` del módulo y de sus repositorios coincidan (un módulo
+  en dry_run con repositorio real escribiría de verdad). En dry_run no se escribe el log.
+- **Verificación:** `tests/test_renombrar_cliente.py` (RFC coherente con nombre y fecha,
+  idempotencia, dry_run, log) y UAT real sobre el expediente de prueba 7331 (venta CF
+  240021111): `NAYELI BENITEZ PEREZ / GURC9609067WA` → `JOSÉ LUIS PÉREZ RODRÍGUEZ / PERJ960907EL7`
+  (RFC con la fecha 960907, solo cambiaron nombre y RFC), segunda ejecución sin cambios, y
+  restauración al valor original usando solo el log. El expediente quedó como estaba.
+- [x] Impl. · [x] Verif. · [x] Review
 
 ### 2.5 Módulo `CREAR_ID_CLIENTE`
 - **Qué:** número de 13 dígitos (`AAMMDD + colaborador + 02 + NNN`), consecutivo = mayor de hoy en
