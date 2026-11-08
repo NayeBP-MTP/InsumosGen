@@ -47,11 +47,11 @@ class CnfsRepository(SqlServerRepository):
         ) is not None
 
     def max_customer_id_con_prefijo(self, prefijo: int) -> Optional[int]:
-        """Mayor `Customer_Id` de 13 dígitos que empieza con `prefijo` (11 dígitos), o None."""
-        base = int(prefijo) * 100
+        """Mayor `Customer_Id` de 13 dígitos que empieza con `prefijo` (10 dígitos: AAMMDD + colaborador + 02), o None."""
+        base = int(prefijo) * 1000
         return self._escalar(
             f"SELECT MAX(Customer_Id) FROM {TABLA_CUSTOMER} WHERE Customer_Id BETWEEN ? AND ?",
-            (base, base + 99),
+            (base, base + 999),
         )
 
     # --- escrituras (con dry_run) ---

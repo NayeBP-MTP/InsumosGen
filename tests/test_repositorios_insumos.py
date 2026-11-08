@@ -43,3 +43,19 @@ def test_originacion_dry_run_deja_los_update():
         ("UPDATE [dbo].[ExpedienteCliente] SET Cliente = ? WHERE IdExpedienteCliente = ?", (2611070401001, 7329)),
         ("UPDATE [dbo].[ExpedienteCliente] SET IdPaso = ? WHERE IdExpedienteCliente = ?", (22, 7329)),
     ]
+
+
+def test_consulta_de_cliente_por_prefijo_usa_el_rango_de_13_digitos():
+    """El prefijo AAMMDD+CC+02 tiene 10 dígitos: el rango es prefijo*1000 .. prefijo*1000+999."""
+    class Orig(OriginacionRepository):
+        def _consultar(self, sql, params=()):
+            self.params = tuple(params)
+            return [{"maximo": None}]
+
+    class Cnfs(CnfsRepository):
+        def _escalar(self, sql, params=()):
+            self.params = tuple(params)
+
+    o, c = Orig(), Cnfs()
+    assert o.max_cliente_con_prefijo(2611040402) is None and o.params == (2611040402000, 2611040402999)
+    assert c.max_customer_id_con_prefijo(2611040402) is None and c.params == (2611040402000, 2611040402999)

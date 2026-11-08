@@ -250,7 +250,25 @@ en cada paso y requieren VPN.
   allocator SQLite; escribe `ExpedienteCliente.Cliente`.
 - **Verificación:** unitaria del formato y del consecutivo (`001` si no hay); prueba de
   concurrencia (dos reservas simultáneas no repiten); UAT.
-- [ ] Impl. · [ ] Verif. · [ ] Review
+- **Resultado:** `insumos/modulos/crear_id_cliente.py` (`CrearIdCliente`, `prefijo_cliente`) y
+  `utils/cliente_id_allocator.py` (`ClienteIdAllocator`, SQLite `data/generated_cliente_ids.sqlite3`,
+  transacción `EXCLUSIVE`). `NNN` = mayor entre `ExpedienteCliente.Cliente`, `Customer_Table.Customer_Id`
+  y lo ya reservado + 1 (`001` si no hay; tope 999 por colaborador y día). Si el expediente ya trae
+  `Cliente` ≠ 0 (CF, o CN ya procesado) lo usa sin escribir ni reservar. Registra en el log el `Cliente`
+  anterior (0) antes de escribir. En `dry_run` calcula el número sin reservarlo ni loguear.
+  El colaborador sale de `Settings.NUMERO_COLABORADOR` (1 o 2 dígitos; se rellena a 2); si falta,
+  falla con un mensaje claro antes de reservar o escribir. **`data/run_config.json` no tiene
+  `numero_colaborador` hoy: hay que capturarlo en los Ajustes de usuario de la UI.**
+- **Corrección al diseño y al 2.3:** el prefijo `AAMMDD + CC + 02` tiene **10** dígitos (el diseño decía
+  11). Las consultas `max_cliente_con_prefijo` / `max_customer_id_con_prefijo` del 2.3 usaban
+  `prefijo × 100`; ahora usan `prefijo × 1000 .. + 999` (con prueba). Documentos corregidos.
+- **Verificación:** `tests/test_crear_id_cliente.py` (formato, `001`, mayor entre las dos tablas,
+  CF sin escribir, concurrencia con 6 hilos × 10 reservas sin repetir, `dry_run`, colaborador
+  inválido). UAT real sobre el expediente de prueba 7329 (CN, `Cliente = 0`), con un allocator
+  temporal y colaborador `04`: generó `2611070402001`, lo escribió, una segunda ejecución lo
+  reconoció sin escribir, y se restauró a `0` solo con el log. Consultas de prefijo comprobadas
+  contra datos reales (`2075261100` → `2075261100023`; `2101655328` → `2101655328900`).
+- [x] Impl. · [x] Verif. · [x] Review
 
 ### 2.6 Módulo `AGREEMENT`
 - **Qué:** INSERT en `Agreement_Table` con los campos de la sección 2.2 del diseño (incluidos los

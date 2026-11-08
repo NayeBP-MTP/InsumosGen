@@ -114,7 +114,7 @@ AA + MM + DD + CC + 02 + NNN
 | `NNN` | consecutivo de 3 dígitos (`001`, `002`, …) |
 
 **Consecutivo `NNN`:** se consulta en BD el mayor `NNN` ya usado hoy con el mismo prefijo
-`AAMMDD + CC + 02` (11 dígitos) y se usa ese + 1; si no hay ninguno, `001`. Ejemplo: 4-nov-2026,
+`AAMMDD + CC + 02` (10 dígitos) y se usa ese + 1; si no hay ninguno, `001`. Ejemplo: 4-nov-2026,
 colaborador `04`, primer cliente del día → `2611040402001`.
 
 - Revisa **`ExpedienteCliente.Cliente` y `Customer_Table.Customer_Id`** (puede haber clientes

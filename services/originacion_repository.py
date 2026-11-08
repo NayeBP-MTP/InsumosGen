@@ -103,11 +103,11 @@ class OriginacionRepository(SqlServerRepository):
         return filas[0]
 
     def max_cliente_con_prefijo(self, prefijo: int) -> Optional[int]:
-        """Mayor `Cliente` de 13 dígitos que empieza con `prefijo` (11 dígitos), o None."""
-        base = int(prefijo) * 100
+        """Mayor `Cliente` de 13 dígitos que empieza con `prefijo` (10 dígitos: AAMMDD + colaborador + 02), o None."""
+        base = int(prefijo) * 1000
         fila = self._consultar(
             "SELECT MAX(Cliente) AS maximo FROM [dbo].[ExpedienteCliente] "
-            "WHERE Cliente BETWEEN ? AND ?", (base, base + 99),
+            "WHERE Cliente BETWEEN ? AND ?", (base, base + 999),
         )[0]
         return fila["maximo"]
 
