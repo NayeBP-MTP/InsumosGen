@@ -11,6 +11,7 @@ EN_CURSO = "en_curso"
 ESPERANDO_QA = "esperando_qa"
 COMPLETADA = "completada"
 FALLIDA = "fallida"
+DESHECHA = "deshecha"
 # Estados que se ofrecen al abrir el asistente ("Retomar operaciones pendientes").
 RETOMABLES = (EN_CURSO, ESPERANDO_QA, FALLIDA)
 

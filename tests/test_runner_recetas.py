@@ -39,7 +39,8 @@ class Bitacora:
 
 def _runner(tmp_path, bitacora=None, dry_run=False):
     bitacora = bitacora or Bitacora()
-    runner = RunnerRecetas(dry_run=dry_run, directorio_logs=tmp_path / "logs",
+    # auto_deshacer=False: estas pruebas son del runner; el deshacer automático se prueba en test_deshacer.py
+    runner = RunnerRecetas(dry_run=dry_run, directorio_logs=tmp_path / "logs", auto_deshacer=False,
                            pendientes=PendientesStore(tmp_path / "pendientes.json"), fabrica=bitacora.fabrica)
     return runner, bitacora
 

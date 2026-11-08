@@ -392,7 +392,40 @@ en cada paso y requieren VPN.
 - **Qué:** reanudar desde el primer módulo no completado (prioridad); deshacer recorriendo el log
   en orden inverso; deshacer automático solo si falla antes de `PAUSA_QA` o del último módulo.
 - **Verificación:** forzar una falla en cada módulo y comprobar reanudar y deshacer (UAT).
-- [ ] Impl. · [ ] Verif. · [ ] Review
+- **Resultado:**
+  - **Reanudar** (prioridad): `RunnerRecetas.reanudar(operacion_id)` (o `ejecutar` otra vez) retoma en el primer
+    módulo no completado; no repite nada porque los módulos son idempotentes. Una operación deshecha no se
+    reanuda: pide ejecutar la receta desde el principio.
+  - **Deshacer** (`insumos/deshacer.py`, `Deshacedor`; `RunnerRecetas.deshacer`): recorre el log vigente en
+    orden inverso. `insert` → DELETE (si ya no existe, se omite); `update` → vuelve al valor anterior
+    **solo si la BD aún tiene el valor que escribió el módulo**; si alguien más lo cambió (p. ej. QA) no
+    se pisa y queda como `conflicto` en el resultado. Es idempotente, falla ante una tabla desconocida
+    (no la ignora) y en `dry_run` solo informa. Al terminar anota la marca `deshecho` en el log
+    (`LogOperacion.vigentes()`: el historial nunca se borra, solo cuenta lo posterior a la última marca),
+    de modo que la receta puede ejecutarse de nuevo desde cero. Estado `deshecha` en el almacén (no se
+    ofrece para retomar). Nuevos en `CnfsRepository`: `address_existe`, `borrar_agreement`,
+    `borrar_customer`, `borrar_address`.
+  - **Deshacer automático** (`auto_deshacer`, activado por defecto): solo si la falla ocurre **antes de
+    `PAUSA_QA`** (o antes del último módulo en las recetas sin pausa). Pasada la pausa, o en el último
+    módulo, el estado parcial se conserva (`fallida`, retomable). Un insumo terminado nunca se borra solo.
+  - `fabrica_por_defecto` acepta repositorios y allocator inyectados (para pruebas).
+- **Verificación:** `tests/test_deshacer.py` (27 casos con los módulos reales sobre una BD en memoria: falla
+  forzada en cada módulo antes y después de su efecto, deshacer automático antes de la pausa, conservar y
+  reanudar tras la pausa sin duplicar nada, recetas sin pausa, deshacer a demanda, orden inverso,
+  idempotencia, conflicto, `dry_run`, tabla desconocida) y las 199 pruebas unitarias. **UAT real** (módulos y
+  BD reales, contratos de prueba 240021110 CN y 240021111 CF, restaurando y comprobando la BD tras cada caso):
+  - CN con pausa, falla en cada uno de los 3 módulos **previos** a la pausa, antes y después de su efecto
+    (6 casos): se deshizo sola y la BD quedó idéntica a la original.
+  - CN, falla en cada uno de los 3 módulos **posteriores** a la pausa, antes y después del efecto (6
+    casos): estado parcial conservado, `reanudar` la completó y quedó consistente (`Cliente` de 13 dígitos
+    igual en expediente y `Agreement_Table`, cliente y dirección en CNFS, `IdPaso` 22), y `deshacer` dejó la
+    BD como estaba sin omisiones.
+  - CF sin pausa: falla en `AGREEMENT` (deshecha sola) y en `REGISTRO_CLIENTE` (conservada y reanudada), antes
+    y después del efecto (4 casos).
+  - Operación completa con pausa persistida (nombre, contrato y fecha de nacimiento para QA) y retomada desde
+    un runner nuevo; `deshacer` revirtió 6 escrituras y una segunda vez no encontró nada; se volvió a ejecutar
+    la receta desde cero. Estado final == original.
+- [x] Impl. · [x] Verif. · [x] Review
 
 ### 3.3 Línea de comandos
 - **Qué:** ejecutar una receta, reanudar o deshacer sin la UI (para QA), p. ej.

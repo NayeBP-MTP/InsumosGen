@@ -16,7 +16,7 @@ TABLA_ADDRESS = "CNFS_uat.NFS_DBO.Customer_Address_Table"
 
 def persona_del_log(log: LogOperacion, id_expediente: int) -> Optional[dict]:
     """Partes del nombre que dejó RENOMBRAR_CLIENTE en el log (para reanudar en otro proceso)."""
-    for entrada in reversed(log.entradas()):
+    for entrada in reversed(log.vigentes()):
         if (entrada["tipo"] == "update" and entrada["modulo"] == "RENOMBRAR_CLIENTE"
                 and entrada["llave"].get("IdExpedienteCliente") == id_expediente):
             return entrada["nuevo"].get("persona")

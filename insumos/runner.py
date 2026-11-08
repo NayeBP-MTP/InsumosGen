@@ -4,25 +4,34 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from insumos.contexto import ContextoVenta, ErrorContexto
+from insumos.deshacer import Deshacedor, ResultadoDeshacer
 from insumos.log_operacion import LogOperacion
 from insumos.modulo import Modulo
-from insumos.pendientes import COMPLETADA, EN_CURSO, ESPERANDO_QA, FALLIDA, PendientesStore
+from insumos.pendientes import COMPLETADA, DESHECHA, EN_CURSO, ESPERANDO_QA, FALLIDA, PendientesStore
 from insumos.recetas import PAUSA_QA, RECETAS, Receta
 
 
 @dataclass
 class ResultadoReceta:
-    """`estado`: completada | esperando_qa | fallida (en dry_run siempre completada o fallida)."""
+    """
+    `estado`: completada | esperando_qa | fallida (en dry_run siempre completada o fallida).
+    `deshecho`: la falla ocurrió antes de la pausa o del último módulo y se deshizo sola.
+    """
     receta: str
     operacion_id: str
     estado: str
     ejecutados: list = field(default_factory=list)  # módulos que corrieron en ESTA llamada
     error: Optional[str] = None
     modulo_fallido: Optional[str] = None
+    deshecho: bool = False
+    resumen_deshacer: Optional[ResultadoDeshacer] = None
 
 
-def fabrica_por_defecto(dry_run: bool = False) -> Callable[[str], Modulo]:
-    """Construye los módulos con repositorios que comparten `dry_run` (los módulos lo exigen)."""
+def fabrica_por_defecto(dry_run: bool = False, originacion=None, cnfs=None, allocator=None) -> Callable[[str], Modulo]:
+    """
+    Construye los módulos con repositorios que comparten `dry_run` (los módulos lo exigen). `originacion`,
+    `cnfs` y `allocator` se inyectan en pruebas; por defecto son los reales.
+    """
     from insumos.modulos.actualizar_id_cliente import ActualizarIdCliente
     from insumos.modulos.agreement import Agreement
     from insumos.modulos.crear_id_cliente import CrearIdCliente
@@ -32,10 +41,11 @@ def fabrica_por_defecto(dry_run: bool = False) -> Callable[[str], Modulo]:
     from services.cnfs_repository import CnfsRepository
     from services.originacion_repository import OriginacionRepository
 
-    originacion, cnfs = OriginacionRepository(dry_run=dry_run), CnfsRepository(dry_run=dry_run)
+    originacion = originacion or OriginacionRepository(dry_run=dry_run)
+    cnfs = cnfs or CnfsRepository(dry_run=dry_run)
     modulos = {
         "RENOMBRAR_CLIENTE": lambda: RenombrarCliente(repo=originacion),
-        "CREAR_ID_CLIENTE": lambda: CrearIdCliente(repo=originacion, repo_cnfs=cnfs),
+        "CREAR_ID_CLIENTE": lambda: CrearIdCliente(repo=originacion, repo_cnfs=cnfs, allocator=allocator),
         "ACTUALIZAR_ID_CLIENTE": lambda: ActualizarIdCliente(repo=originacion, repo_cnfs=cnfs),
         "AGREEMENT": lambda: Agreement(repo=cnfs),
         "REGISTRO_CLIENTE": lambda: RegistroCliente(repo=cnfs),
@@ -57,15 +67,23 @@ class RunnerRecetas:
     receta termina con `esperando_qa` guardando lo que QA necesita, y `continuar_tras_qa` la retoma
     desde el paso siguiente aunque se haya cerrado el programa. En `dry_run` no se persiste nada y la
     pausa se atraviesa para ver la receta completa.
+
+    **Reanudar** (`reanudar`, o `ejecutar` otra vez) siempre es la primera opción ante una falla: los
+    módulos son idempotentes. **Deshacer** (`deshacer`) revierte el log a demanda. Solo se deshace solo
+    (`auto_deshacer`) si la falla ocurre antes de `PAUSA_QA` (o antes del último módulo en las recetas
+    sin pausa); pasada la pausa, o en el último módulo, el estado parcial se conserva para reanudar.
     """
 
     def __init__(self, dry_run: bool = False, directorio_logs: Optional[Path] = None,
                  pendientes: Optional[PendientesStore] = None,
-                 fabrica: Optional[Callable[[str], Modulo]] = None):
+                 fabrica: Optional[Callable[[str], Modulo]] = None,
+                 deshacedor: Optional[Deshacedor] = None, auto_deshacer: bool = True):
         self.dry_run = dry_run
         self.directorio_logs = directorio_logs
         self.pendientes = pendientes or PendientesStore()
         self.fabrica = fabrica or fabrica_por_defecto(dry_run)
+        self.auto_deshacer = auto_deshacer
+        self._deshacedor = deshacedor
 
     # --- API ---
 
@@ -86,7 +104,38 @@ class RunnerRecetas:
         LogOperacion(operacion_id, self.directorio_logs).modulo_completado(PAUSA_QA)
         return self._correr(receta, ctx)
 
+    def reanudar(self, operacion_id: str, fuente=None) -> ResultadoReceta:
+        """Retoma una operación a medias (en curso o fallida) desde el primer módulo no completado."""
+        entrada = self.pendientes.obtener(operacion_id)
+        if entrada is None:
+            raise ErrorContexto(f"No hay una operación con id {operacion_id}.")
+        if entrada["estado"] == DESHECHA:
+            raise ErrorContexto(
+                f"La operación {operacion_id} se deshizo; vuelve a ejecutar la receta desde el principio."
+            )
+        ctx = ContextoVenta.desde_dict(entrada["contexto"], fuente or getattr(self.fabrica, "fuente", None))
+        return self._correr(RECETAS[entrada["receta"]], ctx)
+
+    def deshacer(self, operacion_id: str) -> ResultadoDeshacer:
+        """Revierte lo que escribió la operación (log en orden inverso) y la marca como deshecha."""
+        resultado = self._deshacedor_activo().deshacer(LogOperacion(operacion_id, self.directorio_logs))
+        if not self.dry_run:
+            self.pendientes.guardar(operacion_id, estado=DESHECHA, paso_actual=None)
+        return resultado
+
     # --- internos ---
+
+    def _deshacedor_activo(self) -> Deshacedor:
+        if self._deshacedor is None:
+            originacion, cnfs = self.fabrica.repositorios
+            self._deshacedor = Deshacedor(originacion, cnfs, dry_run=self.dry_run)
+        return self._deshacedor
+
+    @staticmethod
+    def _falla_deshacible(receta: Receta, indice: int) -> bool:
+        """Falla antes de PAUSA_QA (o antes del último módulo si no hay pausa): no deja datos huérfanos."""
+        umbral = receta.pasos.index(PAUSA_QA) if receta.tiene_pausa_qa else len(receta.pasos) - 1
+        return indice < umbral
 
     def _preparar(self, receta: Receta, ctx: ContextoVenta) -> None:
         if not ctx.numero_contrato:
@@ -122,7 +171,12 @@ class RunnerRecetas:
                     log.modulo_completado(paso)
             except Exception as exc:
                 resultado.estado, resultado.error, resultado.modulo_fallido = FALLIDA, str(exc), paso
-                self._guardar(operacion, receta, ctx, FALLIDA, paso_actual=paso, error=str(exc))
+                if self.auto_deshacer and not self.dry_run and self._falla_deshacible(receta, indice):
+                    resultado.resumen_deshacer = self._deshacedor_activo().deshacer(log)
+                    resultado.deshecho = True
+                    self._guardar(operacion, receta, ctx, DESHECHA, paso_actual=paso, error=str(exc))
+                else:
+                    self._guardar(operacion, receta, ctx, FALLIDA, paso_actual=paso, error=str(exc))
                 return resultado
             resultado.ejecutados.append(paso)
 

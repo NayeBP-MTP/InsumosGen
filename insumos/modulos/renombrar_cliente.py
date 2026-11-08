@@ -59,7 +59,7 @@ class RenombrarCliente(Modulo):
 
     def _renombrado_previo(self, ctx: ContextoVenta, log: LogOperacion) -> Optional[dict]:
         """Último renombrado de este expediente en el log cuyo nombre sigue vigente en la BD."""
-        for entrada in reversed(log.entradas()):
+        for entrada in reversed(log.vigentes()):
             if (entrada["tipo"] == "update" and entrada["modulo"] == self.nombre
                     and entrada["llave"].get("IdExpedienteCliente") == ctx.id_expediente):
                 nuevo = entrada["nuevo"]

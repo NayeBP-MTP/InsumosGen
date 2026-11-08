@@ -46,6 +46,12 @@ class CnfsRepository(SqlServerRepository):
             f"SELECT 1 FROM {TABLA_CUSTOMER} WHERE Customer_Id = ?", (int(customer_id),)
         ) is not None
 
+    def address_existe(self, customer_id, customer_address_db_id) -> bool:
+        return self._escalar(
+            f"SELECT 1 FROM {TABLA_ADDRESS} WHERE Customer_Id = ? AND Customer_Address_Db_Id = ?",
+            (int(customer_id), int(customer_address_db_id)),
+        ) is not None
+
     def max_customer_id_con_prefijo(self, prefijo: int) -> Optional[int]:
         """Mayor `Customer_Id` de 13 dígitos que empieza con `prefijo` (10 dígitos: AAMMDD + colaborador + 02), o None."""
         base = int(prefijo) * 1000
@@ -70,4 +76,18 @@ class CnfsRepository(SqlServerRepository):
         self._escribir(
             f"UPDATE {TABLA_AGREEMENT} SET Customer_Id = ? WHERE Agreement_Num = ?",
             (int(customer_id), int(numero_contrato)),
+        )
+
+    # --- borrados (solo para deshacer lo que insertaron los módulos) ---
+
+    def borrar_agreement(self, numero_contrato) -> None:
+        self._escribir(f"DELETE FROM {TABLA_AGREEMENT} WHERE Agreement_Num = ?", (int(numero_contrato),))
+
+    def borrar_customer(self, customer_id) -> None:
+        self._escribir(f"DELETE FROM {TABLA_CUSTOMER} WHERE Customer_Id = ?", (int(customer_id),))
+
+    def borrar_address(self, customer_id, customer_address_db_id) -> None:
+        self._escribir(
+            f"DELETE FROM {TABLA_ADDRESS} WHERE Customer_Id = ? AND Customer_Address_Db_Id = ?",
+            (int(customer_id), int(customer_address_db_id)),
         )

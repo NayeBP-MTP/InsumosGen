@@ -40,16 +40,29 @@ class LogOperacion:
             "llave": llave, "anterior": anterior, "nuevo": nuevo,
         })
 
+    def deshecho(self) -> None:
+        """Marca que la operación se deshizo: lo anterior ya no cuenta para reanudar ni para deshacer."""
+        self._anotar({"tipo": "deshecho"})
+
     def entradas(self) -> list:
+        """Todo el historial del archivo (no se borra nunca)."""
         if not self.ruta.exists():
             return []
         with self.ruta.open(encoding="utf-8") as f:
             return [json.loads(linea) for linea in f if linea.strip()]
 
+    def vigentes(self) -> list:
+        """Entradas posteriores a la última marca `deshecho`: lo que sigue en pie en la BD."""
+        entradas = self.entradas()
+        for i in range(len(entradas) - 1, -1, -1):
+            if entradas[i]["tipo"] == "deshecho":
+                return entradas[i + 1:]
+        return entradas
+
     def modulos_completados(self) -> list:
         """Nombres de módulos terminados, en orden (la receta se reanuda en el primero que falte)."""
-        return [e["modulo"] for e in self.entradas() if e["tipo"] == "modulo_completado"]
+        return [e["modulo"] for e in self.vigentes() if e["tipo"] == "modulo_completado"]
 
     def escrituras_para_deshacer(self) -> Iterator[dict]:
-        """Escrituras en orden inverso al que ocurrieron."""
-        return reversed([e for e in self.entradas() if e["tipo"] in ("insert", "update", "delete")])
+        """Escrituras vigentes en orden inverso al que ocurrieron."""
+        return reversed([e for e in self.vigentes() if e["tipo"] in ("insert", "update", "delete")])
