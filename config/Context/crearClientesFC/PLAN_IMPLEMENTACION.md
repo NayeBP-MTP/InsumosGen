@@ -315,7 +315,21 @@ en cada paso y requieren VPN.
 - **Qué:** propaga `Cliente` a `Agreement_Table.Customer_Id` (y a `ExpedienteCliente` solo si
   falta).
 - **Verificación:** `dry_run`; UAT sobre un contrato creado con `Customer_Id = 0`.
-- [ ] Impl. · [ ] Verif. · [ ] Review
+- **Resultado:** `insumos/modulos/actualizar_id_cliente.py` (`ActualizarIdCliente`). Pone el
+  `Cliente` del contexto en `Agreement_Table.Customer_Id` (CNFS) y, solo si todavía no lo tiene, en
+  `ExpedienteCliente.Cliente` (Pesos_Offer); el expediente se relee de la BD porque `ctx.cliente` puede
+  venir de CREAR_ID_CLIENTE o de un valor dado a mano. Anota cada update (valor anterior 0) antes de
+  escribir. Requiere `Cliente` ≠ 0 y que AGREEMENT ya haya corrido; si no, falla pidiendo el módulo.
+  **No pisa** un valor distinto de 0: si el contrato o el expediente ya traen otro cliente falla
+  **antes de escribir nada** (las dos comprobaciones preceden a la primera escritura, así no queda
+  una mitad actualizada). Idempotente.
+- **Verificación:** `tests/test_actualizar_id_cliente.py` (10 casos: ambos updates, log, solo agreement
+  cuando CREAR_ID ya escribió el expediente, idempotencia, precondiciones, no pisar sin escribir
+  nada, `dry_run`). UAT sobre el contrato de prueba 240021110 (CN): sin AGREEMENT lo rechaza;
+  AGREEMENT real con `Customer_Id = 0`; `Cliente` dado a mano → quedaron `Customer_Id` y `Cliente` en
+  `2611080402001`; segunda ejecución sin escrituras; un cliente distinto se rechaza sin tocar nada; y
+  se deshizo todo desde el log (fila de Agreement borrada, expediente de vuelta a `Cliente = 0`).
+- [x] Impl. · [x] Verif. · [x] Review
 
 ### 2.9 Módulo `PASO_22_DISPERSADO`
 - **Qué:** `ExpedienteCliente.IdPaso` ← `22`, guardando el valor anterior.
