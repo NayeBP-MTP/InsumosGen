@@ -29,7 +29,10 @@ class ProgressUI:
         self.slots = slots or {}
         self.controller = controller
         self.abortando = False
-        self.total_resumen = sum(len(v) for v in self.slots.values())
+        # Las que esperan a QA (de rondas anteriores) no se repiten ni faltan: se confirman en los resultados.
+        self.total_resumen = sum(
+            1 for v in self.slots.values() for s in v if s.get("estado") != "esperando_qa"
+        )
         # Las ya exitosas vienen de rondas anteriores (un reintento solo repite las
         # pendientes); las fallidas de esta ronda se cuentan en vivo desde los eventos.
         self.exitosas_resumen = sum(

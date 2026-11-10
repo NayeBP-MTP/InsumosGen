@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from config.settings import Settings
 from config.sucursales import SUCURSALES, get_sucursal_by_nombre
 from ui.history_ui import open_history_dialog
+from ui.recetas_ui import etiquetas_recetas, receta_id_de_etiqueta
 from utils.catalog_db import CatalogDB
 from utils.vpn_check import verificar_vpn
 
@@ -21,6 +22,7 @@ RUN_CONFIG_PATH = Path("data/run_config.json")
 INSUMOS = [
     ("OF", "Oferta (solo inserción en BD)"),
     ("VENTA", "Venta (CN / CF)"),
+    ("REGISTRO", "Registrar Cliente"),  # "Creación de Cliente para Registro": venta + receta de insumo
     ("AGENCIA", "Nueva estructura de agencia"),
 ]
 MODO_CREAR_NUEVO = "nuevo"
@@ -81,6 +83,9 @@ class SelectorUI:
         self.ofertas_rows = []
         self.agencias_rows = []
         self.ventas_rows = []
+        # "Registrar Cliente" reutiliza el panel de lotes de Venta, pero con su propia lista: cada lote
+        # lleva una receta obligatoria y los lotes de un insumo no aparecen en el otro.
+        self.registro_rows = []
         self._combos_cache = {}  # branch -> lista de combos DM/AM ya consultados
         self.tomar_capturas_var = tk.BooleanVar(value=False)
         self.navegador_var = tk.StringVar(value="visible")  # "visible" / "headless"
@@ -97,7 +102,8 @@ class SelectorUI:
         self._build_ui()
         self._agregar_fila_oferta()
         self._agregar_fila_agencia()
-        self._agregar_fila_venta()
+        self._agregar_fila_venta("VENTA")
+        self._agregar_fila_venta("REGISTRO")
         self._lock_window_size()
         self._actualizar_gate_ajustes()
         # Si faltan ajustes, abre el diálogo de una vez (tras mostrar la ventana).
@@ -422,9 +428,10 @@ class SelectorUI:
         # con su propia agencia/tipo/método/seguro/cantidad — ver _agregar_fila_venta)
         self.panel_venta = tk.Frame(form, bg=BG)
 
-        tk.Label(
+        self.lotes_label = tk.Label(
             self.panel_venta, text="Lotes de venta:", font=FONT_LABEL, bg=BG, anchor="w"
-        ).pack(fill="x", pady=(0, 6))
+        )
+        self.lotes_label.pack(fill="x", pady=(0, 6))
 
         VENTAS_CANVAS_HEIGHT = 220
         ventas_scroll_area = tk.Frame(self.panel_venta, bg=BG)
@@ -460,7 +467,7 @@ class SelectorUI:
         self.ventas_canvas.bind("<Enter>", lambda _e: self.ventas_canvas.bind_all("<MouseWheel>", _on_mousewheel_ventas))
         self.ventas_canvas.bind("<Leave>", lambda _e: self.ventas_canvas.unbind_all("<MouseWheel>"))
 
-        tk.Button(
+        self.agregar_lote_btn = tk.Button(
             self.panel_venta,
             text="+ Agregar lote de venta",
             font=FONT_LABEL,
@@ -468,21 +475,8 @@ class SelectorUI:
             relief="flat",
             cursor="hand2",
             command=self._agregar_fila_venta
-        ).pack(anchor="w", pady=(8, 10))
-
-        tk.Label(self.panel_venta, text="Número de celular:", font=FONT_LABEL, bg=BG, anchor="w").pack(
-            fill="x", pady=(0, 4)
         )
-        tk.Entry(
-            self.panel_venta, textvariable=self.celular_var, font=FONT_LABEL, width=40
-        ).pack(fill="x", pady=(0, 10))
-
-        tk.Label(self.panel_venta, text="Correo electrónico:", font=FONT_LABEL, bg=BG, anchor="w").pack(
-            fill="x", pady=(0, 4)
-        )
-        tk.Entry(
-            self.panel_venta, textvariable=self.correo_var, font=FONT_LABEL, width=40
-        ).pack(fill="x", pady=(0, 4))
+        self.agregar_lote_btn.pack(anchor="w", pady=(8, 10))
 
         tk.Checkbutton(
             self.panel_venta,
@@ -586,32 +580,57 @@ class SelectorUI:
         var.set(max(1, min(50, var.get() + delta)))
         self._actualizar_texto_boton_venta()
 
-    def _agregar_fila_venta(self):
-        self.ventas_rows.append({
+    def _modo_lotes(self) -> str:
+        """Qué insumo usa hoy el panel de lotes: "REGISTRO" (Registrar Cliente) o "VENTA"."""
+        return "REGISTRO" if self.insumo_var.get() == "REGISTRO" else "VENTA"
+
+    def _filas_lotes(self, modo: str = None) -> list:
+        return self.registro_rows if (modo or self._modo_lotes()) == "REGISTRO" else self.ventas_rows
+
+    def _agregar_fila_venta(self, modo: str = None):
+        modo = modo or self._modo_lotes()
+        fila = {
             "tipo_var": tk.StringVar(value="CN"),
             "agencia_var": tk.StringVar(),
             "metodo_var": tk.StringVar(),
             "seguro_var": tk.StringVar(value="si"),  # "si" / "no"
             "cantidad_var": tk.IntVar(value=1),
-        })
-        self._renderizar_filas_venta()
-        self._actualizar_texto_boton_venta()
+        }
+        if modo == "REGISTRO":
+            fila["receta_var"] = tk.StringVar(value=etiquetas_recetas("CN")[0])
+        self._filas_lotes(modo).append(fila)
+        if modo == self._modo_lotes():
+            self._renderizar_filas_venta()
+            self._actualizar_texto_boton_venta()
+
+    @staticmethod
+    def _on_tipo_lote_cambiado(row: dict):
+        """Al cambiar CN/CF del lote, el desplegable de receta ofrece solo las de ese tipo de venta."""
+        if "receta_combo" not in row:  # lote de Venta: sin receta
+            return
+        opciones = etiquetas_recetas(row["tipo_var"].get())
+        row["receta_combo"].configure(values=opciones)
+        if row["receta_var"].get() not in opciones:
+            row["receta_var"].set(opciones[0])
 
     def _quitar_fila_venta(self, row: dict):
-        if len(self.ventas_rows) <= 1:
+        filas = self._filas_lotes()
+        if len(filas) <= 1:
             return
-        self.ventas_rows.remove(row)
+        filas.remove(row)
         self._renderizar_filas_venta()
         self._actualizar_texto_boton_venta()
 
     def _actualizar_texto_boton_venta(self):
         """Pluraliza el botón de confirmar cuando el total de ventas pedidas es > 1."""
-        if self.insumo_var.get() != "VENTA":
+        if self.insumo_var.get() not in ("VENTA", "REGISTRO"):
             return
-        total = sum(row["cantidad_var"].get() for row in self.ventas_rows)
-        self.confirm_btn.configure(
-            text="▶  Crear Ventas" if total > 1 else "▶  Crear Venta"
-        )
+        total = sum(row["cantidad_var"].get() for row in self._filas_lotes())
+        if self._modo_lotes() == "REGISTRO":
+            texto = "▶  Registrar Clientes" if total > 1 else "▶  Registrar Cliente"
+        else:
+            texto = "▶  Crear Ventas" if total > 1 else "▶  Crear Venta"
+        self.confirm_btn.configure(text=texto)
 
     def _renderizar_filas_venta(self):
         FONT_LABEL = self._FONT_LABEL
@@ -620,7 +639,9 @@ class SelectorUI:
         for child in self.ventas_list_frame.winfo_children():
             child.destroy()
 
-        for idx, row in enumerate(self.ventas_rows, start=1):
+        filas = self._filas_lotes()
+        registro = self._modo_lotes() == "REGISTRO"
+        for idx, row in enumerate(filas, start=1):
             card = tk.Frame(self.ventas_list_frame, bg=CARD_BG, relief="groove", bd=1)
             card.pack(fill="x", pady=(0, 10))
             inner = tk.Frame(card, bg=CARD_BG, padx=12, pady=10)
@@ -631,7 +652,7 @@ class SelectorUI:
             tk.Label(
                 header, text=f"Lote {idx}", font=("Segoe UI", 10, "bold"), bg=CARD_BG
             ).pack(side="left")
-            if len(self.ventas_rows) > 1:
+            if len(filas) > 1:
                 tk.Button(
                     header, text="✕ Quitar", font=("Segoe UI", 8), bg=CARD_BG, fg="#c62828",
                     relief="flat", cursor="hand2",
@@ -643,11 +664,13 @@ class SelectorUI:
             tipo_frame.pack(fill="x", pady=(2, 8))
             tk.Radiobutton(
                 tipo_frame, text="Cliente nuevo (CN)", value="CN", variable=row["tipo_var"],
-                font=FONT_LABEL, bg=CARD_BG, activebackground=CARD_BG, cursor="hand2"
+                font=FONT_LABEL, bg=CARD_BG, activebackground=CARD_BG, cursor="hand2",
+                command=lambda r=row: self._on_tipo_lote_cambiado(r)
             ).pack(side="left", padx=(0, 16))
             tk.Radiobutton(
                 tipo_frame, text="Cliente frecuente (CF)", value="CF", variable=row["tipo_var"],
-                font=FONT_LABEL, bg=CARD_BG, activebackground=CARD_BG, cursor="hand2"
+                font=FONT_LABEL, bg=CARD_BG, activebackground=CARD_BG, cursor="hand2",
+                command=lambda r=row: self._on_tipo_lote_cambiado(r)
             ).pack(side="left")
 
             tk.Label(inner, text="Agencia:", font=FONT_LABEL, bg=CARD_BG, anchor="w").pack(fill="x")
@@ -675,6 +698,22 @@ class SelectorUI:
                 seguro_frame, text="Sin seguro", value="no", variable=row["seguro_var"],
                 font=FONT_LABEL, bg=CARD_BG, activebackground=CARD_BG, cursor="hand2"
             ).pack(side="left")
+
+            if registro:
+                tk.Label(
+                    inner, text="Tipo de Insumo:", font=FONT_LABEL, bg=CARD_BG, anchor="w"
+                ).pack(fill="x")
+                receta_combo = ttk.Combobox(
+                    inner, textvariable=row["receta_var"],
+                    values=etiquetas_recetas(row["tipo_var"].get()), state="readonly"
+                )
+                receta_combo.pack(fill="x", pady=(2, 8))
+                row["receta_combo"] = receta_combo
+                self._add_tooltip(
+                    receta_combo,
+                    "Tras la venta, deja al cliente listo para la Mobile App (renombra, crea Agreement/cliente, "
+                    "etc.). Si la receta tiene pausa de QA, queda esperando en la pantalla de resultados."
+                )
 
             tk.Label(inner, text="Cantidad:", font=FONT_LABEL, bg=CARD_BG, anchor="w").pack(fill="x")
             cantidad_frame = tk.Frame(inner, bg=CARD_BG)
@@ -962,7 +1001,11 @@ class SelectorUI:
             self.panel_agencia.pack(fill="x")
             self.confirm_btn.configure(text="▶  Crear Agencia(s)")
         else:
-            self.step2_title.configure(text="Ventas")
+            registro = insumo == "REGISTRO"
+            self.step2_title.configure(text="Registrar Cliente" if registro else "Ventas")
+            self.lotes_label.configure(text="Lotes de clientes a registrar:" if registro else "Lotes de venta:")
+            self.agregar_lote_btn.configure(text="+ Agregar lote de clientes" if registro else "+ Agregar lote de venta")
+            self._renderizar_filas_venta()
             self.panel_venta.pack(fill="x")
             self._actualizar_texto_boton_venta()
         self.confirm_btn.configure(state="normal")
@@ -1270,11 +1313,12 @@ class SelectorUI:
                 agencias_cfg.append(cfg)
             ventas = {"AGENCIA": len(agencias_cfg)}
         else:
-            if not self.ventas_rows:
-                messagebox.showwarning("Campo requerido", "Agrega al menos un lote de venta.")
+            filas_lotes = self._filas_lotes()
+            if not filas_lotes:
+                messagebox.showwarning("Campo requerido", "Agrega al menos un lote.")
                 return
             ventas_batches = []
-            for idx, row in enumerate(self.ventas_rows, start=1):
+            for idx, row in enumerate(filas_lotes, start=1):
                 agencia_label_fila = row["agencia_var"].get()
                 if not agencia_label_fila:
                     messagebox.showwarning(
@@ -1288,7 +1332,7 @@ class SelectorUI:
                     )
                     return
                 agencia_data = CatalogDB.get_agencia_by_label(agencia_label_fila)
-                ventas_batches.append({
+                lote = {
                     "id":             f"lote{idx}",
                     "tipo_cliente":   row["tipo_var"].get(),
                     "agencia_label":  agencia_label_fila,
@@ -1298,7 +1342,16 @@ class SelectorUI:
                     "metodo_entrega": metodo_fila,
                     "con_seguro":     row["seguro_var"].get() == "si",
                     "cantidad":       row["cantidad_var"].get(),
-                })
+                }
+                if insumo == "REGISTRO":
+                    receta_id = receta_id_de_etiqueta(lote["tipo_cliente"], row["receta_var"].get())
+                    if not receta_id:
+                        messagebox.showwarning(
+                            "Campo requerido", f"Selecciona el tipo de insumo del lote {idx}."
+                        )
+                        return
+                    lote["receta"] = receta_id
+                ventas_batches.append(lote)
             ventas = {}
             for batch in ventas_batches:
                 ventas[batch["tipo_cliente"]] = ventas.get(batch["tipo_cliente"], 0) + batch["cantidad"]
@@ -1307,36 +1360,29 @@ class SelectorUI:
                     "Valor inválido", "Debes indicar al menos 1 venta (CF o CN)."
                 )
                 return
-            celular = self.celular_var.get().strip()
-            correo = self.correo_var.get().strip()
-            if not CELULAR_REGEX.match(celular):
-                messagebox.showwarning(
-                    "Campo requerido", "Ingresa un número de celular válido: exactamente 10 dígitos (solo números)."
-                )
-                return
-            if not correo_valido(correo):
-                messagebox.showwarning(
-                    "Campo requerido", "Ingresa un correo electrónico válido (ej. nombre@dominio.com, sin espacios)."
-                )
-                return
+            # Celular y correo salen de Ajustes (el gate de arriba ya los validó).
             tomar_capturas = self.tomar_capturas_var.get()
 
         # La ejecución requiere VPN de Provident (portal UAT, botDB y, para AGENCIA,
         # también Challenger_uat, solo accesibles con ella).
         self.root.configure(cursor="watch")
-        self.confirm_btn.configure(state="disabled", text="Verificando VPN…")
+        self.confirm_btn.configure(state="disabled", text="Verificando conexión…")
         self.root.update_idletasks()
         try:
-            vpn_ok, faltantes = verificar_vpn(requiere_bd=True, requiere_challenger=(insumo == "AGENCIA"))
+            vpn_ok, faltantes = verificar_vpn(
+                requiere_bd=True, requiere_challenger=(insumo == "AGENCIA"),
+                requiere_originacion=insumo in ("VENTA", "REGISTRO"), requiere_cnfs=(insumo == "REGISTRO"),
+            )
         finally:
             self.root.configure(cursor="")
             self._on_insumo_changed()
         if not vpn_ok:
             messagebox.showerror(
-                "Sin conexión a la VPN",
-                "No se puede iniciar la ejecución porque no hay conexión a la VPN de Provident."
-                "\n\nNo se pudo alcanzar:\n  • " + "\n  • ".join(faltantes) +
-                "\n\nConéctate a la VPN e inténtalo de nuevo."
+                "No se puede iniciar la ejecución",
+                "La verificación previa encontró estos problemas (cada uno trae su causa):"
+                "\n\n  • " + "\n  • ".join(faltantes) +
+                "\n\nSi todos son de red (DNS o timeout), revisa la VPN; si son de credenciales o driver, "
+                "revisa tu .env."
             )
             return
 

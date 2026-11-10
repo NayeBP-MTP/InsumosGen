@@ -13,6 +13,7 @@ from insumos.pendientes import ESPERANDO_QA
 from insumos.recetas import RECETAS
 from insumos.runner import RunnerRecetas
 from ui.progress_ui import ProgressUI
+from ui.recetas_ui import retomar_pendientes
 from ui.results_ui import ResultsUI
 from ui.selector_ui import SelectorUI
 from utils.progress import Progress
@@ -564,6 +565,9 @@ def main():
     Progress.set_path(f"data/run_progress_{PROCESO_ID}.jsonl")
 
     while True:
+        # Operaciones de recetas que quedaron a medias (pausa de QA, cerradas a mitad o fallidas): antes de
+        # armar una corrida nueva se ofrece continuarlas, reanudarlas o deshacerlas.
+        retomar_pendientes()
         ui = SelectorUI(config_path=CONFIG_PATH)
         if not ui.run():
             print("Ejecución cancelada por el usuario.")

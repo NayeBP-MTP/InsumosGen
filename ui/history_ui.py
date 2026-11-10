@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 
+from insumos.pendientes import ESPERANDO_QA
 from utils.run_history import RunHistory
 
 
@@ -21,9 +22,10 @@ def open_history_dialog(parent: tk.Misc) -> None:
 
     registros = list(reversed(RunHistory.load()))
     ok = sum(1 for r in registros if r.get("estado") == "exitosa")
+    qa = sum(1 for r in registros if r.get("estado") == ESPERANDO_QA)
     tk.Label(
         dialog, text=f"{len(registros)} intento(s) registrado(s) · {ok} exitoso(s) · "
-                     f"{len(registros) - ok} fallido(s)",
+                     f"{len(registros) - ok - qa} fallido(s)" + (f" · {qa} esperando QA" if qa else ""),
         font=("Segoe UI", 10), bg=BG, anchor="w"
     ).pack(fill="x", padx=16, pady=(12, 6))
 
@@ -41,17 +43,19 @@ def open_history_dialog(parent: tk.Misc) -> None:
         tree.column(col, width=w, anchor="w")
     tree.tag_configure("ok", foreground="#2e7d32")
     tree.tag_configure("fail", foreground="#c62828")
+    tree.tag_configure("qa", foreground="#8d6e00")
 
+    textos = {"exitosa": ("✔ Exitosa", "ok"), ESPERANDO_QA: ("⏸ Esperando QA", "qa")}
     for r in registros:
-        exitosa = r.get("estado") == "exitosa"
+        texto, tag = textos.get(r.get("estado"), ("✖ Fallida", "fail"))
         tree.insert(
             "", "end",
             values=(
                 r.get("fecha", ""), r.get("agencia", ""), r.get("metodo", ""),
                 r.get("tipo", ""), r.get("seguro", ""), r.get("ronda", ""),
-                "✔ Exitosa" if exitosa else "✖ Fallida", r.get("detalle", ""),
+                texto, r.get("detalle", ""),
             ),
-            tags=("ok" if exitosa else "fail",),
+            tags=(tag,),
         )
 
     scroll = ttk.Scrollbar(frame, orient="vertical", command=tree.yview)

@@ -525,7 +525,30 @@ en cada paso y requieren VPN.
     o fallidas), se ofrece retomarlas (continuar, reanudar o deshacer cada una) antes de armar una corrida nueva.
   - **Validación:** pruebas unitarias de la lógica detrás de los botones; yo abro las ventanas y tú las revisas,
     y luego un flujo completo con pausa y retomar.
-- [ ] Impl. · [ ] Verif. · [ ] Review
+- **Hecho (10/11/2026):**
+  - `ui/recetas_ui.py` (nuevo): la lógica sin Tk (`etiquetas_recetas`, `receta_id_de_etiqueta`, `fijar_colaborador`,
+    `filas_en_pausa`, `confirmar_qa`, `acciones_de`, `ejecutar_accion`) y los widgets `PanelEsperandoQA` y
+    `RetomarUI` (+ `retomar_pendientes`, que no abre nada si no hay pendientes o el archivo está dañado).
+  - **Corrección (10/11/2026):** las recetas NO van en "Venta". Son un insumo propio del menú: **"Registrar
+    Cliente"** (nombre interno: "Creación de Cliente para Registro"). `SelectorUI` reutiliza el panel de lotes,
+    pero con lista propia (`registro_rows`): cada lote lleva una **receta obligatoria** ("Tipo de Insumo", solo
+    las del tipo CN/CF del lote, se reajusta al cambiar el tipo) y viaja como `receta` en `ventas_batches`. Los
+    lotes de "Venta" ya no ofrecen receta ni la envían. Supuesto: Registrar Cliente hace la venta y luego la receta.
+  - `ResultsUI`: `esperando_qa` es un estado propio (⏸, color ámbar), no cuenta como pendiente (no entra en
+    "Reintentar pendientes") y el panel "Esperando QA" trae contrato, fecha de nacimiento y el botón "QA confirmó,
+    continuar", que retoma la receta y refresca la pantalla. `history_ui` lo cuenta aparte; `ProgressUI` no lo
+    cuenta como faltante en los reintentos.
+  - `run.py`: al abrir (y al volver a "Nueva configuración") llama a `retomar_pendientes()`: continuar, reanudar o
+    deshacer cada operación antes de armar una corrida nueva. El colaborador sale de la corrida o de
+    `data/user_settings.json`.
+  - Verificación: 26 pruebas nuevas (`tests/test_recetas_ui.py`, incluye humo de los widgets); 291 pruebas
+    unitarias pasan. Capturas de las tres ventanas revisadas. En UAT real, sobre la venta existente 240021112 (sin
+    Selenium): receta con pausa → panel con contrato y fecha de nacimiento → "reabrir" lee la operación pendiente
+    (acciones continuar/deshacer) → `confirmar_qa` completa la receta (Cliente de 13 dígitos en el expediente y
+    customer en CNFS) → `ejecutar_accion(DESHACER)` revirtió 6 escrituras y dejó la BD como estaba.
+  - Pendiente de tu review: abrir `python run.py` y probar las ventanas tú; un flujo completo con venta real
+    (cerrar en pausa, reabrir y retomar) solo si lo quieres, porque cada venta real dura ~4 min.
+- [x] Impl. · [x] Verif. · [x] Review
 
 ### 3.6 Cierre documental
 - **Qué:** actualizar `Context.md`, `ESPECIFICACIONES.md` y `CLAUDE.md` (arquitectura, comandos,
