@@ -1,7 +1,10 @@
 # Crear clientes para la Mobile App de Provident (insumo CF y CN)
 
-> **Estado: diseño. Aún no hay código implementado.** Se implementa en la rama `feat/recipes`
-> (la rama `feat/parallelization` se deja de lado; sus cambios sin commitear siguen siendo la base).
+> **Estado: implementado** en la rama `feat/recipes` (plan y pasos en [PLAN_IMPLEMENTACION.md](PLAN_IMPLEMENTACION.md)).
+> Código: `insumos/` (módulos, recetas, runner, log, deshacer, pendientes, CLI), `flows/` (ventas) y la UI
+> (`ui/recetas_ui.py`). Este documento sigue siendo la fuente del **porqué** de cada módulo y receta; lo que cambió
+> al implementar está en las secciones 4 a 6 y en el plan. Cómo se usa: insumo **"Registrar Cliente"** en
+> `python run.py` (nombre interno: "Creación de Cliente para Registro") o `python -m insumos` por terminal.
 
 Proceso técnico para generar un cliente que pueda registrarse en la **Mobile App de Provident**
 a partir de una venta hecha con la automatización (o de una venta ya existente). El proceso se

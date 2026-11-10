@@ -553,4 +553,7 @@ en cada paso y requieren VPN.
 ### 3.6 Cierre documental
 - **Qué:** actualizar `Context.md`, `ESPECIFICACIONES.md` y `CLAUDE.md` (arquitectura, comandos,
   recetas); marcar el diseño como implementado en `CREAR_CLIENTES.md`.
-- [ ] Impl. · [ ] Review
+- **Hecho (10/11/2026):** `CLAUDE.md` (comandos `python -m insumos`, arquitectura de recetas, verificación
+  previa), `Context.md` (§9b y archivos), `ESPECIFICACIONES.md` (menú, Registrar Cliente, pausa de QA, retomar) y
+  `CREAR_CLIENTES.md` (marcado como implementado).
+- [x] Impl. · [x] Review

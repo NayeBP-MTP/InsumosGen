@@ -16,6 +16,10 @@ Automatiza tres tipos de operación:
 - **OF (Oferta)** — `tests/test_oferta.py`: solo inserta y verifica la oferta en `botDB`, sin
   ejecutar la venta en el navegador.
 
+Sobre una venta CN/CF se puede aplicar una **receta de insumo** (insumo **"Registrar Cliente"** en la UI,
+paquete `insumos/`) que deja al cliente listo para la Mobile App de Provident escribiendo en
+`Originacion` y `CNFS_uat`; ver "Recetas de insumo" en Arquitectura.
+
 Los flujos viven en `flows/` y los tests son envoltorios delgados: `flows/venta_comun.py`
 (`flujo_metodo_entrega`, `flujo_identidad_a_otp`, `flujo_beneficiario_a_finalizar`, compartidos por CN y CF),
 `flows/venta_cn.py`, `flows/venta_cf.py` y `flows/oferta_cf.py` (`insertar_oferta_cf`, usado por CF y OF). Las diferencias de negocio entre CN y CF están
@@ -45,6 +49,14 @@ pytest tests/test_login_cf.py::TestLoginProvidentCF::test_login_exitoso_cf -s -v
 
 # Ver el reporte
 allure serve allure-results
+
+# Recetas de insumo sobre un contrato ya vendido (sin navegador; python -m insumos <comando> -h)
+python -m insumos listar                                        # las 6 recetas y sus pasos
+python -m insumos ejecutar <receta> --contrato <n> --colaborador 04  # --dry-run no escribe; --sin-pausa-qa
+python -m insumos pendientes                                    # operaciones en pausa de QA, a medias o fallidas
+python -m insumos continuar <contrato>                          # QA ya registró al usuario
+python -m insumos reanudar <contrato>                           # retoma una operación fallida
+python -m insumos deshacer <contrato>                           # revierte lo que escribió la receta
 ```
 
 No hay linter ni type-checker configurado en el proyecto.
@@ -91,6 +103,37 @@ detecta comparando IDs antes/después vía `utils/offer_id_allocator.py` y la bo
 completa vive en `ui/` (`SelectorUI`, `ProgressUI`, `ResultsUI`, `history_ui.py`) y se comunica con
 los subprocesos pytest vía el archivo/canal de `utils/progress.py` (`Progress.emit`, también
 enganchado a `allure.step` en `conftest.py`).
+
+### Recetas de insumo ("Registrar Cliente", paquete `insumos/`)
+
+El diseño y el porqué de cada módulo están en `config/Context/crearClientesFC/CREAR_CLIENTES.md`; el plan y
+los hallazgos de la implementación, en `PLAN_IMPLEMENTACION.md`.
+
+- **Módulos** (`insumos/modulos/`): `RENOMBRAR_CLIENTE`, `CREAR_ID_CLIENTE`, `ACTUALIZAR_ID_CLIENTE`, `AGREEMENT`,
+  `REGISTRO_CLIENTE`, `PASO_22_DISPERSADO`. Trabajan sobre un `ContextoVenta` (`insumos/contexto.py`, carga perezosa
+  de expediente y montos), son **idempotentes**, escriben su entrada en el log **antes** de tocar la BD y respetan
+  `dry_run` (el del módulo debe coincidir con el de sus repositorios).
+- **Recetas** (`insumos/recetas.py`): 6 recetas declaradas como datos; `validar_recetas` corre al importar y exige
+  que cada módulo esté en alguna receta y cada paso exista (la fábrica del runner debe coincidir con `MODULOS`).
+  `PAUSA_QA` es un paso más.
+- **Runner** (`insumos/runner.py`, `RunnerRecetas`): `ejecutar` / `reanudar` / `continuar_tras_qa` / `deshacer`.
+  Arranca en el primer módulo no completado; solo se deshace solo si falla antes de `PAUSA_QA`. Rechaza una receta
+  CF sobre un contrato CN (`ContextoVenta.verificar_tipo`).
+- **Estado persistido:** log por operación en `data/insumos/<contrato>.jsonl` (`LogOperacion`: insert/update/delete y
+  marcadores `modulo_iniciado` / `modulo_completado` / `deshecho`) y pausas en `data/insumos_pendientes.json`
+  (`PendientesStore`: en_curso, esperando_qa, completada, fallida, deshecha). `Deshacedor` revierte el log en orden
+  inverso y no pisa lo que cambió otra persona (lo reporta como conflicto).
+- **Desde `run.py`:** un lote de "Registrar Cliente" lleva `receta` en `ventas_batches`; tras cada venta
+  `_aplicar_receta` la corre sobre el contrato (ubicado en `Originacion` por estrella + `IdOferta` +
+  `FechaFinalizacion`, ver `flows/resultado_venta.py`). Un slot con receta tiene `venta_ok`: el reintento repite
+  **solo la receta**, nunca la venta. `esperando_qa` no es fallo ni cuenta en "Reintentar pendientes".
+- **UI** (`ui/recetas_ui.py`): panel "Esperando QA" en `ResultsUI` (botón "QA confirmó, continuar") y ventana de
+  retomar al abrir `run.py`. La lógica va en funciones sin Tk para probarla sin ventanas.
+- **Número de cliente:** `AAMMDD + colaborador(2) + 02 + NNN`; el colaborador sale de Ajustes (`numero_colaborador`) y
+  `utils/cliente_id_allocator.py` evita repetidos.
+- **Verificación previa** (`utils/vpn_check.py`): entra al portal y abre sesión en las bases que el insumo usa; el
+  mensaje de error trae la causa real (DNS, timeout, credenciales, driver). Al agregar un insumo que use otra base,
+  pásala en `verificar_vpn` desde `SelectorUI._on_confirm`.
 
 ### Verificación de oferta antes de abrir el navegador (flujo CF)
 

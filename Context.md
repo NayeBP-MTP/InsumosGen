@@ -160,6 +160,40 @@ Nota: un menú hamburguesa abierto en una captura de falla normalmente es la rec
 | `utils/generate_fake_camera_video.py` | Genera `data/selfie.y4m` |
 | `conftest.py` | Driver, cierre garantizado de Chrome |
 | `config/settings.py` | Configuración; lee `data/run_config.json` (incluye `monto` y topes) |
+| `insumos/` | Recetas de "Registrar Cliente": módulos, runner, log, deshacer, pendientes y CLI (ver §9b) |
+| `ui/recetas_ui.py` | Panel "Esperando QA", ventana de retomar y lógica de recetas de la UI |
+| `utils/vpn_check.py` | Verificación previa de portal y bases, con la causa real de cada falla |
+
+## 9b. Registrar Cliente (recetas de insumo) — implementado el 10/11/2026
+
+Después de una venta CN/CF, una **receta** deja al cliente listo para la Mobile App de Provident escribiendo en
+`Originacion` (expediente) y `CNFS_uat` (Agreement, Customer, Customer_Address). Diseño y porqué de cada módulo:
+`config/Context/crearClientesFC/CREAR_CLIENTES.md`; pasos de la implementación: `PLAN_IMPLEMENTACION.md`.
+
+- **Cómo se usa:** en `python run.py`, insumo **Registrar Cliente** (venta + receta; cada lote lleva su "Tipo de
+  Insumo" = receta, obligatoria y del mismo tipo CN/CF que el lote). **Venta** no lleva recetas. Por terminal, sobre
+  un contrato ya vendido: `python -m insumos listar|pendientes|ejecutar|continuar|reanudar|deshacer`.
+- **Recetas:** `CN_REGISTRO_INTERMEDIO`, `CN_REGISTRADO`, `CN_REGISTRO_DISPERSADO`, `CN_REGISTRADO_DISPERSION`,
+  `CF_DISPERSADO`, `CF_REGISTRADO` (catálogo en `insumos/recetas.py`; se valida al importar).
+- **Pausa de QA:** las recetas "intermedias" se detienen tras `AGREEMENT` (estado `esperando_qa`, persistido en
+  `data/insumos_pendientes.json`, sobrevive a cerrar la ventana). QA registra al usuario con el contrato y la fecha de
+  nacimiento y se confirma con "QA confirmó, continuar" (pantalla de resultados), con **Retomar** al abrir `run.py` o
+  con `python -m insumos continuar <contrato>`.
+- **Reanudar / deshacer:** cada módulo es idempotente y anota un log (`data/insumos/<contrato>.jsonl`) antes de
+  escribir; ante una falla se reanuda, o se deshace el log en orden inverso (no pisa lo que QA ya cambió: lo
+  reporta como conflicto). Solo se deshace solo si la falla es antes de la pausa.
+- **Reintentos desde `run.py`:** si la receta falla, el reintento repite solo la receta (SQL), nunca la venta.
+- **Número de cliente:** `AAMMDD + colaborador(2) + 02 + NNN` (13 dígitos). El colaborador sale de **Ajustes**
+  (`numero_colaborador`); sin él `CREAR_ID_CLIENTE` falla con un mensaje claro.
+- **Verificación previa:** al confirmar, `utils/vpn_check.py` entra al portal y abre sesión en las bases que el insumo
+  usa (Registrar Cliente: botDB, Originacion y CNFS_uat) y reporta la causa real de cada falla (DNS, timeout,
+  credenciales, driver…). Caso real (08/11): el puerto de CNFS respondía pero SQL Server no contestaba el login y las
+  ventas fallaron en el portal.
+- **Hallazgos de datos:** `ExpedienteCliente.IdExpedienteOferta` es NULL; el vínculo real es
+  `ExpedienteOferta.IdExpedienteCliente`. El contrato de la venta se ubica en `Originacion` por estrella + `IdOferta`
+  + `FechaFinalizacion` (el `folio` del front suele venir vacío). El prefijo del número de cliente son 10 dígitos.
+- **Abiertos:** valores de plantilla como `Agreement_Db_Id=2000` y `Customer_Address_Db_Id=1` se conservan; una llave
+  única repetida entre clientes fallaría con un mensaje claro. Facematch intermitente (Rekognition 400).
 
 ## 9. Cámara fake y facematch de Legalario (observado el 03/11/2026)
 

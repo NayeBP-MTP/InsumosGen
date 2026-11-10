@@ -267,13 +267,16 @@ python run.py
 
 `run.py` abre el menú (`ui/selector_ui.py`) donde se elige:
 
-- **¿Qué deseas realizar?** (desplegable): **Oferta** (solo inserción en `botDB`, sin abrir navegador) o **Venta (CN / CF)**. Cada opción muestra su propio panel.
+- **¿Qué deseas realizar?** (desplegable): **Oferta** (solo inserción en `botDB`, sin abrir navegador), **Venta (CN / CF)**, **Registrar Cliente** (venta + receta de insumo para la Mobile App) o **Nueva estructura de agencia**. Cada opción muestra su propio panel.
   - Panel **Oferta**: agencia, cantidad de ofertas y **Tipo de oferta** (`Agregar` / `Refin`, `Settings.TIPO_OFERTA`) — controla tanto la palabra que lleva `descOferta` como el valor de `tipoDeOferta` (`AD` / `RE`; ver [documento de contexto](config/Context/REGLAS_DE_NEGOCIO.md#2-la-oferta-botdbdboofertas)). No hay control de seguro en este panel: no aplica, la Oferta solo inserta en BD y no abre el navegador.
-  - Panel **Venta**: agencia, método de entrega, ¿con seguro?, celular/correo y **Ventas a realizar por tipo** — un contador para **Cliente frecuente (CF)** y otro para **Cliente nuevo (CN)** (0–50 cada uno, mínimo 1 venta en total). Ej.: CF=2 y CN=1.
-- **⚙ Ajustes:** celular y correo por defecto del cliente de prueba (se guardan en `data/user_settings.json`)
+  - Panel **Venta**: una lista de **lotes**; cada lote tiene tipo (CN/CF), agencia, método de entrega, ¿con seguro? y cantidad (1–50). El celular y el correo **no se piden aquí**: salen de Ajustes.
+  - Panel **Registrar Cliente**: los mismos lotes (lista propia) más el **Tipo de Insumo** de cada lote, obligatorio: la receta de `insumos/recetas.py`, solo las del tipo CN/CF del lote. La receta corre sobre el contrato de cada venta (ver `config/Context/crearClientesFC/CREAR_CLIENTES.md`).
+- **⚙ Ajustes:** celular, correo, nombre de la INE y **número de colaborador** (los usa la venta y el número de cliente; se guardan en `data/user_settings.json`)
 - **📋 Historial:** abre la lista de todos los intentos registrados
 
-> Nota: esta sección no cubre todos los controles del menú actual (p. ej. la verificación de VPN antes de confirmar). Se documenta aquí solo lo relevante al flujo de oferta/venta.
+Al confirmar, `utils/vpn_check.py` verifica el portal UAT y las bases que el insumo usa (Registrar Cliente: botDB, Originacion y CNFS_uat) y, si algo falla, el cuadro de error dice la causa real de cada problema (DNS, timeout, credenciales, driver…).
+
+**Recetas con pausa de QA:** una operación en `esperando_qa` no es un fallo: aparece en la pantalla de resultados en un panel "Esperando QA" (contrato y fecha de nacimiento, botón "QA confirmó, continuar"), no cuenta en "Reintentar pendientes" y sobrevive a cerrar la ventana. Al abrir `python run.py` con operaciones sin terminar se ofrece **retomarlas** (continuar, reanudar o deshacer) antes de armar una corrida nueva.
 
 Al confirmar se guarda `data/run_config.json` con `ventas: {"CF": n, "CN": m}` y el resto de la selección.
 
