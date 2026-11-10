@@ -7,6 +7,11 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
+from config.settings import Settings
+from insumos.contexto import ContextoVenta
+from insumos.pendientes import ESPERANDO_QA
+from insumos.recetas import RECETAS
+from insumos.runner import RunnerRecetas
 from ui.progress_ui import ProgressUI
 from ui.results_ui import ResultsUI
 from ui.selector_ui import SelectorUI
@@ -214,6 +219,104 @@ def _ejecutar_fase(
     return returncode
 
 
+# Estados de un slot de venta. Un slot con receta pasa por DOS etapas: la venta (Selenium) y la receta de
+# insumos (solo SQL, sobre el contrato que dejó la venta). `venta_ok` marca que la venta ya terminó, para
+# que un reintento repita solo la receta y nunca la venta (que crearía otra venta y otro contrato).
+EN_PAUSA_QA = "esperando_qa"
+
+
+def _receta_de_slot(slot: dict):
+    """La receta (con su variante sin pausa de QA) configurada en el lote del slot, o None."""
+    receta_id = slot["config"].get("receta")
+    if not receta_id:
+        return None
+    receta = RECETAS[receta_id]
+    return receta.sin_pausa_qa() if slot["config"].get("sin_pausa_qa") else receta
+
+
+def _venta_pendiente(slot: dict) -> bool:
+    """Falta hacer la venta: no terminó bien (ni como venta con receta ni como venta simple)."""
+    return slot["estado"] != "exitosa" and not slot.get("venta_ok")
+
+
+def _receta_pendiente(slot: dict) -> bool:
+    """La venta ya terminó pero la receta aún no (falló o quedó a medias); en pausa de QA se espera a QA."""
+    return bool(slot.get("venta_ok")) and _receta_de_slot(slot) is not None \
+        and slot["estado"] not in ("exitosa", EN_PAUSA_QA)
+
+
+def _crear_runner() -> RunnerRecetas:
+    return RunnerRecetas()
+
+
+def _contexto_de_venta(venta: dict) -> ContextoVenta:
+    inicio = venta.get("inicio")
+    return ContextoVenta.desde_dict({
+        "tipo": venta["tipo"], "numero_contrato": venta.get("numero_contrato"),
+        "id_expediente": venta.get("id_expediente"), "con_seguro": venta.get("con_seguro", True),
+        "inicio": inicio.replace(" ", "T", 1) if inicio else None,
+    })
+
+
+def _localizar_contrato(venta: dict) -> None:
+    """Reintenta ubicar el contrato de una venta ya hecha (p. ej. si la BD no respondió al terminar)."""
+    from flows.resultado_venta import ResultadoVenta, localizar_venta
+
+    inicio = venta.get("inicio")
+    resultado = ResultadoVenta(
+        tipo=venta["tipo"], agencia_label=venta.get("agencia_label", ""), con_seguro=venta.get("con_seguro", True),
+        inicio=datetime.fromisoformat(inicio) if inicio else None, id_oferta=venta.get("id_oferta") or 0,
+    )
+    localizar_venta(resultado)
+    if resultado.numero_contrato:
+        venta.update(numero_contrato=resultado.numero_contrato, nombre_ine=resultado.nombre_ine,
+                     id_expediente=resultado.id_expediente, folio_contrato=resultado.folio_contrato)
+
+
+def _aplicar_receta(slot: dict, run_config: dict) -> None:
+    """
+    Ejecuta (o retoma) la receta del slot sobre el contrato de su venta y actualiza `estado` y `detalle`:
+    `exitosa` (receta completa), `esperando_qa` (pausa: sigue con `python -m insumos continuar <contrato>`) o
+    `fallida` (la venta queda hecha; el reintento solo repite la receta).
+    """
+    receta = _receta_de_slot(slot)
+    venta = slot["venta"]
+    # Settings se leyó al importar (de data/run_config.json); el colaborador de ESTA corrida viene de run_config.
+    if run_config.get("numero_colaborador"):
+        Settings.NUMERO_COLABORADOR = run_config["numero_colaborador"]
+    try:
+        if not venta.get("numero_contrato"):
+            _localizar_contrato(venta)
+        if not venta.get("numero_contrato"):
+            raise LookupError(
+                "la venta terminó pero no se localizó su contrato en Originacion (¿sin VPN?); "
+                "se reintentará al reintentar, o usa python -m insumos ejecutar"
+            )
+        contrato = venta["numero_contrato"]
+        Progress.emit(f"Receta {receta.nombre}: contrato {contrato}", "fase")
+        resultado = _crear_runner().ejecutar(receta, _contexto_de_venta(venta))
+    except Exception as exc:
+        slot["estado"], slot["detalle"] = "fallida", _resumen_error(f"Receta {receta.id}: {exc}")
+        Progress.emit(f"Receta {receta.id} FALLÓ: {_resumen_error(str(exc))}", "error")
+        return
+
+    if resultado.estado == "completada":
+        slot["estado"] = "exitosa"
+        slot["detalle"] = f"contrato {contrato} · receta {receta.nombre}"
+        Progress.emit(f"Receta {receta.id} completada (contrato {contrato})", "ok")
+    elif resultado.estado == ESPERANDO_QA:
+        slot["estado"] = EN_PAUSA_QA
+        slot["detalle"] = (f"En pausa de QA: contrato {contrato} · python -m insumos continuar {contrato}")
+        Progress.emit(f"Receta {receta.id}: en pausa de QA (contrato {contrato})", "info")
+    else:
+        slot["estado"] = "fallida"
+        slot["detalle"] = _resumen_error(
+            f"Receta {receta.id} falló en {resultado.modulo_fallido}: {resultado.error}"
+            + (" (se deshizo sola)" if resultado.deshecho else "")
+        )
+        Progress.emit(f"Receta {receta.id} FALLÓ en {resultado.modulo_fallido}", "error")
+
+
 def _agrupar_por_lote(tareas: list) -> list:
     """Agrupa (tipo, slot) por `batch_id`, preservando el orden de aparición de
     cada lote. Cada grupo = una sola agencia/cuenta → debe correr en UNA sola
@@ -244,6 +347,19 @@ def _ejecutar_lote_venta(tipo: str, grupo: list, run_config: dict, controller: R
     fase_config = {**run_config, **batch_cfg}
     _ejecutar_fase(tipo, len(grupo), fase_config, controller=controller, run_id=run_id)
     return _leer_resultados(tipo, run_id)
+
+
+def _registro_historial(tipo: str, slot: dict, batch_cfg: dict, ronda: int) -> dict:
+    return {
+        "fecha": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "agencia": batch_cfg.get("agencia_label", ""),
+        "metodo": batch_cfg.get("metodo_entrega", ""),
+        "tipo": tipo,
+        "seguro": "Con seguro" if batch_cfg.get("con_seguro", True) else "Sin seguro",
+        "ronda": ronda,
+        "estado": slot["estado"],
+        "detalle": slot["detalle"],
+    }
 
 
 def _ejecutar_ventas_en_paralelo(
@@ -279,9 +395,14 @@ def _ejecutar_ventas_en_paralelo(
                 slot["intentos"] += 1
                 res = detalle[i] if i < len(detalle) else None
                 if res and res.get("estado") == "exitoso":
-                    slot["estado"] = "exitosa"
-                    partes = [res.get("nombreCliente"), f"folio {res['folio']}" if res.get("folio") else None]
-                    slot["detalle"] = " · ".join(p for p in partes if p) or "Venta finalizada"
+                    if _receta_de_slot(slot) is not None:
+                        # Venta hecha: de aquí en adelante solo se (re)intenta la receta.
+                        slot["venta_ok"], slot["venta"] = True, res
+                        _aplicar_receta(slot, run_config)
+                    else:
+                        slot["estado"] = "exitosa"
+                        partes = [res.get("nombreCliente"), f"folio {res['folio']}" if res.get("folio") else None]
+                        slot["detalle"] = " · ".join(p for p in partes if p) or "Venta finalizada"
                 else:
                     slot["detalle"] = _resumen_error((res.get("error") if res else None) or error_lote or "")
                     # El propio resultado trae el idOferta aunque haya fallado
@@ -290,16 +411,7 @@ def _ejecutar_ventas_en_paralelo(
                     if tipo == "CF" and res and res.get("idOferta"):
                         huerfanas.append(res["idOferta"])
 
-                registros.append({
-                    "fecha": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                    "agencia": batch_cfg.get("agencia_label", ""),
-                    "metodo": batch_cfg.get("metodo_entrega", ""),
-                    "tipo": tipo,
-                    "seguro": "Con seguro" if batch_cfg.get("con_seguro", True) else "Sin seguro",
-                    "ronda": ronda,
-                    "estado": slot["estado"],
-                    "detalle": slot["detalle"],
-                })
+                registros.append(_registro_historial(tipo, slot, batch_cfg, ronda))
 
             # "Dashboard" del log en consola: la ventana de Tkinter mostraba estos
             # contadores en vivo (Total/Exitosas/Fallidas); el log en consola
@@ -374,6 +486,18 @@ def _ejecutar_ronda(
 
         RunHistory.append(registros)
 
+    # Reintento de recetas: ventas que ya terminaron pero cuya receta falló o quedó a medias. Solo SQL (sin
+    # navegador) y nunca se repite la venta.
+    if not (controller and controller.cancel_event.is_set()):
+        registros = []
+        for tipo in ("CF", "CN"):
+            for slot in slots.get(tipo, []):
+                if _receta_pendiente(slot):
+                    slot["intentos"] += 1
+                    _aplicar_receta(slot, run_config)
+                    registros.append(_registro_historial(tipo, slot, slot["config"], ronda))
+        RunHistory.append(registros)
+
     # CF/CN se procesan juntos: todas las ventas pendientes (de cualquier lote o
     # agencia) son tareas independientes de un mismo pool de workers — no se
     # espera a que termine una para lanzar la siguiente (ver MAX_WORKERS_VENTAS).
@@ -382,10 +506,56 @@ def _ejecutar_ronda(
             (tipo, slot)
             for tipo in ("CF", "CN")
             for slot in slots.get(tipo, [])
-            if slot["estado"] != "exitosa"
+            if _venta_pendiente(slot)
         ]
         if tareas:
             _ejecutar_ventas_en_paralelo(tareas, slots, run_config, huerfanas, ronda, controller=controller)
+
+
+def _construir_slots(run_config: dict) -> dict:
+    """
+    Un slot por operación pedida, por tipo. Cada lote de venta CF/CN puede llevar una `receta` (id de
+    `insumos.recetas.RECETAS`) que se ejecuta sobre el contrato de cada venta; solo se aceptan recetas del
+    catálogo y del mismo tipo de venta que el lote (no se inventan combinaciones).
+    """
+    ofertas_cfg = run_config.get("ofertas", [])
+    agencias_cfg = run_config.get("agencias", [])
+    ventas_batches = run_config.get("ventas_batches", [])
+    for batch in ventas_batches:
+        receta_id = batch.get("receta")
+        if not receta_id:
+            continue
+        if receta_id not in RECETAS:
+            raise ValueError(f"El lote {batch.get('id')} pide la receta {receta_id!r}, que no existe "
+                             f"(disponibles: {', '.join(sorted(RECETAS))}).")
+        if RECETAS[receta_id].tipo_venta != batch["tipo_cliente"]:
+            raise ValueError(f"El lote {batch.get('id')} es de ventas {batch['tipo_cliente']} y la receta "
+                             f"{receta_id} es para ventas {RECETAS[receta_id].tipo_venta}.")
+    slots = {}
+    for tipo in ORDEN_TIPOS:
+        if tipo in ("OF", "AGENCIA"):
+            # Cada slot lleva su propia config (agencia/tipo/nivel, o sucursal/modo
+            # para AGENCIA) para que un reintento solo reprocese lo que falló, con
+            # sus mismos datos.
+            cfgs = ofertas_cfg if tipo == "OF" else agencias_cfg
+            slots[tipo] = [
+                {"estado": "pendiente", "intentos": 0, "detalle": "Sin ejecutar", "config": cfg}
+                for cfg in cfgs
+            ]
+        else:
+            # CF/CN: un lote por agencia/método/seguro (ver panel "Venta" de la UI).
+            # Cada slot lleva la config de SU lote y un `batch_id` para que
+            # _ejecutar_ronda agrupe y lance una invocación de pytest por lote.
+            slots[tipo] = [
+                {
+                    "estado": "pendiente", "intentos": 0, "detalle": "Sin ejecutar",
+                    "config": {k: v for k, v in batch.items() if k not in ("id", "cantidad")},
+                    "batch_id": batch["id"],
+                }
+                for batch in ventas_batches if batch["tipo_cliente"] == tipo
+                for _ in range(batch["cantidad"])
+            ]
+    return slots
 
 
 def main():
@@ -404,33 +574,11 @@ def main():
             sys.exit(1)
 
         run_config = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
-        ofertas_cfg = run_config.get("ofertas", [])
-        agencias_cfg = run_config.get("agencias", [])
-        ventas_batches = run_config.get("ventas_batches", [])
-        slots = {}
-        for tipo in ORDEN_TIPOS:
-            if tipo in ("OF", "AGENCIA"):
-                # Cada slot lleva su propia config (agencia/tipo/nivel, o sucursal/modo
-                # para AGENCIA) para que un reintento solo reprocese lo que falló, con
-                # sus mismos datos.
-                cfgs = ofertas_cfg if tipo == "OF" else agencias_cfg
-                slots[tipo] = [
-                    {"estado": "pendiente", "intentos": 0, "detalle": "Sin ejecutar", "config": cfg}
-                    for cfg in cfgs
-                ]
-            else:
-                # CF/CN: un lote por agencia/método/seguro (ver panel "Venta" de la UI).
-                # Cada slot lleva la config de SU lote y un `batch_id` para que
-                # _ejecutar_ronda agrupe y lance una invocación de pytest por lote.
-                slots[tipo] = [
-                    {
-                        "estado": "pendiente", "intentos": 0, "detalle": "Sin ejecutar",
-                        "config": {k: v for k, v in batch.items() if k not in ("id", "cantidad")},
-                        "batch_id": batch["id"],
-                    }
-                    for batch in ventas_batches if batch["tipo_cliente"] == tipo
-                    for _ in range(batch["cantidad"])
-                ]
+        try:
+            slots = _construir_slots(run_config)
+        except ValueError as exc:
+            print(f"Error: {exc}")
+            sys.exit(1)
 
         if not any(slots.values()):
             print("Error: no hay ventas configuradas.")
@@ -457,7 +605,8 @@ def main():
                 break
 
         if accion == "close":
-            todas_ok = all(s["estado"] == "exitosa" for v in slots.values() for s in v)
+            # En pausa de QA no es un fallo: la receta espera a que QA confirme (python -m insumos continuar).
+            todas_ok = all(s["estado"] in ("exitosa", EN_PAUSA_QA) for v in slots.values() for s in v)
             sys.exit(0 if todas_ok else 1)
         # accion == "new": vuelve al menú de inicio
 

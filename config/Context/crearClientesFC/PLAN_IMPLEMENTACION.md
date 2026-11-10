@@ -479,12 +479,52 @@ en cada paso y requieren VPN.
   `_ejecutar_fase`; test delgado de recetas; resultados e historial.
 - **Verificación:** una receta de punta a punta (venta + insumo) desde `run.py`; los tipos
   `OF`/`CF`/`CN`/`AGENCIA` siguen igual.
-- [ ] Impl. · [ ] Verif. · [ ] Review
+- **Implementación (hecha, sin commitear):** en `run.py`, cada lote de venta CF/CN puede llevar `receta` (id de
+  `insumos.recetas.RECETAS`) y `sin_pausa_qa`; `_construir_slots(run_config)` (extraído de `main`, mismo
+  resultado para OF/CF/CN/AGENCIA) rechaza recetas inexistentes o de otro tipo de venta. Tras cada venta
+  exitosa, `_aplicar_receta` corre la receta sobre su contrato (`numero_contrato`, `id_expediente`, `inicio` del
+  resultado de la venta; si no se localizó, lo reintenta) y deja el slot `exitosa`, `esperando_qa` (con el comando
+  `python -m insumos continuar <contrato>` en el detalle) o `fallida`. El slot guarda `venta_ok`: **un reintento
+  repite solo la receta, nunca la venta**; una receta en pausa de QA no se toca. El colaborador de la corrida
+  (`numero_colaborador`) se aplica a `Settings` antes de la receta. `main()` no cuenta la pausa de QA como fallo.
+  Los eventos de progreso de la receta no encajan con el patrón de ciclos de `ProgressUI` (no se cuentan doble).
+  Los lotes sin receta se comportan igual que antes.
+- **Verificación hecha:** `tests/test_run_recetas.py` (18 casos: slots, validación de recetas, venta+receta, lote de
+  varias ventas, CF, sin pausa, pausa de QA que no se reintenta, falla de receta con reintento que no repite la
+  venta, contrato sin localizar, conviven recetas y ventas pendientes) y 265 pruebas unitarias; **OF por
+  `run.py` en UAT real**: oferta insertada y verificada (luego borrada), sin cambios.
+- **Verificación real de punta a punta (09/11/2026, tras volver CNFS; el 08/11 había fallado por la caída de
+  CNFS):** el guion llamó a `run._construir_slots` + `run._ejecutar_ronda`, como hace `main()`, con ventas
+  reales en UAT:
+  - **OF:** oferta 26110025 insertada y verificada (luego borrada).
+  - **CN + `CN_REGISTRO_INTERMEDIO`:** venta real (contrato 240021112); la receta corrió `RENOMBRAR_CLIENTE` y
+    `AGREEMENT` y quedó `esperando_qa` (expediente renombrado `SILVIA VÁZQUEZ LÓPEZ` con la INE intacta en el
+    resultado de la venta, `Cliente = 0`, `Agreement.Customer_Id = 0`; pendientes con contrato y fecha de
+    nacimiento para QA). Una segunda ronda no repitió ni la venta ni la receta en pausa. `python -m insumos
+    continuar` la completó (`Cliente 2611090402001` igual en expediente y `Agreement_Table`, cliente y dirección
+    en CNFS) y `deshacer` revirtió 6 escrituras.
+  - **CF + `CF_DISPERSADO`:** venta real (contrato 240021113, con su oferta): `exitosa`, `IdPaso = 22`, cliente en
+    CNFS; `deshacer` revirtió 5 escrituras.
+  - Quedaron en UAT las dos ventas (y la oferta CF vendida) como las ventas de prueba anteriores; se limpiaron
+    de `data/` los logs, pendientes y consecutivos de prueba.
+- [x] Impl. · [x] Verif. · [x] Review
 
 ### 3.5 UI
 - **Qué:** panel de recetas en `SelectorUI`; panel "Esperando QA" con botón "QA confirmó,
   continuar" en `ProgressUI`; "Retomar operaciones pendientes" al abrir; acciones de deshacer.
 - **Verificación:** flujo completo con pausa: cerrar la ventana en pausa, reabrir y retomar.
+- **Decisiones (09/11/2026):**
+  - **Elegir la receta:** desplegable opcional por lote en el panel Venta de `SelectorUI`, con las recetas del
+    tipo del lote (CN o CF) y "Sin receta" por defecto; viaja como `receta` en `ventas_batches` (ya soportado
+    por `run.py`, 3.4). Solo ofrece recetas de `RECETAS`.
+  - **Pausa de QA:** panel "Esperando QA" en la pantalla de progreso/resultados, una fila por operación en
+    pausa con contrato y fecha de nacimiento, y botón "QA confirmó, continuar" (`RunnerRecetas.continuar_tras_qa`).
+    `ResultsUI` e `history_ui` deben tratar `esperando_qa` como estado propio (hoy lo muestran como pendiente/
+    fallida) y el botón "Reintentar pendientes" no debe contarlo.
+  - **Retomar:** al abrir `run.py`, si `PendientesStore.pendientes()` trae operaciones (en pausa de QA, en curso
+    o fallidas), se ofrece retomarlas (continuar, reanudar o deshacer cada una) antes de armar una corrida nueva.
+  - **Validación:** pruebas unitarias de la lógica detrás de los botones; yo abro las ventanas y tú las revisas,
+    y luego un flujo completo con pausa y retomar.
 - [ ] Impl. · [ ] Verif. · [ ] Review
 
 ### 3.6 Cierre documental
