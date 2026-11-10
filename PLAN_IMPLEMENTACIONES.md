@@ -63,7 +63,7 @@ Reglas:
 | Datos de usuario | Fuera de la carpeta de instalación, en `%LOCALAPPDATA%\ProvidigitalVentas\` (sobreviven a updates y desinstalación); en desarrollo (sin congelar) apuntan a `<repo>/data` |
 | Secretos | Contraseñas en el Administrador de credenciales de Windows (vía `keyring`); el resto en `connections.json`. Nunca en texto plano en disco ni en el repo |
 | Hosts de BD | El almacén se indexa por los nombres de host de `feat/recipes` (`PESOS_OFFER`, `CNFS`, `CHALLENGER`, `CUSTOMER_APP`, `PAYMENTLINK`); en `dev` se importa `BOTDB_*` → `PESOS_OFFER` |
-| Estrellas del portal | Varias, con alias; las corridas referencian la estrella por alias (nunca guardan su contraseña). Futuras funciones venderán/ofertarán con estrellas específicas |
+| Estrellas del portal | **Siguen en el catálogo** (`agencias` en `catalog.sqlite3`, sembrado desde `AGENCIAS_SEED` en `utils/catalog_db.py`): cada agencia trae su estrella. Decisión: las contraseñas de estrellas de UAT se siguen sembrando desde el código (el repo es público; se acepta). `CredentialStore` ya soporta estrellas con alias (`save/get/list/delete_estrella`) para futuras funciones que vendan u oferten con estrellas específicas, pero hoy ningún flujo las usa |
 
 ---
 
@@ -71,8 +71,8 @@ Reglas:
 
 **Objetivo:** Eliminar `.env` y `python-dotenv`. El usuario captura, edita y **prueba** las
 conexiones a las BD y las credenciales de las estrellas del portal desde la UI, sin editores
-externos ni CLI. Queda fuera de `run_config.json` y del código cualquier contraseña (incluidos
-los defaults hardcodeados de `config/settings.py`, que hoy están expuestos en el repo público).
+externos ni CLI. Alcance: credenciales de **bases de datos**. Las estrellas del portal quedan fuera por
+decisión (siguen en el catálogo, ver Decisiones); el almacén ya las soporta para futuras funciones.
 
 ### Diseño
 
@@ -86,7 +86,7 @@ los defaults hardcodeados de `config/settings.py`, que hoy están expuestos en e
 API independiente de la UI (la usan hoy tkinter y mañana pywebview):
 - Hosts: `get_connection(host)` (lanza `CredentialsMissing(host)` si falta), `save_connection`, `delete_connection`, `list_hosts`.
 - Estrellas: `list_estrellas()`, `get_estrella(alias)` → `(id, contraseña)`, `save_estrella`, `delete_estrella`.
-- Las corridas guardan en `run_config.json` solo el **alias** de la estrella; `Settings.ESTRELLA/PASSWORD` se resuelven desde el almacén al importarse.
+- Hoy ningún flujo usa la API de estrellas: las corridas siguen tomando `focus_id`/`password` del catálogo vía `run_config.json`. Queda lista para cuando se agreguen funciones por estrella.
 - Los subprocesos pytest corren con el mismo usuario de Windows y leen el almacén directamente; solo el proceso de la UI escribe.
 
 **Probador de conexiones (`services/connection_tester.py`, clase `ConnectionTester`)**
@@ -104,15 +104,15 @@ Cuándo corre:
 - **Compuerta previa a la corrida:** prueba solo los hosts que necesita el tipo de corrida (p. ej. CF/OF → `PESOS_OFFER`; generación de agencias → también `CHALLENGER`), reemplazando los mensajes de `.env` de `verificar_vpn`.
 - Nunca al arrancar la app para todos los hosts (bloquearía con la VPN del cliente apagada).
 
-**UI (tkinter, dentro de la UI actual)**: diálogo "Conexiones y estrellas" accesible desde el selector. Se abre solo cuando falta algo que la corrida necesita. Tarjeta por host (servidor, usuario, contraseña enmascarada con botón mostrar, driver como lista de `pyodbc.drivers()`, botón Probar con resultado verde/rojo y motivo) y lista de estrellas (alias, ID, contraseña). El selector reemplaza los campos de estrella/contraseña por una lista de alias. La pantalla definitiva se rehace en v2.0.0 sobre este mismo backend.
+**UI (tkinter, dentro de la UI actual)**: diálogo "Conexiones y estrellas" accesible desde el selector. Se abre solo cuando falta algo que la corrida necesita. Tarjeta por host (servidor, usuario, contraseña enmascarada con botón mostrar, driver como lista de `pyodbc.drivers()`, botón Probar con resultado verde/rojo y motivo) (la gestión de estrellas en la UI se difiere hasta que algún flujo las use). La pantalla definitiva se rehace en v2.0.0 sobre este mismo backend.
 
 ### Pasos — 0.9.0 (rama `feat/credentials`, desde `dev`)
 
-- [ ] **0.9.1** `utils/paths.py` con `app_data_dir()` (`%LOCALAPPDATA%\ProvidigitalVentas` si `sys.frozen`; `<repo>/data` si no) — solo este helper; el resto de rutas se migra en 5.2. Más `config/credentials.py` (`CredentialStore`) con pruebas usando un backend `keyring` falso. Decidir con una prueba en un equipo restringido qué pasa si el Administrador de credenciales no está disponible (ver riesgos).
-- [ ] **0.9.2** `services/connection_tester.py` con las categorías de error y el saneo de mensajes; pruebas con `pyodbc` simulado para cada categoría. Escape de valores en la cadena de conexión.
-- [ ] **0.9.3** Cambiar los consumidores en `dev`: `services/offer_repository.py` y `services/agency_repository.py` (constructores), `utils/vpn_check.py` (servidor/puerto por host desde el almacén), `config/settings.py` (quitar defaults hardcodeados de estrella/contraseña; resolver por alias) y `run.py`/`ui/selector_ui.py` (pasar alias, no contraseña).
+- [x] **0.9.1** `utils/paths.py` con `app_data_dir()` (`%LOCALAPPDATA%\ProvidigitalVentas` si `sys.frozen`; `<repo>/data` si no) — solo este helper; el resto de rutas se migra en 5.2. Más `config/credentials.py` (`CredentialStore`) con pruebas usando un backend `keyring` falso. Decidir con una prueba en un equipo restringido qué pasa si el Administrador de credenciales no está disponible (ver riesgos).
+- [x] **0.9.2** `services/connection_tester.py` con las categorías de error y el saneo de mensajes; pruebas con `pyodbc` simulado para cada categoría. Escape de valores en la cadena de conexión.
+- [x] **0.9.3** Cambiar los consumidores en `dev`: `services/offer_repository.py` y `services/agency_repository.py` (constructores), `utils/vpn_check.py` (servidor/puerto por host desde el almacén), sin más cambios en `settings.py`/`run.py`/`selector_ui.py` (las estrellas siguen en el catálogo).
 - [ ] **0.9.4** Diálogo "Conexiones y estrellas" en tkinter + compuerta previa a la corrida + apertura automática cuando faltan datos.
-- [ ] **0.9.5** Importación única de lo existente al almacén (`.env`: `BOTDB_*`→`PESOS_OFFER`, `CHALLENGER_*`, `CNFS_*`; `run_config.json`: `focus_id`/`password`→estrella con alias) y oferta de borrar el `.env`. Después: quitar `python-dotenv` y los `load_dotenv()`, borrar `.env.example`, y actualizar `CLAUDE.md`, `README.md`, `Context.md` y los mensajes que mencionan `.env`.
+- [ ] **0.9.5** Importación única de lo existente al almacén (`.env`: `BOTDB_*`→`PESOS_OFFER`, `CHALLENGER_*`, `CNFS_*`) y oferta de borrar el `.env`. Después: quitar `python-dotenv` y los `load_dotenv()`, borrar `.env.example`, y actualizar `CLAUDE.md`, `README.md`, `Context.md` y los mensajes que mencionan `.env`.
 - [ ] **0.9.6** Revisión → merge a `dev`. Hito interno **0.9.0** (sin tag ni release).
 
 ### Pasos — 0.9.1 (portar a `feat/recipes`)
@@ -127,7 +127,7 @@ Precondición: la rama `feat/recipes` debe tener su árbol de trabajo limpio (co
 ### Riesgos
 
 - **Almacén no disponible** (política corporativa que bloquea el Administrador de credenciales): no se cae a texto plano. Opciones a decidir en 0.9.1: credenciales solo en memoria durante la sesión (los subprocesos las reciben por entorno desde `run.py`) o bloquear con un mensaje claro.
-- **Contraseña del portal ya expuesta** en el historial de git público (defaults de `config/settings.py`): quitarla del código no la borra del historial; avisar a quien administre esa cuenta para rotarla.
+- **Contraseñas de estrellas UAT en el repo público** (`AGENCIAS_SEED` en `utils/catalog_db.py` y defaults de `config/settings.py`): se acepta por decisión del equipo; no reutilizar esas contraseñas fuera de UAT.
 - **Divergencia dev ↔ recetas** en `vpn_check.py` y los repositorios: por eso 0.9.1 se hace con merge y adaptación explícita, no copiando archivos.
 
 ---
