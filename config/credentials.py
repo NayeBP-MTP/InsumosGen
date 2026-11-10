@@ -30,6 +30,21 @@ class ConnectionSettings:
     password: str
     driver: str = DRIVER_POR_DEFECTO
 
+    def connection_string(self, database: Optional[str] = None) -> str:
+        """
+        Cadena de conexión ODBC. Usuario, contraseña y base se escapan con {...} (`}` -> `}}`):
+        las contraseñas capturadas en la UI pueden llevar `;`, `{` o `=` y romperían la cadena.
+        """
+        partes = [f"DRIVER={{{self.driver}}}", f"SERVER={self.server}"]
+        if database:
+            partes.append(f"DATABASE={_escapar_odbc(database)}")
+        partes += [f"UID={_escapar_odbc(self.user)}", f"PWD={_escapar_odbc(self.password)}"]
+        return ";".join(partes) + ";"
+
+
+def _escapar_odbc(valor: str) -> str:
+    return "{" + valor.replace("}", "}}") + "}"
+
 
 @dataclass
 class EstrellaCredentials:
