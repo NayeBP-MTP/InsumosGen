@@ -51,9 +51,11 @@ No hay linter ni type-checker configurado en el proyecto.
 
 ### Antes de correr contra botDB (flujos CF/OF)
 
-Se requiere VPN/red corporativa activa y un `.env` (copiado de `.env.example`) con
-`BOTDB_SERVER`, `BOTDB_DATABASE`, `BOTDB_USER`, `BOTDB_PASSWORD`, `BOTDB_DRIVER`. `utils/vpn_check.py`
-verifica alcanzabilidad del portal UAT y del SQL Server antes de correr; `run.py` la invoca desde la UI.
+Se requiere VPN/red corporativa activa y las conexiones a las bases guardadas en la app (botón 🔌
+**Conexiones** de la UI: servidor, usuario, contraseña y driver por host; el diálogo se abre solo si
+falta alguna y permite probarlas). No hay `.env`: si existe uno de versiones anteriores, la UI lo importa
+una vez y ofrece borrarlo. `utils/vpn_check.py` verifica el portal UAT y `services/connection_gate.py`
+prueba, por cada host que la corrida necesita, TCP + login + lectura de su tabla; la UI lo invoca antes de correr.
 
 ## Arquitectura
 
@@ -62,9 +64,11 @@ verifica alcanzabilidad del portal UAT y del SQL Server antes de correr; `run.py
 `config/settings.py` define `Settings` con defaults hardcodeados, pero los **sobreescribe** con lo
 que encuentre en `data/run_config.json` al importarse (se relee en cada subproceso pytest). `run.py`
 genera ese `run_config.json` desde la UI interactiva (`ui/selector_ui.py`) antes de lanzar cada fase,
-y lo reescribe por fase (`tipo_cliente`, `ciclos`) en `_ejecutar_fase`. Las credenciales de botDB
-viven aparte, en `.env`, y las lee `services/offer_repository.py` vía `python-dotenv` — nunca desde
-`Settings`.
+y lo reescribe por fase (`tipo_cliente`, `ciclos`) en `_ejecutar_fase`. Las credenciales de las
+bases de datos viven aparte, en `config/credentials.py` (`CredentialStore`: contraseñas en el Administrador
+de credenciales de Windows vía `keyring`; servidor/usuario/driver en `connections.json` dentro de
+`utils/paths.app_data_dir()`) — nunca desde `Settings` ni en archivos de texto. Los repositorios
+(`services/*_repository.py`) piden su host al almacén; las estrellas del portal siguen en el catálogo.
 
 ### Orquestación de una corrida (`run.py`)
 
@@ -176,7 +180,7 @@ Si mueves o renombras carpetas dentro de `InsumosGen/`, revisa las rutas hardcod
 ## Riesgos conocidos (no los repitas al tocar código nuevo)
 
 - Credenciales de portal (`ESTRELLA`, `PASSWORD`) tienen defaults hardcodeados en `config/settings.py`
-  como fallback si no hay `run_config.json`; las de `botDB` sí están correctamente en `.env`.
+  como fallback si no hay `run_config.json`; las de las bases de datos sí están en el almacén de credenciales (no en el código).
 - Datos personales/laborales del formulario de préstamo están hardcodeados dentro de
   `pages/prestamo_personal_page.py` (`llenar_datos_personales`, `llenar_datos_laborales_financieros`).
 - `utils/utils.py` duplica helpers (`wait_until_visible`, `scroll_to_bottom`) que también existen en

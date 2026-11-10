@@ -359,13 +359,9 @@ inserta el registro en `dbo.Ofertas` **antes de abrir el navegador** (se ejecuta
 `_ejecutar_venta_cf`).
 
 #### Conexión a base de datos
-- Dependencia: `pyodbc`. Credenciales y cadena de conexión **vía variables de entorno** (no hardcodear ni commitear):
-  - `BOTDB_SERVER`
-  - `BOTDB_DATABASE` (`botDB`)
-  - `BOTDB_USER`
-  - `BOTDB_PASSWORD`
-  - Opcional: `BOTDB_DRIVER` (default `ODBC Driver 17 for SQL Server`)
-- Se cargan con `python-dotenv` desde `.env` (ignorado por git; plantilla en `.env.example`).
+- Dependencia: `pyodbc`. Credenciales y cadena de conexión **desde el almacén de credenciales** (host `PESOS_OFFER`,
+  base `botDB`; no hardcodear ni commitear): servidor, usuario, contraseña y driver (default
+  `ODBC Driver 17 for SQL Server`), capturados en el diálogo **Conexiones** de la UI. Ver `config/credentials.py`.
 - Módulo: `services/offer_repository.py`.
 
 #### Construcción de la oferta
@@ -498,7 +494,7 @@ Si un ciclo falla, `LoginPage.recuperar_sesion_tras_fallo()` intenta cerrar sesi
 `services/offer_repository.py`:
 
 - **`OfferData`** (`dataclass`): representa una fila de `dbo.Ofertas`, con los campos fijos/`NULL` ya con su valor por defecto, y `FechaActualizacion` autogenerado en `__post_init__` si no se provee.
-- **`OfferRepository`**: lee `BOTDB_*` desde variables de entorno vía `python-dotenv`.
+- **`OfferRepository`**: lee la conexión del host `PESOS_OFFER` del almacén de credenciales (`CredentialStore`).
   - `test_connection()`: valida la conexión (`SELECT 1`).
   - `insert_offer(offer: OfferData)`: construye el `INSERT` dinámicamente a partir de los campos del dataclass y ejecuta con parámetros (`?`) — nunca por interpolación de strings, para evitar inyección SQL.
   - `offer_exists(id_oferta)`: chequeo de duplicados antes de insertar.

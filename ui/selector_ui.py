@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from keyring.errors import KeyringError
 
 from config.credentials import CredentialStore
+from config.legacy_env import importar_env
 from config.settings import Settings
 from config.sucursales import SUCURSALES, get_sucursal_by_nombre
 from services.connection_gate import hosts_requeridos, hosts_sin_configurar, probar_hosts
@@ -21,6 +22,7 @@ from utils.vpn_check import verificar_vpn
 
 
 RUN_CONFIG_PATH = Path("data/run_config.json")
+ENV_LEGADO = Path(__file__).resolve().parents[1] / ".env"
 INSUMOS = [
     ("OF", "Oferta (solo inserción en BD)"),
     ("VENTA", "Venta (CN / CF)"),
@@ -83,6 +85,7 @@ class SelectorUI:
         self.confirmed = False
 
         self._build_ui()
+        self._importar_env_legado()
         self._agregar_fila_oferta()
         self._agregar_fila_agencia()
         self._agregar_fila_venta()
@@ -1003,6 +1006,24 @@ class SelectorUI:
 
         celular_entry.focus_set()
         dialog.wait_window()
+
+    def _importar_env_legado(self):
+        """
+        Migra una sola vez las conexiones de un .env de versiones anteriores al almacén seguro y
+        ofrece borrar el archivo (ya no se usa). Sin .env, o sin nada nuevo que importar, no hace nada.
+        """
+        if not ENV_LEGADO.exists():
+            return
+        try:
+            importados = importar_env(self.credenciales, ENV_LEGADO)
+        except (KeyringError, OSError):
+            return  # sin almacén seguro: el diálogo "Conexiones" lo explicará cuando haga falta
+        if importados and messagebox.askyesno(
+            "Conexiones importadas",
+            f"Se importaron al almacén seguro de Windows las conexiones del archivo .env: "
+            f"{', '.join(importados)}.\n\nEl .env ya no se usa. ¿Quieres borrarlo ahora?",
+        ):
+            ENV_LEGADO.unlink()
 
     def _asegurar_conexiones(self, hosts: list) -> bool:
         """

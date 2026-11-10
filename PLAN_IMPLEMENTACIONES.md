@@ -112,7 +112,7 @@ Cuándo corre:
 - [x] **0.9.2** `services/connection_tester.py` con las categorías de error y el saneo de mensajes; pruebas con `pyodbc` simulado para cada categoría. Escape de valores en la cadena de conexión.
 - [x] **0.9.3** Cambiar los consumidores en `dev`: `services/offer_repository.py` y `services/agency_repository.py` (constructores), `utils/vpn_check.py` (servidor/puerto por host desde el almacén), sin más cambios en `settings.py`/`run.py`/`selector_ui.py` (las estrellas siguen en el catálogo).
 - [x] **0.9.4** Diálogo "Conexiones y estrellas" en tkinter + compuerta previa a la corrida + apertura automática cuando faltan datos.
-- [ ] **0.9.5** Importación única de lo existente al almacén (`.env`: `BOTDB_*`→`PESOS_OFFER`, `CHALLENGER_*`, `CNFS_*`) y oferta de borrar el `.env`. Después: quitar `python-dotenv` y los `load_dotenv()`, borrar `.env.example`, y actualizar `CLAUDE.md`, `README.md`, `Context.md` y los mensajes que mencionan `.env`.
+- [x] **0.9.5** Importación única de lo existente al almacén (`.env`: `BOTDB_*`→`PESOS_OFFER`, `CHALLENGER_*`, `CNFS_*`) y oferta de borrar el `.env`. Después: quitar `python-dotenv` y los `load_dotenv()`, borrar `.env.example`, y actualizar `CLAUDE.md`, `README.md`, `Context.md` y los mensajes que mencionan `.env`.
 - [ ] **0.9.6** Revisión → merge a `dev`. Hito interno **0.9.0** (sin tag ni release).
 
 ### Pasos — 0.9.1 (portar a `feat/recipes`)
