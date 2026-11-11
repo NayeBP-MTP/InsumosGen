@@ -1,4 +1,4 @@
-# Plan de Implementaciones — Providigital_Ventas
+# Plan de Implementaciones — InsumosGen
 
 > **Actualizado:** Noviembre 2026
 > **Objetivo:** Distribuir el proyecto como app de Windows instalable, con actualizaciones
@@ -54,13 +54,16 @@ Reglas:
 
 | Tema | Decisión |
 |---|---|
-| Repo | Público (`NayeBP-MTP/Providigital_Ventas`, nombre final) → el updater llama a la API de GitHub sin token |
-| Instalación | Por usuario (`%LOCALAPPDATA%\Programs\ProvidigitalVentas`), sin admin |
+| Nombre | **InsumosGen** en todas partes (app, carpetas, repo, servicio del almacén de credenciales, documentos). El nombre `Providigital_Ventas` / `ProvidigitalVentas` se elimina; no hay migración (nada se había publicado) |
+| Repo | Público (`NayeBP-MTP/InsumosGen`, nombre final) → el updater llama a la API de GitHub sin token |
+| Instalación | Por usuario (`%LOCALAPPDATA%\Programs\InsumosGen`), **solo sin admin**: sin opciones ni diálogo de elevación |
 | Dependencias externas (Chrome, ODBC Driver for SQL Server) | No se empaquetan. La app las detecta y muestra el enlace de descarga; quien no tenga admin debe pedirlas a TI (fuera de alcance) |
 | Red | No hay VPN corporativa; solo la VPN del cliente (donde corren las consultas). El updater **no debe bloquear la app** si GitHub no es alcanzable: timeout corto, falla en silencio y ofrece enlace manual |
-| Empaquetado | PyInstaller **onedir** + instalador Inno Setup (un único `Setup.exe` para el usuario) |
+| Empaquetado | **Sin PyInstaller.** Un `Setup.exe` mínimo (Inno Setup) copia el código fuente de la app (un `.zip` por versión) y prepara en la máquina del usuario un entorno virtual con las dependencias (`pip install -r requirements.txt`). Se usa el Python 3.13 que el usuario ya tenga (validado); si no hay uno válido, se descarga el instalador oficial al instalar. Todo lo que pueda instalarse después de la instalación, se instala después |
 | UI futura | pywebview (host Python) + frontend Vite/Svelte; Node solo en tiempo de build |
-| Datos de usuario | Fuera de la carpeta de instalación, en `%LOCALAPPDATA%\ProvidigitalVentas\` (sobreviven a updates y desinstalación); en desarrollo (sin congelar) apuntan a `<repo>/data` |
+| Datos de usuario | Fuera de la carpeta de instalación, en `%LOCALAPPDATA%\InsumosGen\` (sobreviven a updates y desinstalación); en desarrollo apuntan a `<repo>/data`. La app instalada lo sabe por la variable de entorno `INSUMOSGEN_INSTALADO=1` que fija su lanzador |
+| Imágenes de prueba | **No se entregan por defecto.** El usuario aporta todas (selfie, INE frente y reverso, comprobante) desde la pantalla de ajustes, que bloquea la operación hasta tenerlas, y genera el video de la cámara fake en su máquina (`cv2` va en las dependencias). Viven en `%LOCALAPPDATA%\InsumosGen\images\` |
+| Actualizaciones | Dos niveles: (1) **código**: se baja el `.zip` del release y se reemplaza la carpeta `app\`, sin ejecutar el instalador; (2) **librerías**: si cambia el hash de `requirements.txt`, se ejecuta `pip install -r` en el mismo paso. Solo un cambio de versión de Python exige bajar un `Setup.exe` nuevo. Las librerías no se quedan viejas porque cada release fija sus versiones y Dependabot propone los cambios |
 | Secretos | Contraseñas en el Administrador de credenciales de Windows (vía `keyring`); el resto en `connections.json`. Nunca en texto plano en disco ni en el repo |
 | Hosts de BD | El almacén se indexa por los nombres de host de `feat/recipes` (`PESOS_OFFER`, `CNFS`, `CHALLENGER`, `CUSTOMER_APP`, `PAYMENTLINK`); en `dev` se importa `BOTDB_*` → `PESOS_OFFER` |
 | Estrellas del portal | **Siguen en el catálogo** (`agencias` en `catalog.sqlite3`, sembrado desde `AGENCIAS_SEED` en `utils/catalog_db.py`): cada agencia trae su estrella. Decisión: las contraseñas de estrellas de UAT se siguen sembrando desde el código (el repo es público; se acepta). `CredentialStore` ya soporta estrellas con alias (`save/get/list/delete_estrella`) para futuras funciones que vendan u oferten con estrellas específicas, pero hoy ningún flujo las usa |
@@ -80,7 +83,7 @@ decisión (siguen en el catálogo, ver Decisiones); el almacén ya las soporta p
 
 | Dato | Dónde |
 |---|---|
-| Contraseñas (hosts de BD y estrellas) | Administrador de credenciales de Windows vía `keyring` (DPAPI por usuario, sin admin). Servicio `ProvidigitalVentas`; usuario `host:<HOST>` o `estrella:<alias>` |
+| Contraseñas (hosts de BD y estrellas) | Administrador de credenciales de Windows vía `keyring` (DPAPI por usuario, sin admin). Servicio `InsumosGen`; usuario `host:<HOST>` o `estrella:<alias>` |
 | Campos no secretos (servidor, usuario, driver, alias, ID de estrella) | `connections.json` en `app_data_dir()` |
 
 API independiente de la UI (la usan hoy tkinter y mañana pywebview):
@@ -108,7 +111,7 @@ Cuándo corre:
 
 ### Pasos — 0.9.0 (rama `feat/credentials`, desde `dev`)
 
-- [x] **0.9.1** `utils/paths.py` con `app_data_dir()` (`%LOCALAPPDATA%\ProvidigitalVentas` si `sys.frozen`; `<repo>/data` si no) — solo este helper; el resto de rutas se migra en 5.2. Más `config/credentials.py` (`CredentialStore`) con pruebas usando un backend `keyring` falso. Decidir con una prueba en un equipo restringido qué pasa si el Administrador de credenciales no está disponible (ver riesgos).
+- [x] **0.9.1** `utils/paths.py` con `app_data_dir()` (`%LOCALAPPDATA%\InsumosGen` si la app está instalada; `<repo>/data` si no) — solo este helper; el resto de rutas se migra en 5.2. Más `config/credentials.py` (`CredentialStore`) con pruebas usando un backend `keyring` falso. Decidir con una prueba en un equipo restringido qué pasa si el Administrador de credenciales no está disponible (ver riesgos).
 - [x] **0.9.2** `services/connection_tester.py` con las categorías de error y el saneo de mensajes; pruebas con `pyodbc` simulado para cada categoría. Escape de valores en la cadena de conexión.
 - [x] **0.9.3** Cambiar los consumidores en `dev`: `services/offer_repository.py` y `services/agency_repository.py` (constructores), `utils/vpn_check.py` (servidor/puerto por host desde el almacén), sin más cambios en `settings.py`/`run.py`/`selector_ui.py` (las estrellas siguen en el catálogo).
 - [x] **0.9.4** Diálogo "Conexiones y estrellas" en tkinter + compuerta previa a la corrida + apertura automática cuando faltan datos.
@@ -134,52 +137,90 @@ Precondición: la rama `feat/recipes` debe tener su árbol de trabajo limpio (co
 
 ## Implementación 5 — Empaquetado, instalador y auto-update  (v1.0.0 → v1.0.x)
 
-**Objetivo:** Que un colega descargue un `Setup.exe`, lo instale sin admin, y reciba las
-versiones futuras automáticamente. **No cambia la UI** (sigue tkinter) ni el comportamiento
-de los flujos CN/CF/OF.
+**Objetivo:** Que un colega descargue un `Setup.exe` pequeño, lo instale sin admin, y reciba las
+versiones futuras (código y librerías) automáticamente. **No cambia la UI** (sigue tkinter) ni el
+comportamiento de los flujos CN/CF/OF.
 
-**Base:** rama `dev` (con 0.9.0). Mantener los diffs en archivos compartidos con
-`feat/recipes` (`run.py`, `conftest.py`, `config/settings.py`, `ui/*`) lo más chicos posible:
-la lógica nueva va en módulos nuevos (`utils/paths.py`, `utils/updater.py`, …) y los archivos
-existentes solo cambian en el punto de uso. Ver riesgos al final.
+**Base:** rama `feat/packaging`, creada desde `dev` (con 0.9.0), **no** desde `feat/recipes`.
+Mantener los diffs en archivos compartidos con `feat/recipes` (`run.py`, `conftest.py`,
+`config/settings.py`, `ui/*`) lo más chicos posible: la lógica nueva va en módulos nuevos
+(`utils/paths.py`, `utils/updater.py`, `utils/prereqs.py`, `packaging/*`) y los archivos existentes
+solo cambian en el punto de uso. Ver riesgos al final.
+
+### Arquitectura
+
+```
+%LOCALAPPDATA%\Programs\InsumosGen\          (instalación; se reemplaza en cada update)
+  app\                  código fuente de la versión instalada (zip del release) + requirements.txt
+  runtime\
+    venv\               entorno virtual con las dependencias
+    python\             solo si hubo que instalar Python (no había uno válido)
+    state.json          versión de la app, versión de Python, hash de requirements.txt
+%LOCALAPPDATA%\InsumosGen\                   (datos del usuario; sobreviven a updates y desinstalación)
+  images\  selfie.y4m  catalog.sqlite3  connections.json  historial…  allure-results\  screenshots\
+Administrador de credenciales de Windows     contraseñas (servicio `InsumosGen`)
+```
+
+- **Python.** Se acepta un Python **3.13.x de 64 bits** que ya esté instalado (registro PEP 514 en
+  HKCU/HKLM, `py -3.13`, o PATH) **solo si** `import tkinter, venv, ensurepip` funciona. Si no hay
+  ninguno válido, se descarga el instalador oficial de python.org (versión y SHA-256 fijos en el
+  script) y se instala en silencio solo para el usuario (`InstallAllUsers=0 PrependPath=0
+  Include_launcher=0 TargetDir=...\runtime\python`): sin admin y sin tocar el Python del sistema.
+- **Entorno.** `python -m venv runtime\venv` y `pip install -r app\requirements.txt` (con reintentos
+  y mensajes claros si PyPI no es alcanzable). Chrome y el ODBC Driver siguen siendo externos (5.4).
+- **Lanzador.** Los accesos directos ejecutan `runtime\venv\Scripts\pythonw.exe app\launch.pyw`;
+  `launch.pyw` fija `INSUMOSGEN_INSTALADO=1`, el directorio de trabajo y abre la UI. Los subprocesos
+  pytest lo heredan.
+- **Qué se entrega en el release:** `InsumosGen-X.Y.Z.zip` (código) y `InsumosGen-Setup-X.Y.Z.exe`
+  (instalador pequeño con el zip dentro), cada uno con su `.sha256`.
 
 ### Pasos
 
-- [ ] **5.1** `version.py` con `__version__ = "1.0.0"` (única fuente; la leen el updater, la ventana y el instalador).
-- [ ] **5.2** Migrar el resto de rutas escribibles a `app_data_dir()` (el helper ya existe desde 0.9.1) y añadir `resource_path(rel)` → `sys._MEIPASS/rel` si `sys.frozen`, ruta del repo si no (assets de solo lectura: `selfie.jpeg`, semilla del catálogo, `pytest.ini`).
-  - Rutas a migrar: `run_config.json`, `run_results*.json`, las SQLite (`catalog`, `generated_*`), `allure-results`, `screenshots`, logs.
-  - Archivos a tocar (confirmar con `grep`): `config/settings.py`, `utils/progress.py`, `utils/*_allocator.py`, `utils/catalog_db.py`, `utils/run_history.py`, `conftest.py`, `run.py`.
-- [ ] **5.3** Lanzador de fases a prueba de congelado (`run.py`, hoy `sys.executable -m pytest`):
-  - Frozen: el exe se relanza a sí mismo con `--run-pytest <args>`; al inicio de `main()`, si ese flag está presente, llama `pytest.main(args)` y termina con su código de salida.
-  - No frozen: queda igual.
-  - Conservar subproceso por fase, `Progress` por archivo y la muerte del árbol de procesos (abortar desde la UI).
-  - Pasar a pytest `-c` (`pytest.ini` vía `resource_path`) y `--rootdir`; asegurar que `tests/`, `flows/`, `pages/` se importen.
-- [ ] **5.4** Verificación de prerrequisitos (`utils/prereqs.py`): Chrome (registro `App Paths\chrome.exe`) y ODBC Driver 17/18 for SQL Server (`pyodbc.drivers()`). Si falta algo: mensaje con el enlace oficial de descarga y no se permite iniciar la corrida. Se integra al arranque de `run.py` junto a la compuerta de 0.9.
-- [ ] **5.5** Quitar `webdriver-manager` y usar Selenium Manager (incluido en Selenium 4.33): en `conftest.py` pasar a `webdriver.Chrome(options=...)`. Validar que funciona con la red del cliente (descarga el driver la primera vez); si no, documentar el fallback.
-- [ ] **5.6** `ProvidigitalVentas.spec` (PyInstaller, **onedir**):
-  - `datas`: `data/selfie.jpeg`, `selfie.y4m` (o generarlo en el primer arranque a `app_data_dir()`), `pytest.ini`, semilla del catálogo.
-  - `hiddenimports`: `tests.*`, `flows.*`, `pages.*`, `allure_pytest`, `pyodbc`, `keyring.backends.Windows`; `collect_all` de `selenium`, `allure_commons`, `cv2`.
-  - Excluir lo que solo es del repo: `InsumosGen/`, logs, `captured_requests_*.json`, `debug_*.json`, docs.
-  - Evaluar si `cv2` es necesario en runtime (si solo genera el video de la cámara, generarlo en build y quitar la dependencia para reducir tamaño).
-  - **Criterio de aceptación:** en una VM/máquina limpia, una corrida OF, una CF y una CN completan (incluyendo capturar credenciales desde el diálogo de 0.9); abortar desde la UI mata Chrome/chromedriver.
-- [ ] **5.7** `installer.iss` (Inno Setup): instalación por usuario (`PrivilegesRequired=lowest`), `AppId` fijo (instala encima), accesos directos, desinstalador, no toca `%LOCALAPPDATA%\ProvidigitalVentas\` ni el Administrador de credenciales. Salida: `ProvidigitalVentas-Setup-X.Y.Z.exe`.
-- [ ] **5.8** `utils/updater.py` + integración mínima en la UI actual:
-  - Al iniciar, en hilo aparte: `GET /repos/NayeBP-MTP/Providigital_Ventas/releases/latest`, timeout corto, todo en `try/except` (sin red / bloqueado por la VPN del cliente → continúa sin avisar).
-  - Comparar `tag_name` con `__version__` (`packaging.version`). Si hay una más nueva: aviso con notas del release y botón **Actualizar**.
-  - Descargar el `Setup.exe` a `%TEMP%`, verificar SHA-256 (archivo `.sha256` del release), lanzarlo con `/VERYSILENT /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS` y cerrar la app.
-  - Máx. una consulta por arranque (la API sin autenticar permite 60/h por IP); entrada "Buscar actualizaciones" y versión visible en el título.
-  - Mantener el módulo **simple**: un updater roto no puede publicarse a sí mismo; el respaldo es siempre descargar el `Setup.exe` manualmente.
-- [ ] **5.9** `.github/workflows/release.yml` (`windows-latest`, al hacer push de tag `v*`): instalar deps → PyInstaller → Inno Setup → SHA-256 → publicar `Setup.exe` + `.sha256` con `softprops/action-gh-release`.
-- [ ] **5.10** Publicar **v1.0.0**. Revisar SmartScreen/antivirus con el exe real (sin firma es probable el aviso; si bloquea, pedir a TI que permita el hash/publisher o evaluar firma de código).
-- [ ] **5.11** Publicar **v1.0.1** (cambio trivial, p. ej. nota en README) solo para **probar el auto-update de punta a punta**: instalar v1.0.0 en una máquina limpia y ver que detecta, descarga, instala y relanza v1.0.1. Hasta que esto pase, no se anuncia a los colegas.
-- [ ] **5.12** Documentar en `README.md`: instalación, prerrequisitos, dónde están los datos del usuario y las credenciales, cómo publicar un release (`version.py` → commit → `git tag vX.Y.Z` → `git push --tags`).
+- [ ] **5.0** Renombrar a **InsumosGen** en todo el repo (un solo commit, antes de lo demás):
+  - Código: `utils/paths.py` (`APP_NAME`), `config/credentials.py` (`SERVICE`). Las contraseñas guardadas por los probadores con el nombre viejo quedan huérfanas: se vuelven a capturar una vez (aceptado).
+  - Documentos: título y árbol de carpetas de `README.md`, `CODEBASE_ANALYSIS.md`, `ESPECIFICACIONES.md`, `config/Context/REGLAS_DE_NEGOCIO.md`, `PLAN_IMPLEMENTACIONES.md` y `CLAUDE.md` si aplica.
+  - Comprobar con `grep -rIn "Providigital_Ventas\|ProvidigitalVentas\|Providigital Ventas"` que no queda nada (la carpeta `InsumosGen/` del repo, con los generadores SQL, no tiene relación con el nombre de la app). Renombrar la carpeta local del clon es opcional.
+- [ ] **5.1** `version.py` con `__version__ = "1.0.0"` (única fuente; la leen el updater, la ventana, el script de build y el instalador).
+- [ ] **5.2** Rutas y modo instalado:
+  - `app_data_dir()` (ya existe) pasa de `sys.frozen` a la variable `INSUMOSGEN_INSTALADO`; en desarrollo sigue siendo `<repo>/data`.
+  - Migrar el resto de rutas escribibles a `app_data_dir()`: `run_config*.json`, `run_results*.json`, `run_progress*.jsonl`, `user_settings.json`, las SQLite (`catalog`, `generated_*`), historial, `allure-results`, `screenshots`, `diag_comprobante.html`.
+  - Archivos a tocar (lista de `grep -rn '"data/\|Path("data'`): `config/settings.py`, `run.py`, `ui/selector_ui.py`, `utils/progress.py`, `utils/run_history.py`, `utils/catalog_db.py`, `utils/*_allocator.py`, `conftest.py`, `pages/prestamo_personal_page.py`.
+  - No hace falta `resource_path`: el código instalado tiene la misma estructura que el repo.
+- [ ] **5.2b** Traer de `feat/recipes` la pantalla de ajustes con selectores de imagen y generación del video: `git cherry-pick 3b2da83` (toca solo `ui/selector_ui.py` y `config/settings.py`; esperar un conflicto menor porque `dev` ya cambió `selector_ui.py` con 0.9). Después adaptar:
+  - Las rutas de selfie, INE frente/reverso, comprobante y `selfie.y4m` apuntan a `app_data_dir()/images`; el selector copia ahí la imagen elegida.
+  - Sin imágenes por defecto: la compuerta de ajustes ya obliga a cargarlas antes de operar y abre el diálogo en el primer arranque.
+  - Los textos que dicen `data/selfie.jpeg` o `python utils/generate_fake_camera_video.py` cambian; el video se genera desde la UI (en proceso, con `cv2`), sin comandos.
+  - Quitar de `.gitignore`/docs cualquier referencia a imágenes dentro de `data/`.
+- [ ] **5.3** Lanzador de fases (`run.py`, hoy `sys.executable -m pytest`): ya funciona con el venv; solo hay que usar `python.exe` (no `pythonw.exe`) para los subprocesos, con `CREATE_NO_WINDOW`, y conservar subproceso por fase, `Progress` por archivo y la muerte del árbol de procesos al abortar.
+- [ ] **5.4** `utils/prereqs.py`: Chrome (registro `App Paths\chrome.exe`) y ODBC Driver 17/18 for SQL Server (`pyodbc.drivers()`). Si falta algo: mensaje con el enlace oficial y no se permite iniciar la corrida. Se integra al arranque junto a la compuerta de conexiones de 0.9.
+- [ ] **5.5** Quitar `webdriver-manager` y usar Selenium Manager (incluido en Selenium 4.33): `webdriver.Chrome(options=...)` en `conftest.py`. Validar que funciona con la red del cliente (descarga el driver la primera vez); si no, documentar el fallback.
+- [ ] **5.6** Build y aprovisionamiento (sustituye al `.spec` de PyInstaller):
+  - `packaging/build_release.py`: genera `InsumosGen-X.Y.Z.zip` a partir de los archivos versionados (sin `InsumosGen/`, logs, `captured_requests_*.json`, `debug_*.json`, documentos salvo `README.md`), con `requirements.txt` **con versiones fijas**.
+  - `packaging/bootstrap.ps1` (corre antes de que exista Python, por eso es PowerShell con `-ExecutionPolicy Bypass` solo para ese proceso): detecta o descarga Python (ver arquitectura), crea el venv, instala dependencias con progreso/reintentos y escribe `runtime\state.json`. Es idempotente: sirve también como **"Reparar entorno"** (entrada en la UI) si el venv se rompe, por ejemplo si el usuario desinstala el Python en el que se basaba.
+  - **Criterio de aceptación:** en una máquina limpia, una corrida OF, una CF y una CN completan (incluyendo cargar imágenes, generar el video y capturar credenciales desde el diálogo de 0.9); abortar desde la UI mata Chrome/chromedriver. Probar además: sin Python / con Python 3.13 / solo con otra versión (p. ej. 3.11) / sin acceso a PyPI (el error debe ser claro y permitir reintentar).
+- [ ] **5.7** `packaging/installer.iss` (Inno Setup): `PrivilegesRequired=lowest` (sin opción de elevar), `AppId` fijo (instala encima), carpeta por usuario, accesos directos al lanzador, desinstalador que borra `Programs\InsumosGen` pero **no** `%LOCALAPPDATA%\InsumosGen\` ni el Administrador de credenciales. Último paso de la instalación: ejecutar `bootstrap.ps1` con ventana de progreso visible. Salida: `InsumosGen-Setup-X.Y.Z.exe`.
+- [ ] **5.8** `utils/updater.py` + `packaging/update.py` + integración mínima en la UI actual:
+  - Al iniciar, en hilo aparte: `GET /repos/NayeBP-MTP/InsumosGen/releases/latest`, timeout corto, todo en `try/except` (sin red / bloqueado por la VPN del cliente → continúa sin avisar). Una consulta por arranque (60/h por IP sin autenticar); entrada "Buscar actualizaciones" y versión en el título.
+  - Comparar `tag_name` con `__version__` (`packaging.version`). Si hay una más nueva: aviso con las notas y botón **Actualizar**.
+  - Nivel 1 (código): bajar `InsumosGen-X.Y.Z.zip`, verificar SHA-256 (`.sha256` del release), extraer a `app.new`.
+  - Nivel 2 (librerías): comparar el hash del `requirements.txt` nuevo con el de `state.json`.
+  - La app se cierra y lanza `update.py` (solo biblioteca estándar, copiado a `%TEMP%`; no puede correr desde la carpeta que va a reemplazar ni con `.pyd` cargados): intercambia `app` ↔ `app.old`, ejecuta `pip install -r` solo si cambió el hash, y relanza la app. **Si pip falla, restaura `app.old`** y avisa; borra `app.old` tras un arranque correcto.
+  - Si el release cambia la versión de Python fijada, la app solo ofrece el enlace al `Setup.exe` nuevo.
+  - Mantener el módulo **simple**: un updater roto no puede publicarse a sí mismo; el respaldo es siempre bajar el `Setup.exe` a mano.
+- [ ] **5.9** `.github/workflows/release.yml` (`windows-latest`, al hacer push de tag `v*`): comprobar que el tag coincide con `version.py` → pruebas unitarias → `build_release.py` → Inno Setup → SHA-256 → publicar zip, `Setup.exe` y los `.sha256` con `softprops/action-gh-release`. Añadir `.github/dependabot.yml` (ecosistema `pip`, mensual) para que las librerías fijadas no se queden viejas.
+- [ ] **5.10** Publicar **v1.0.0**. Revisar SmartScreen/antivirus con el `Setup.exe` real (sin firma es probable el aviso; si bloquea, pedir a TI que permita el hash/publisher o evaluar firma de código).
+- [ ] **5.11** Publicar **v1.0.1** solo para **probar el auto-update de punta a punta**, en dos pasadas: (a) cambio solo de código (no debe ejecutar pip); (b) cambio de una versión fijada en `requirements.txt` (debe ejecutar pip y relanzar), y una vez forzando un fallo de pip para ver la restauración. Hasta que pase, no se anuncia a los colegas.
+- [ ] **5.12** Documentar en `README.md`: instalación, prerrequisitos, qué es "Reparar entorno", dónde están los datos de usuario y las credenciales, cómo publicar un release (`version.py` → commit → `git tag vX.Y.Z` → `git push --tags`) y cómo subir una librería (cambiar la versión fijada en `requirements.txt`).
 
 ### Riesgos
 
-- **Conflictos con `feat/recipes`** (74 archivos, +9.6k/−1.6k vs `dev`; reescribe `tests/test_login*.py`, `run.py`, `conftest.py`, `ui/*`). Mitigación: diffs mínimos en archivos compartidos (5.2/5.3), y al terminar v1.0.x hacer `git merge dev` dentro de `feat/recipes` **antes** de mergear a `dev` (v1.1.0).
-- **Antivirus/SmartScreen** pueden bloquear un exe PyInstaller sin firmar; probar temprano (5.10), no al final.
-- **`/*.json` y `/data/*` están en `.gitignore`**: lo que deba empaquetarse desde `data/` se genera en build o se agrega con `git add -f`.
-- **Rutas hardcodeadas no detectadas** en 5.2 aparecerán solo al correr congelado; por eso el criterio de 5.6 exige una corrida real en máquina limpia.
+- **PyPI inalcanzable** al instalar o actualizar (proxy, VPN del cliente activa): reintentos, mensaje claro y "Reparar entorno"; si resulta frecuente, valorar incluir las ruedas (`wheelhouse`) en el release.
+- **El venv depende del Python base** si se reutilizó uno del usuario: si lo desinstala, la app no abre. Cubierto con "Reparar entorno"; el arranque detecta el `pyvenv.cfg` roto y lo ofrece.
+- **Tamaño en disco** mayor que un exe empaquetado (~500 MB con `cv2`/`numpy`); aceptado a cambio de un instalador pequeño y de poder actualizar librerías.
+- **Primera instalación lenta** (varios minutos descargando ruedas): mostrar progreso.
+- **Conflictos con `feat/recipes`** (reescribe `tests/test_login*.py`, `run.py`, `conftest.py`, `ui/*`). Mitigación: diffs mínimos en archivos compartidos (5.2/5.3) y el cherry-pick de 5.2b que ya coincide con la rama; al terminar v1.0.x hacer `git merge dev` dentro de `feat/recipes` **antes** de mergear a `dev` (v1.1.0).
+- **SmartScreen/antivirus** pueden marcar el `Setup.exe` sin firmar; probar temprano (5.10), no al final.
+- **Rutas hardcodeadas no detectadas** en 5.2 aparecerán solo con la app instalada; por eso el criterio de 5.6 exige una corrida real en máquina limpia.
 
 ---
 
@@ -192,8 +233,8 @@ existentes solo cambian en el punto de uso. Ver riesgos al final.
 ### Pasos
 
 - [ ] **5b.1** Mergear `dev` dentro de `feat/recipes` y resolver conflictos (esperados en `run.py`, `conftest.py`, `config/settings.py`, `tests/test_login*.py`, `ui/*`). Nada nuevo se funcionaliza en este paso.
-- [ ] **5b.2** Auditoría de congelado de lo que trae la rama: toda ruta escribible nueva pasa por `app_data_dir()` (pendientes de QA, SQLite de `cliente_id_allocator`, resultados de recetas, plantillas SQL leídas con `resource_path`); `insumos/*` y sus plantillas en `hiddenimports`/`datas`; revisar `requirements.txt` por dependencias nuevas.
-- [ ] **5b.3** Confirmar que los tests de recetas corren también congelados donde aplique, y que los hosts de recetas (`CNFS`, `CUSTOMER_APP`, `PAYMENTLINK`) se pueden capturar y probar desde el diálogo de 0.9.
+- [ ] **5b.2** Auditoría de instalación de lo que trae la rama: toda ruta escribible nueva pasa por `app_data_dir()` (pendientes de QA, SQLite de `cliente_id_allocator`, resultados de recetas); las plantillas SQL de `insumos/` viajan dentro del zip de código; revisar `requirements.txt` por dependencias nuevas (el updater las instalará solo).
+- [ ] **5b.3** Confirmar que las recetas corren con la app instalada, y que los hosts de recetas (`CNFS`, `CUSTOMER_APP`, `PAYMENTLINK`) se pueden capturar y probar desde el diálogo de 0.9.
 - [ ] **5b.4** Revisión de la persona → merge a `dev` → bump a `1.1.0` → tag → el pipeline publica → verificar que una instalación de v1.0.x se actualiza sola.
 
 ---
@@ -206,11 +247,11 @@ existentes solo cambian en el punto de uso. Ver riesgos al final.
 
 ### Pasos
 
-- [ ] **6.1** *Spike descartable* (rama aparte, no se mergea): solo la pantalla de progreso en pywebview + Svelte con eventos reales de `Progress`; congelarla con PyInstaller y medir tamaño/arranque. Si falla, se evalúa Electron con lo aprendido.
+- [ ] **6.1** *Spike descartable* (rama aparte, no se mergea): solo la pantalla de progreso en pywebview + Svelte con eventos reales de `Progress`; empaquetarla con el instalador de la Implementación 5 y medir tamaño/arranque. Si falla, se evalúa Electron con lo aprendido.
 - [ ] **6.2** Inversión de control en `run.py`: la UI pasa a ser el bucle principal y `run.py` expone un controlador con API (`get_catalog`, `check_prereqs`, `start_run`, `abort`, `get_history`, conexiones/estrellas vía `CredentialStore` y `ConnectionTester`, recetas: listar/ejecutar/reanudar/deshacer) y eventos hacia la UI (`phase_started`, `step`, `slot_result`, `run_finished`). `_ejecutar_fase`, slots e historial no cambian.
-- [ ] **6.3** Andamiaje del frontend (`ui_web/`: Vite + Svelte + Motion), build a `ui_web/dist` incluido vía `datas` en el spec; el pipeline (5.9) instala Node y ejecuta el build.
+- [ ] **6.3** Andamiaje del frontend (`ui_web/`: Vite + Svelte + Motion), build a `ui_web/dist` incluido en el zip del release (`build_release.py`); el pipeline (5.9) instala Node y ejecuta el build.
 - [ ] **6.4** Pantallas, en este orden: primer arranque y prerrequisitos (conexiones, estrellas y enlaces de descarga, sobre el backend de 0.9) → progreso → resultados → selector (dividir los ~1.4k líneas de `selector_ui.py` en pasos) → historial → recetas (pausa QA, reanudar, deshacer).
-- [ ] **6.5** Migrar a la nueva UI el aviso/progreso de actualización (5.8) y la comprobación de WebView2 como prerrequisito.
+- [ ] **6.5** Migrar a la nueva UI el aviso/progreso de actualización (5.8) y la comprobación de WebView2 como prerrequisito (pywebview entra en `requirements.txt` y el updater lo instala).
 - [ ] **6.6** Eliminar `ui/*.py` (tkinter) y sus dependencias; actualizar tests de UI (`tests/test_recetas_ui.py`, …).
 - [ ] **6.7** Pre-releases `v2.0.0-beta.N` a probadores; después `v2.0.0`.
 
