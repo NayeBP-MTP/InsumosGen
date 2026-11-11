@@ -1,0 +1,14 @@
+# Avisos mensuales (PR) cuando una librería fijada en requirements.txt o una acción de los workflows
+# tiene versión nueva. Un release las lleva a los usuarios (el updater reinstala librerías si cambia requirements.txt).
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: monthly
+    target-branch: dev
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    target-branch: dev
