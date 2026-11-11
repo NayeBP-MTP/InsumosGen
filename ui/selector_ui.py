@@ -21,6 +21,7 @@ from ui.history_ui import open_history_dialog
 from utils.catalog_db import CatalogDB
 from utils.vpn_check import verificar_vpn
 from utils.paths import app_data_dir
+from utils.procesos import python_ejecutable
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -1150,7 +1151,7 @@ class SelectorUI:
             error_label.config(text="")
             flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
             gen["proc"] = subprocess.Popen(
-                [sys.executable, str(PROJECT_ROOT / "utils" / "generate_fake_camera_video.py")],
+                [python_ejecutable(), str(PROJECT_ROOT / "utils" / "generate_fake_camera_video.py")],
                 cwd=PROJECT_ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 text=True, creationflags=flags
             )

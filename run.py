@@ -14,6 +14,7 @@ from ui.selector_ui import SelectorUI
 from utils.progress import Progress
 from utils.run_history import RunHistory
 from utils.paths import app_data_dir
+from utils.procesos import abrir_log, limpiar_logs, opciones_subproceso, python_ejecutable
 
 
 def _matar_arbol_proceso(pid: int) -> None:
@@ -197,23 +198,31 @@ def _ejecutar_fase(
         # distingue de qué lote/agencia viene cada paso cuando varios corren a
         # la vez en paralelo.
         env["PROVIDIGITAL_RUN_TAG"] = f"{tipo} · {run_config.get('agencia_label', run_id)}"
-    proc = subprocess.Popen(
-        [
-            sys.executable, "-m", "pytest",
-            TEST_FILE_BY_TIPO_CLIENTE[tipo],
-            f"--alluredir={app_data_dir() / 'allure-results'}",
-            "-s", "-v"
-        ],
-        cwd=Path(__file__).parent,
-        env=env,
-    )
-    if controller:
-        controller.add_process(proc)
+    # Instalada (pythonw, sin consola) la salida de pytest va a <datos>/logs/run_<pid>.log y la
+    # ventana del subproceso se oculta; desde consola se ve ahí, como siempre.
+    log = abrir_log(f"run_{PROCESO_ID}")
     try:
-        returncode = proc.wait()
-    finally:
+        proc = subprocess.Popen(
+            [
+                python_ejecutable(), "-m", "pytest",
+                TEST_FILE_BY_TIPO_CLIENTE[tipo],
+                f"--alluredir={app_data_dir() / 'allure-results'}",
+                "-s", "-v"
+            ],
+            cwd=Path(__file__).parent,
+            env=env,
+            **opciones_subproceso(log),
+        )
         if controller:
-            controller.remove_process(proc)
+            controller.add_process(proc)
+        try:
+            returncode = proc.wait()
+        finally:
+            if controller:
+                controller.remove_process(proc)
+    finally:
+        if log:
+            log.close()
     return returncode
 
 
@@ -397,6 +406,7 @@ def main():
     # Propio para este proceso (ver PROCESO_ID): dos ventanas de `python run.py`
     # corriendo a la vez ya no comparten ni se truncan el canal de progreso.
     Progress.set_path(str(app_data_dir() / f"run_progress_{PROCESO_ID}.jsonl"))
+    limpiar_logs()
 
     while True:
         ui = SelectorUI(config_path=CONFIG_PATH)
