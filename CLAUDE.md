@@ -177,6 +177,24 @@ discrepen en un tema de negocio, prevalece la fuente de negocio (`onboarding_po.
 Si mueves o renombras carpetas dentro de `InsumosGen/`, revisa las rutas hardcodeadas en los
 `SKILL.md`/`README.md` de estas skills — no se actualizan solas.
 
+## Releases (recordatorio obligatorio)
+
+Desde v1.0.0 un release se publica **solo** al mergear `dev` → `main` (workflow de
+`.github/workflows/release.yml`, ver `PLAN_IMPLEMENTACIONES.md`, paso 5.9). El workflow solo publica
+si `version.py` trae una versión **sin tag todavía**; si no, termina en verde sin publicar y solo deja
+un aviso en Actions, y nadie se entera. Por eso, **antes de abrir o mergear un PR `dev` → `main`,
+recuerda siempre al usuario**:
+
+1. Subir `__version__` en `version.py` (SemVer; el número decide el release).
+2. Escribir `release-notes/<versión>.md` en **español**, para el usuario final (el workflow falla si
+   falta; es el texto que muestra el aviso de actualización de la app). Describe lo que el usuario
+   puede hacer o ya no tiene que hacer, no los commits.
+3. Tras el merge, comprobar en Actions que el workflow publicó y en Releases que están los 4 assets
+   y que no es pre-release ni borrador.
+
+Si el usuario pide preparar o revisar un merge a `main` y falta alguno de estos puntos, díselo antes
+de seguir.
+
 ## Riesgos conocidos (no los repitas al tocar código nuevo)
 
 - Credenciales de portal (`ESTRELLA`, `PASSWORD`) tienen defaults hardcodeados en `config/settings.py`
