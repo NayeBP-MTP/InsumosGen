@@ -10,7 +10,6 @@ import pytest
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
 
 import allure
 
@@ -184,7 +183,10 @@ def driver(request, screenshots_dir):
 
     _cleanup_orphan_browsers()
 
-    service = Service(ChromeDriverManager().install())
+    # Sin ruta de driver: Selenium Manager (incluido en Selenium) descarga la primera vez el chromedriver
+    # que corresponde al Chrome instalado y lo guarda en caché. Sin acceso a esa descarga, apuntar la
+    # variable de entorno SE_CHROMEDRIVER a un chromedriver.exe local (ver README).
+    service = Service()
     driver = webdriver.Chrome(service=service, options=chrome_options)
     if service.process:
         _CHROMEDRIVER_PIDS.add(service.process.pid)

@@ -19,7 +19,7 @@ Framework de automatización de pruebas end-to-end (E2E) construido sobre **Pyth
 | selenium | 4.33.0 | Automatización del navegador |
 | pytest | 8.4.1 | Motor de pruebas |
 | allure-pytest | 2.14.2 | Reportes enriquecidos con pasos y capturas |
-| webdriver-manager | 4.0.2 | Gestión automática del ChromeDriver |
+| Selenium Manager | *(incluido en selenium)* | Descarga y cachea el ChromeDriver que corresponde al Chrome instalado |
 | keyring | 25.6.0 | Contraseñas de BD en el Administrador de credenciales de Windows |
 | opencv-python | *(opcional)* | Generación de video fake para cámara |
 | pillow + numpy | *(opcional)* | Procesamiento de imagen para video fake |

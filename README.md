@@ -274,7 +274,10 @@ Ahí podrás ver:
 
 ### 1) Chrome debe estar instalado
 Este proyecto usa **Google Chrome**.
-El driver se descarga automáticamente con `webdriver-manager`.
+El ChromeDriver lo descarga automáticamente **Selenium Manager** (incluido en Selenium) la primera vez que corre
+una prueba, con la versión que corresponde a tu Chrome, y lo guarda en caché (`~/.cache/selenium`). Si tu red
+bloquea esa descarga, baja el `chromedriver.exe` de tu versión de Chrome y define la variable de entorno
+`SE_CHROMEDRIVER` con su ruta.
 
 ### 2) Ambiente UAT
 Si el sitio cambia de diseño, nombre de campos o botones, puede ser necesario ajustar los selectores del archivo:
@@ -306,7 +309,7 @@ Este framework se puede extender fácilmente con:
 
 - Se usa `pytest` como motor de pruebas.
 - Se usa `allure-pytest` para reportes.
-- Se usa `webdriver-manager` para evitar descargar manualmente el ChromeDriver.
+- Se usa Selenium Manager (incluido en Selenium) para no descargar manualmente el ChromeDriver.
 - Los selectores del login fueron diseñados de forma flexible para tolerar cambios menores del DOM.
 
 ---
