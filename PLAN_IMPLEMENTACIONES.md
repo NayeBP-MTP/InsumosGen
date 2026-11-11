@@ -38,7 +38,7 @@ SemVer `MAJOR.MINOR.PATCH`. El número fija el **orden**. Los hitos `0.9.x` son 
 | v2.0.0-beta.N | Pre-releases de la UI para probadores (*pre-release* en GitHub; `releases/latest` los ignora, así que los colegas no los reciben) | `feat/ui-rewrite` | — |
 
 Reglas:
-- Desde v1.0.0, cada release se publica con un tag `vX.Y.Z` y lo construye el pipeline (5.9); no se sube nada a mano.
+- Desde v1.0.0, cada release se publica **solo**: al mergear a `main` el pipeline (5.9) lee `version.py`, y si esa versión aún no tiene release crea el tag `vX.Y.Z`, construye y publica. Las ramas de trabajo se integran en `dev`; `dev` → `main` (con la versión ya subida) es lo que dispara el release. No se sube nada a mano.
 - Un paso del plan = un commit, **después** de la revisión (ver `CLAUDE.md`, convenciones de git).
 - Los mensajes de commit van en inglés; los documentos en español.
 
@@ -171,6 +171,12 @@ Administrador de credenciales de Windows     contraseñas (servicio `InsumosGen`
 - **Lanzador.** Los accesos directos ejecutan `runtime\venv\Scripts\pythonw.exe app\launch.pyw`;
   `launch.pyw` fija `INSUMOSGEN_INSTALADO=1`, el directorio de trabajo y abre la UI. Los subprocesos
   pytest lo heredan.
+- **Contrato del release con el updater** (si algo de esto cambia, el updater deja de ver la versión):
+  - Repo público `NayeBP-MTP/InsumosGen`; el updater consulta `GET /repos/NayeBP-MTP/InsumosGen/releases/latest`, que **solo devuelve el último release publicado y que no sea borrador ni pre-release**. Por eso los `v2.0.0-beta.N` y los `-rc` se marcan como *pre-release* y los colegas no los reciben.
+  - Tag `vX.Y.Z`, igual a `__version__` de `version.py`; **lo crea el pipeline** sobre el commit de `main` (el updater quita la `v` y compara con `packaging.version`). El tag no se mueve ni se reutiliza; si un release sale malo, se publica el siguiente parche (o se borra el release para que `latest` vuelva al anterior).
+  - Nombres de assets exactos: `InsumosGen-X.Y.Z.zip`, `InsumosGen-X.Y.Z.zip.sha256`, `InsumosGen-Setup-X.Y.Z.exe`, `InsumosGen-Setup-X.Y.Z.exe.sha256` (el `.sha256` trae `<hash>  <archivo>`). Se descargan por `browser_download_url`, sin token.
+  - El cuerpo del release (notas, en español y pensadas para el usuario final) es lo que muestra el aviso de actualización.
+  - La API sin autenticar permite 60 consultas/hora por IP (una oficina entera comparte IP): si responde 403/429 el updater lo trata como "no se pudo comprobar", nunca como error.
 - **Qué se entrega en el release:** `InsumosGen-X.Y.Z.zip` (código) y `InsumosGen-Setup-X.Y.Z.exe`
   (instalador pequeño con el zip dentro), cada uno con su `.sha256`.
 
@@ -191,6 +197,15 @@ Administrador de credenciales de Windows     contraseñas (servicio `InsumosGen`
   - Sin imágenes por defecto: la compuerta de ajustes ya obliga a cargarlas antes de operar y abre el diálogo en el primer arranque.
   - Los textos que dicen `data/selfie.jpeg` o `python utils/generate_fake_camera_video.py` cambian; el video se genera desde la UI (en proceso, con `cv2`), sin comandos.
   - Quitar de `.gitignore`/docs cualquier referencia a imágenes dentro de `data/`.
+- [ ] **5.2c** Primer arranque ordenado: cada vez que se abre la app, si falta algo obligatorio se abren **en este orden** (una ventana modal tras otra, sin tener que buscarlas):
+  1. **Conexiones** (`ui/conexiones_ui.py`) si falta alguna de las que toda corrida necesita al arrancar (`PESOS_OFFER`: botDB y Originacion; el resto —`CNFS`, `CHALLENGER`— se exige al elegir el insumo, como hoy con `_asegurar_conexiones`). Antes se ejecuta la importación del `.env` legado.
+  2. **Ajustes** (`_open_settings_dialog`) si falta cualquier ajuste de usuario, imagen o el video de la cámara fake.
+  - La pantalla principal sigue bloqueada (compuerta de `_actualizar_gate_ajustes`) mientras falte algo, con un aviso que diga qué (conexiones y/o ajustes); si el usuario cierra una ventana sin completarla, la siguiente se abre igual y las dos se pueden reabrir desde sus botones.
+  - Pruebas: la compuerta devuelve qué falta (conexiones, campos, imágenes, video) y el orden de apertura, sin abrir ventanas reales.
+- [ ] **5.2d** Ocultar (no borrar) lo que está incompleto de la paralelización, a la espera de retomarlo:
+  - **Navegador invisible:** quitar de la UI el selector "Navegador" (opción *headless*, `selector_ui.py` ~436-450) y forzar `headless: False` en la configuración que se escribe.
+  - **Ventas en paralelo:** `+ Agregar lote de venta` y `+ Agregar oferta` **se quedan visibles y funcionales**: se pueden crear varios lotes y ofertas, que se ejecutan **de forma secuencial** (uno tras otro). Solo se apaga el paralelismo: `MAX_WORKERS_VENTAS = 1` en `run.py` cuando `PARALELISMO_HABILITADO` es `False`. Criterio de aceptación: en UAT, una corrida con 2 lotes (agencias distintas) completa los dos en orden y el panel de progreso se ve coherente; el camino de código de varios lotes se pensó para paralelo y no se ha probado con un solo hilo.
+  - Todo detrás de una constante (`PARALELISMO_HABILITADO = False` en `config/settings.py`: controla el selector de navegador y el máximo de lotes simultáneos), para reactivarlo después cambiando un valor, sin tocar la lógica. Diffs mínimos en `ui/selector_ui.py` y `run.py` por los conflictos con `feat/recipes`.
 - [ ] **5.3** Lanzador de fases (`run.py`, hoy `sys.executable -m pytest`): ya funciona con el venv; solo hay que usar `python.exe` (no `pythonw.exe`) para los subprocesos, con `CREATE_NO_WINDOW`, y conservar subproceso por fase, `Progress` por archivo y la muerte del árbol de procesos al abortar.
 - [ ] **5.4** `utils/prereqs.py`: Chrome (registro `App Paths\chrome.exe`) y ODBC Driver 17/18 for SQL Server (`pyodbc.drivers()`). Si falta algo: mensaje con el enlace oficial y no se permite iniciar la corrida. Se integra al arranque junto a la compuerta de conexiones de 0.9.
 - [ ] **5.5** Quitar `webdriver-manager` y usar Selenium Manager (incluido en Selenium 4.33): `webdriver.Chrome(options=...)` en `conftest.py`. Validar que funciona con la red del cliente (descarga el driver la primera vez); si no, documentar el fallback.
@@ -200,17 +215,27 @@ Administrador de credenciales de Windows     contraseñas (servicio `InsumosGen`
   - **Criterio de aceptación:** en una máquina limpia, una corrida OF, una CF y una CN completan (incluyendo cargar imágenes, generar el video y capturar credenciales desde el diálogo de 0.9); abortar desde la UI mata Chrome/chromedriver. Probar además: sin Python / con Python 3.13 / solo con otra versión (p. ej. 3.11) / sin acceso a PyPI (el error debe ser claro y permitir reintentar).
 - [ ] **5.7** `packaging/installer.iss` (Inno Setup): `PrivilegesRequired=lowest` (sin opción de elevar), `AppId` fijo (instala encima), carpeta por usuario, accesos directos al lanzador, desinstalador que borra `Programs\InsumosGen` pero **no** `%LOCALAPPDATA%\InsumosGen\` ni el Administrador de credenciales. Último paso de la instalación: ejecutar `bootstrap.ps1` con ventana de progreso visible. Salida: `InsumosGen-Setup-X.Y.Z.exe`.
 - [ ] **5.8** `utils/updater.py` + `packaging/update.py` + integración mínima en la UI actual:
-  - Al iniciar, en hilo aparte: `GET /repos/NayeBP-MTP/InsumosGen/releases/latest`, timeout corto, todo en `try/except` (sin red / bloqueado por la VPN del cliente → continúa sin avisar). Una consulta por arranque (60/h por IP sin autenticar); entrada "Buscar actualizaciones" y versión en el título.
+  - Al iniciar, en hilo aparte: `GET /repos/NayeBP-MTP/InsumosGen/releases/latest`, timeout corto, todo en `try/except` (sin red / bloqueado por la VPN del cliente → continúa sin avisar). Una consulta automática por arranque; la versión también va en el título de la ventana.
+  - **Página de ajustes:** muestra la versión instalada (`InsumosGen vX.Y.Z`) junto a un botón **Buscar actualizaciones** que ejecuta la misma comprobación a demanda. Respuesta visible en el propio diálogo: *estás al día*, *hay una versión nueva* (notas + **Actualizar**) o *no se pudo comprobar* (sin red / límite de GitHub, con el enlace a la página de releases). El aviso de arranque, en cambio, solo aparece si hay una versión nueva.
+  - La lógica vive en `utils/updater.py` (`comprobar()` devuelve estado, versión y notas) y las dos entradas —arranque y botón— la llaman; la UI no consulta GitHub por su cuenta.
   - Comparar `tag_name` con `__version__` (`packaging.version`). Si hay una más nueva: aviso con las notas y botón **Actualizar**.
   - Nivel 1 (código): bajar `InsumosGen-X.Y.Z.zip`, verificar SHA-256 (`.sha256` del release), extraer a `app.new`.
   - Nivel 2 (librerías): comparar el hash del `requirements.txt` nuevo con el de `state.json`.
   - La app se cierra y lanza `update.py` (solo biblioteca estándar, copiado a `%TEMP%`; no puede correr desde la carpeta que va a reemplazar ni con `.pyd` cargados): intercambia `app` ↔ `app.old`, ejecuta `pip install -r` solo si cambió el hash, y relanza la app. **Si pip falla, restaura `app.old`** y avisa; borra `app.old` tras un arranque correcto.
   - Si el release cambia la versión de Python fijada, la app solo ofrece el enlace al `Setup.exe` nuevo.
   - Mantener el módulo **simple**: un updater roto no puede publicarse a sí mismo; el respaldo es siempre bajar el `Setup.exe` a mano.
-- [ ] **5.9** `.github/workflows/release.yml` (`windows-latest`, al hacer push de tag `v*`): comprobar que el tag coincide con `version.py` → pruebas unitarias → `build_release.py` → Inno Setup → SHA-256 → publicar zip, `Setup.exe` y los `.sha256` con `softprops/action-gh-release`. Añadir `.github/dependabot.yml` (ecosistema `pip`, mensual) para que las librerías fijadas no se queden viejas.
-- [ ] **5.10** Publicar **v1.0.0**. Revisar SmartScreen/antivirus con el `Setup.exe` real (sin firma es probable el aviso; si bloquea, pedir a TI que permita el hash/publisher o evaluar firma de código).
+- [ ] **5.9** `.github/workflows/release.yml` — release automático al mergear a `main`:
+  - **Disparador:** `push` a `main` (un PR mergeado es un push). `concurrency: release` (sin cancelar) para que dos merges seguidos no publiquen a la vez; `permissions: contents: write`.
+  - **Paso 1, decidir:** leer `__version__` de `version.py`. Si el tag `v<versión>` ya existe, el merge no trae versión nueva: el job termina en verde con un aviso (`::warning::`) y **no publica nada** (así un merge de documentación no rompe ni duplica releases). Si no existe, sigue.
+  - **Paso 2, validar:** debe existir `release-notes/<versión>.md` (notas en español para el usuario final; el job falla si falta, para no publicar sin notas) y las pruebas unitarias deben pasar (las de `tests/` que no necesitan portal ni VPN; las e2e quedan fuera).
+  - **Paso 3, construir (`windows-latest`, Python 3.13 fijo):** `pip install -r requirements.txt` → `packaging/build_release.py` (zip) → Inno Setup (`choco install innosetup`) → SHA-256 de ambos archivos.
+  - **Paso 4, publicar:** `softprops/action-gh-release` con `tag_name: v<versión>`, `target_commitish: ${{ github.sha }}` (crea el tag), el cuerpo desde `release-notes/<versión>.md`, los 4 assets, y `prerelease: true` si la versión lleva `-` (p. ej. `1.0.0-rc.1`, para probar el pipeline sin que `latest` lo vea).
+  - Un release creado con el `GITHUB_TOKEN` no dispara otros workflows; no importa aquí porque todo vive en este solo workflow.
+  - Proteger `main` en GitHub (Settings → Branches): exigir PR y que el workflow de pruebas pase antes de mergear.
+  - Añadir `.github/dependabot.yml` (ecosistema `pip`, mensual) para que las librerías fijadas no se queden viejas.
+- [ ] **5.10** Publicar **v1.0.0** con un primer release de prueba `1.0.0-rc.1` (pre-release) para validar el pipeline, y luego mergear `dev` → `main` con `version.py` en `1.0.0`. Revisar SmartScreen/antivirus con el `Setup.exe` real (sin firma es probable el aviso; si bloquea, pedir a TI que permita el hash/publisher o evaluar firma de código).
 - [ ] **5.11** Publicar **v1.0.1** solo para **probar el auto-update de punta a punta**, en dos pasadas: (a) cambio solo de código (no debe ejecutar pip); (b) cambio de una versión fijada en `requirements.txt` (debe ejecutar pip y relanzar), y una vez forzando un fallo de pip para ver la restauración. Hasta que pase, no se anuncia a los colegas.
-- [ ] **5.12** Documentar en `README.md`: instalación, prerrequisitos, qué es "Reparar entorno", dónde están los datos de usuario y las credenciales, cómo publicar un release (`version.py` → commit → `git tag vX.Y.Z` → `git push --tags`) y cómo subir una librería (cambiar la versión fijada en `requirements.txt`).
+- [ ] **5.12** Documentar en `README.md`: instalación, prerrequisitos, qué es "Reparar entorno", dónde están los datos de usuario y las credenciales, cómo publicar un release (subir `version.py`, escribir `release-notes/X.Y.Z.md`, mergear `dev` → `main` por PR, y comprobar en Actions que el workflow termina y en Releases que están los 4 assets y que **no** es pre-release ni borrador) y cómo subir una librería (cambiar la versión fijada en `requirements.txt`).
 
 ### Riesgos
 
