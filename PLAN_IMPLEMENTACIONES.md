@@ -197,7 +197,7 @@ Administrador de credenciales de Windows     contraseñas (servicio `InsumosGen`
   - Sin imágenes por defecto: la compuerta de ajustes ya obliga a cargarlas antes de operar y abre el diálogo en el primer arranque.
   - Los textos que dicen `data/selfie.jpeg` o `python utils/generate_fake_camera_video.py` cambian; el video se genera desde la UI (en proceso, con `cv2`), sin comandos.
   - Quitar de `.gitignore`/docs cualquier referencia a imágenes dentro de `data/`.
-- [ ] **5.2c** Primer arranque ordenado: cada vez que se abre la app, si falta algo obligatorio se abren **en este orden** (una ventana modal tras otra, sin tener que buscarlas):
+- [x] **5.2c** Primer arranque ordenado: cada vez que se abre la app, si falta algo obligatorio se abren **en este orden** (una ventana modal tras otra, sin tener que buscarlas):
   1. **Conexiones** (`ui/conexiones_ui.py`) si falta alguna de las que toda corrida necesita al arrancar (`PESOS_OFFER`: botDB y Originacion; el resto —`CNFS`, `CHALLENGER`— se exige al elegir el insumo, como hoy con `_asegurar_conexiones`). Antes se ejecuta la importación del `.env` legado.
   2. **Ajustes** (`_open_settings_dialog`) si falta cualquier ajuste de usuario, imagen o el video de la cámara fake.
   - La pantalla principal sigue bloqueada (compuerta de `_actualizar_gate_ajustes`) mientras falte algo, con un aviso que diga qué (conexiones y/o ajustes); si el usuario cierra una ventana sin completarla, la siguiente se abre igual y las dos se pueden reabrir desde sus botones.

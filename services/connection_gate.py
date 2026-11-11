@@ -30,6 +30,11 @@ HOSTS_BD = {
 }
 
 
+# Lo mínimo que toda corrida necesita y que se exige al abrir la app: botDB y Originacion viven en
+# Pesos_Offer. Las demás conexiones se piden cuando el insumo elegido las usa (hosts_requeridos).
+HOSTS_ARRANQUE = ["PESOS_OFFER"]
+
+
 def hosts_requeridos(insumo: str) -> list[str]:
     """Hosts que necesita una corrida: botDB siempre; Challenger además para crear estructuras de agencia."""
     return ["PESOS_OFFER", "CHALLENGER"] if insumo == "AGENCIA" else ["PESOS_OFFER"]

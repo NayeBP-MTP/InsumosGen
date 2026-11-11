@@ -15,7 +15,7 @@ from config.credentials import CredentialStore
 from config.legacy_env import importar_env
 from config.settings import Settings
 from config.sucursales import SUCURSALES, get_sucursal_by_nombre
-from services.connection_gate import hosts_requeridos, hosts_sin_configurar, probar_hosts
+from services.connection_gate import HOSTS_ARRANQUE, HOSTS_BD, hosts_requeridos, hosts_sin_configurar, probar_hosts
 from ui.conexiones_ui import open_connections_dialog
 from ui.history_ui import open_history_dialog
 from utils.catalog_db import CatalogDB
@@ -110,9 +110,44 @@ class SelectorUI:
         self._agregar_fila_venta()
         self._lock_window_size()
         self._actualizar_gate_ajustes()
-        # Si faltan ajustes, abre el diálogo de una vez (tras mostrar la ventana).
+        # Si falta algo obligatorio, abre las ventanas necesarias una tras otra (tras mostrar la ventana).
+        if self._pasos_de_arranque():
+            self.root.after(300, self._primer_arranque)
+
+    def _conexiones_pendientes(self) -> list:
+        """Hosts que toda corrida necesita y aún no están configurados (sin almacén seguro: todos)."""
+        try:
+            return hosts_sin_configurar(self.credenciales, HOSTS_ARRANQUE)
+        except KeyringError:
+            return list(HOSTS_ARRANQUE)
+
+    def _pasos_de_arranque(self) -> list:
+        """Ventanas que hay que abrir al iniciar, en este orden: 'conexiones' y después 'ajustes'."""
+        pasos = []
+        if self._conexiones_pendientes():
+            pasos.append("conexiones")
         if not self._ajustes_completos()[0]:
-            self.root.after(300, self._open_settings_dialog)
+            pasos.append("ajustes")
+        return pasos
+
+    def _primer_arranque(self):
+        """Abre, una tras otra, las ventanas de lo que falta; el gate de la pantalla principal sigue bloqueado hasta completarlo."""
+        for paso in self._pasos_de_arranque():
+            if paso == "conexiones":
+                open_connections_dialog(
+                    self.root, self.credenciales, hosts=HOSTS_ARRANQUE,
+                    mensaje="Para empezar necesitas la conexión a la base de datos de Pesos_Offer (botDB y "
+                            "Originacion), que toda ejecución usa. Captúrala y pruébala; las demás "
+                            "conexiones se te piden cuando una ejecución las necesite.",
+                )
+            else:
+                self._open_settings_dialog()
+        self._actualizar_gate_ajustes()
+
+    def _abrir_conexiones(self):
+        """Botón 🔌: abre todas las conexiones y refresca el gate (puede completar lo que faltaba)."""
+        open_connections_dialog(self.root, self.credenciales)
+        self._actualizar_gate_ajustes()
 
     @staticmethod
     def _estado_archivos() -> list:
@@ -166,15 +201,17 @@ class SelectorUI:
         return not motivos, motivos
 
     def _actualizar_gate_ajustes(self):
-        """Bloquea la elección de insumo mientras los ajustes no estén completos."""
+        """Bloquea la elección de insumo mientras falten conexiones o ajustes de usuario."""
         ok, motivos = self._ajustes_completos()
-        if ok:
+        conexiones = self._conexiones_pendientes()
+        if ok and not conexiones:
             self.ajustes_aviso.pack_forget()
             self.insumo_combo.configure(state="readonly")
             return
+        pendientes = [f"Conexión {HOSTS_BD[h].titulo}" for h in conexiones] + motivos
         self.ajustes_aviso.configure(
-            text="⚠ Completa los ajustes de usuario (⚙) para continuar.\nPendiente: "
-                 + ", ".join(motivos)
+            text="⚠ Completa lo pendiente (🔌 Conexiones, ⚙ Ajustes) para continuar.\nPendiente: "
+                 + ", ".join(pendientes)
         )
         self.ajustes_aviso.pack(fill="x", pady=(0, 8), before=self.insumo_combo)
         self.insumo_combo.configure(state="disabled")
@@ -377,7 +414,7 @@ class SelectorUI:
             relief="flat",
             bd=0,
             cursor="hand2",
-            command=lambda: open_connections_dialog(self.root, self.credenciales)
+            command=self._abrir_conexiones
         )
         conexiones_btn.grid(row=0, column=3, sticky="e", padx=(0, 15))
         self._add_tooltip(conexiones_btn, "Conexiones")
