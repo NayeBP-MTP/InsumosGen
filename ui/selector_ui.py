@@ -563,21 +563,22 @@ class SelectorUI:
             cursor="hand2"
         ).pack(anchor="w", pady=(6, 0))
 
-        tk.Label(
-            self.panel_venta, text="Navegador:", font=FONT_LABEL, bg=BG, anchor="w"
-        ).pack(fill="x", pady=(10, 4))
-        navegador_frame = tk.Frame(self.panel_venta, bg=BG)
-        navegador_frame.pack(fill="x", pady=(0, 4))
-        tk.Radiobutton(
-            navegador_frame, text="Ver el navegador paso a paso", value="visible",
-            variable=self.navegador_var, font=FONT_LABEL, bg=BG, activebackground=BG,
-            cursor="hand2"
-        ).pack(anchor="w")
-        tk.Radiobutton(
-            navegador_frame, text="Ejecutar en segundo plano (sin mostrar el navegador)",
-            value="headless", variable=self.navegador_var, font=FONT_LABEL, bg=BG,
-            activebackground=BG, cursor="hand2"
-        ).pack(anchor="w")
+        if Settings.PARALELISMO_HABILITADO:  # el navegador invisible está incompleto: oculto por ahora
+            tk.Label(
+                self.panel_venta, text="Navegador:", font=FONT_LABEL, bg=BG, anchor="w"
+            ).pack(fill="x", pady=(10, 4))
+            navegador_frame = tk.Frame(self.panel_venta, bg=BG)
+            navegador_frame.pack(fill="x", pady=(0, 4))
+            tk.Radiobutton(
+                navegador_frame, text="Ver el navegador paso a paso", value="visible",
+                variable=self.navegador_var, font=FONT_LABEL, bg=BG, activebackground=BG,
+                cursor="hand2"
+            ).pack(anchor="w")
+            tk.Radiobutton(
+                navegador_frame, text="Ejecutar en segundo plano (sin mostrar el navegador)",
+                value="headless", variable=self.navegador_var, font=FONT_LABEL, bg=BG,
+                activebackground=BG, cursor="hand2"
+            ).pack(anchor="w")
 
         # ── Paso 2c: opciones de Nueva estructura de agencia ──────
         self.panel_agencia = tk.Frame(form, bg=BG)
@@ -1493,7 +1494,7 @@ class SelectorUI:
                 "nombre_ine":     self.nombre_ine_var.get(),
                 "numero_colaborador": self.colaborador_var.get(),
                 "tomar_capturas": tomar_capturas,
-                "headless":       self.navegador_var.get() == "headless",
+                "headless":       Settings.PARALELISMO_HABILITADO and self.navegador_var.get() == "headless",
             }
 
         self.config_path.parent.mkdir(parents=True, exist_ok=True)

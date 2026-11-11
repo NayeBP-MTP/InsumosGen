@@ -127,5 +127,10 @@ class Settings:
     # Elegible desde el panel "Venta" de la UI ("Ejecutar sin mostrar el
     # navegador"). Probado contra UAT: el facematch/OTP con cámara fake funciona
     # igual en headless — solo cambia que no se ve la ventana de Chrome.
-    HEADLESS = _run_config.get("headless", False)
+    # Interruptor de lo que está incompleto de la paralelización (se retomará): mientras sea False,
+    # la opción de navegador invisible no aparece en la UI y HEADLESS se ignora aunque un
+    # run_config.json antiguo lo traiga, y los lotes de venta corren de uno en uno
+    # (run.MAX_WORKERS_VENTAS = 1). Los lotes y ofertas siguen pudiendo agregarse; se ejecutan en secuencia.
+    PARALELISMO_HABILITADO = False
+    HEADLESS = _run_config.get("headless", False) and PARALELISMO_HABILITADO
     IMPLICIT_WAIT = 10

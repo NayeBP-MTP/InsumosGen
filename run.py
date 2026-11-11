@@ -7,6 +7,7 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
+from config.settings import Settings
 from ui.progress_ui import ProgressUI
 from ui.results_ui import ResultsUI
 from ui.selector_ui import SelectorUI
@@ -72,7 +73,8 @@ class RunController:
 # sesiones simultáneas con la misma cuenta. Cada lote abre su propio Chrome con
 # facematch/OTP. Empezar conservador: subirlo sin medir estabilidad de UAT/
 # Legalario y de la máquina local puede generar fallos que no se ven con 1 a la vez.
-MAX_WORKERS_VENTAS = 4
+# Con Settings.PARALELISMO_HABILITADO apagado (hoy) los lotes corren de uno en uno.
+MAX_WORKERS_VENTAS = 4 if Settings.PARALELISMO_HABILITADO else 1
 
 
 TEST_FILE_BY_TIPO_CLIENTE = {
@@ -240,6 +242,8 @@ def _ejecutar_lote_venta(tipo: str, grupo: list, run_config: dict, controller: R
     incorrectos" al intentar 4 logins a la vez con la misma cuenta). El
     paralelismo real es ENTRE lotes (agencias distintas), nunca dentro de uno.
     """
+    if controller and controller.cancel_event.is_set():
+        return []  # se abortó mientras este lote esperaba su turno en el pool: no lanzar otro Chrome
     batch_cfg = grupo[0]["config"]
     run_id = f"{tipo.lower()}_{grupo[0]['batch_id']}"
     fase_config = {**run_config, **batch_cfg}
