@@ -3,11 +3,14 @@ import tkinter as tk
 
 import pytest
 
+from config.credentials import ConnectionSettings, CredentialStore
+from config.databases import HOSTS
 from config.settings import Settings
 from insumos.deshacer import ResultadoDeshacer
 from insumos.pendientes import COMPLETADA, EN_CURSO, ESPERANDO_QA, FALLIDA, PendientesStore
 from insumos.recetas import RECETAS
 from insumos.runner import ResultadoReceta
+from tests.test_credentials import FakeKeyring
 from ui import recetas_ui
 from ui.recetas_ui import (
     CONTINUAR, DESHACER, REANUDAR, SIN_RECETA, acciones_de, confirmar_qa, describir_pendiente,
@@ -256,6 +259,13 @@ def selector(tk_ok, tmp_path, monkeypatch):
     from ui import selector_ui
 
     monkeypatch.setattr(selector_ui, "USER_SETTINGS_PATH", tmp_path / "user_settings.json")
+    # Almacén de conexiones falso con todos los hosts configurados (no toca el Administrador de
+    # credenciales real) y sin un .env legado que importar.
+    almacen = CredentialStore(path=tmp_path / "connections.json", backend=FakeKeyring())
+    for host in HOSTS:
+        almacen.save_connection(host, ConnectionSettings("srv", "usr", "pwd"))
+    monkeypatch.setattr(selector_ui, "CredentialStore", lambda: almacen)
+    monkeypatch.setattr(selector_ui, "ENV_LEGADO", tmp_path / "no_existe.env")
     ui = selector_ui.SelectorUI(config_path=tmp_path / "run_config.json")
     if not ui.agencias or not ui.metodos:
         ui.root.destroy()

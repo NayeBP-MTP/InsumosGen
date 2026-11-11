@@ -122,7 +122,7 @@ Precondición: la rama `feat/recipes` debe tener su árbol de trabajo limpio (co
 - [x] **0.9.7** Mergear `feat/credentials` dentro de `feat/recipes` (merge, no cherry-pick: así el futuro `merge dev` de 5b.1 no vuelve a conflictuar con estos commits).
 - [x] **0.9.8** Adaptar lo propio de recetas: `services/db.py` (`SqlServerRepository` lee del almacén con `get_connection(host_de(base))` en lugar de `<HOST>_*` del entorno; es el único punto de lectura), `utils/vpn_check.py` (la versión de recetas ya valida por host y mapea errores: unificarla con `ConnectionTester` en lugar de duplicar), docstrings de `config/databases.py`, `services/*_repository.py`, y el mensaje de `ui/selector_ui.py` que dice "revisa tu .env".
 - [x] **0.9.9** Tarjetas para los hosts `CNFS`, `CUSTOMER_APP` y `PAYMENTLINK` en el diálogo; definir qué hosts requiere cada tipo de corrida y cada receta para la compuerta previa.
-- [ ] **0.9.10** Adaptar las pruebas de recetas que dependían del entorno (`tests/test_vpn_check.py`, `tests/test_offer_repository.py`, `tests/test_repositorios_insumos.py`, …) para usar un almacén falso. Revisión → hito interno **0.9.1** (sin tag).
+- [x] **0.9.10** Adaptar las pruebas de recetas que dependían del entorno (`tests/test_vpn_check.py`, `tests/test_offer_repository.py`, `tests/test_repositorios_insumos.py`, …) para usar un almacén falso. Revisión → hito interno **0.9.1** (sin tag).
 
 ### Riesgos
 
