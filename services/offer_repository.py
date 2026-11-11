@@ -52,7 +52,7 @@ class OfferRepository(SqlServerRepository):
     """
     Acceso a la tabla botDB.dbo.Ofertas usada por el flujo de Cliente Frecuente.
     La conexión (host Pesos_Offer, base botDB) la resuelve SqlServerRepository con las
-    variables PESOS_OFFER_* del .env; nunca se hardcodea.
+    el almacén de credenciales (host PESOS_OFFER); nunca se hardcodea.
     """
 
     def __init__(self, dry_run: bool = False):

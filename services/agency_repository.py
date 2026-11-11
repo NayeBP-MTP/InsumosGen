@@ -32,7 +32,7 @@ class ChallengerRepository(SqlServerRepository):
     Acceso a Challenger_uat para el flujo "Nueva estructura de agencia":
     AgencyStructure, tblRepresentative_Table_AWS, P_ESTRELLAS_MENSUAL_CATEGORIAS.
     Ver config/Context/NUEVA_ESTRUCTURA_AGENCIA.md para el diseño completo.
-    La conexión (host Challenger) la resuelve SqlServerRepository con CHALLENGER_* del .env.
+    La conexión (host Challenger) la resuelve SqlServerRepository desde el almacén de credenciales.
     """
 
     def __init__(self):
@@ -187,7 +187,7 @@ class BotDbAgencyRepository(SqlServerRepository):
     """
     Acceso a botDB para el flujo "Nueva estructura de agencia":
     Agency_Representative_AWS y tblRepresentative_Table_AWS. Usa el host Pesos_Offer
-    (PESOS_OFFER_* del .env), igual que services/offer_repository.py.
+    (PESOS_OFFER del almacén de credenciales), igual que services/offer_repository.py.
     """
 
     def __init__(self):

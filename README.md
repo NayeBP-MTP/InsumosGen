@@ -44,7 +44,6 @@ Providigital_Ventas/
 │   ├── birthdate_allocator.py
 │   ├── generate_fake_camera_video.py
 │   └── utils.py
-├── .env.example
 ├── conftest.py
 ├── pytest.ini
 ├── requirements.txt
@@ -199,6 +198,16 @@ y guarda `data/run_config.json` automáticamente antes de lanzar la prueba.
   "ciclos": 1
 }
 ```
+
+#### Conexiones a bases de datos
+
+Los flujos de oferta, cliente frecuente y agencias consultan SQL Server (`botDB`, `Challenger_uat`).
+Captura esas conexiones desde la UI, con el botón 🔌 **Conexiones**: servidor, usuario, contraseña y
+driver ODBC por host, con un botón **Probar** que indica la causa exacta si falla (VPN, usuario o
+contraseña, driver, permisos). La contraseña se guarda cifrada en el Administrador de credenciales de
+Windows y el resto en `data/connections.json` (ignorado por git). Si falta una conexión al iniciar una
+ejecución, la UI abre el diálogo sola. Ya no se usa `.env`: si tienes uno, la app lo importa la primera
+vez y te ofrece borrarlo.
 
 ---
 

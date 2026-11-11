@@ -16,7 +16,7 @@ def sentencia_insert(tabla: str, valores: dict) -> tuple:
 
 class CnfsRepository(SqlServerRepository):
     """
-    Acceso a CNFS_uat.NFS_DBO (host CNFS, variables CNFS_*): Customer_Table, Agreement_Table y
+    Acceso a CNFS_uat.NFS_DBO (host CNFS, conexión CNFS del almacén de credenciales): Customer_Table, Agreement_Table y
     Customer_Address_Table. Los INSERT salen de las plantillas de `insumos/plantillas.py`.
     """
 

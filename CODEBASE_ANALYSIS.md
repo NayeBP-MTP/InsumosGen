@@ -20,7 +20,7 @@ Framework de automatización de pruebas end-to-end (E2E) construido sobre **Pyth
 | pytest | 8.4.1 | Motor de pruebas |
 | allure-pytest | 2.14.2 | Reportes enriquecidos con pasos y capturas |
 | webdriver-manager | 4.0.2 | Gestión automática del ChromeDriver |
-| python-dotenv | 1.1.1 | Variables de entorno desde `.env` |
+| keyring | 25.6.0 | Contraseñas de BD en el Administrador de credenciales de Windows |
 | opencv-python | *(opcional)* | Generación de video fake para cámara |
 | pillow + numpy | *(opcional)* | Procesamiento de imagen para video fake |
 
@@ -68,7 +68,7 @@ Providigital_Ventas/
 
 ## 4. Configuración (`config/settings.py`)
 
-Todas las constantes están hardcodeadas en la clase `Settings`. **No usa `.env` en la práctica actual** (el README lo menciona como buena práctica, pero el código lee directamente de la clase).
+Todas las constantes están hardcodeadas en la clase `Settings`. Las credenciales de bases de datos no están ahí: viven en el almacén de `config/credentials.py` (no hay `.env`).
 
 | Parámetro | Valor | Descripción |
 |---|---|---|

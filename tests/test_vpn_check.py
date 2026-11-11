@@ -2,24 +2,10 @@
 import socket
 import urllib.error
 
-import pyodbc
-
+from config.credentials import ConnectionSettings, CredentialsMissing
+from services.connection_tester import Categoria, ResultadoConexion
 from services.agency_repository import BotDbAgencyRepository, ChallengerRepository
 from utils import vpn_check
-
-
-class TestHostPuerto:
-    def test_host_sin_puerto_usa_1433(self, monkeypatch):
-        monkeypatch.setenv("PESOS_OFFER_SERVER", "10.0.0.5")
-        assert vpn_check._host_puerto("PESOS_OFFER") == ("10.0.0.5", 1433)
-
-    def test_host_con_puerto_prefijo_tcp_e_instancia(self, monkeypatch):
-        monkeypatch.setenv("CHALLENGER_SERVER", r"tcp:srv\inst,1500")
-        assert vpn_check._host_puerto("CHALLENGER") == ("srv", 1500)
-
-    def test_sin_variable_devuelve_none(self, monkeypatch):
-        monkeypatch.delenv("CNFS_SERVER", raising=False)
-        assert vpn_check._host_puerto("CNFS") is None
 
 
 class TestMotivoRed:
@@ -38,29 +24,6 @@ class TestMotivoRed:
 
     def test_otro_oserror_trae_codigo_y_texto(self):
         assert "10051" in vpn_check._motivo_red(OSError(10051, "red inalcanzable"), "h")
-
-
-class TestMotivoLogin:
-    def test_driver_faltante(self):
-        e = pyodbc.Error("IM002", "[IM002] Data source name not found")
-        assert "driver ODBC 'D17'" in vpn_check._motivo_login(e, "botDB", "D17")
-
-    def test_credenciales(self):
-        e = pyodbc.Error("28000", "Login failed for user 'x'")
-        assert "usuario/contraseña" in vpn_check._motivo_login(e, "botDB", "d")
-
-    def test_login_timeout_dice_que_el_puerto_si_responde(self):
-        e = pyodbc.Error("HYT00", "Login timeout expired")
-        m = vpn_check._motivo_login(e, "CNFS_uat", "d")
-        assert "login timeout" in m and "puerto responde" in m
-
-    def test_base_inexistente(self):
-        e = pyodbc.Error("42000", "Cannot open database \"X\" requested by the login")
-        assert "no existe" in vpn_check._motivo_login(e, "X", "d")
-
-    def test_otro_error_conserva_estado_y_texto(self):
-        e = pyodbc.Error("08001", "algo raro")
-        assert vpn_check._motivo_login(e, "b", "d") == "[08001] algo raro"
 
 
 class TestPortal:
@@ -107,20 +70,44 @@ class TestVerificarVpn:
             "Base de datos CNFS_uat: login timeout",
         ]
 
-    def test_variables_faltantes_del_env_se_reportan_con_su_nombre(self, monkeypatch):
-        monkeypatch.setattr(vpn_check, "_problema_portal", lambda url: None)
-        for v in ("PESOS_OFFER_SERVER", "PESOS_OFFER_USER", "PESOS_OFFER_PASSWORD"):
-            monkeypatch.delenv(v, raising=False)
-        ok, problemas = vpn_check.verificar_vpn(requiere_bd=True)
-        assert not ok and "Faltan variables de entorno para el host PESOS_OFFER" in problemas[0]
 
-    def test_servidor_sql_inalcanzable_dice_la_causa_de_red(self, monkeypatch):
-        monkeypatch.setenv("PESOS_OFFER_SERVER", "srv-po")
-        monkeypatch.setenv("PESOS_OFFER_USER", "u")
-        monkeypatch.setenv("PESOS_OFFER_PASSWORD", "p")
-        monkeypatch.setattr(vpn_check, "_problema_tcp", lambda h, p: "no hubo respuesta en 4s (timeout)")
-        m = vpn_check._problema_base("botDB")
-        assert "srv-po:1433" in m and "timeout" in m
+class TestProblemaBase:
+    """`_problema_base` delega en ConnectionTester con las credenciales del almacén."""
+
+    def _falsos(self, monkeypatch, credenciales, resultado=None):
+        class RepoFalso:
+            def __init__(self, base):
+                self.base = base
+
+            @property
+            def credenciales(self):
+                if isinstance(credenciales, Exception):
+                    raise credenciales
+                return credenciales
+
+        class FalsoTester:
+            def probar(self, conexion, base=None, tabla=None):
+                FalsoTester.llamada = (conexion, base)
+                return resultado
+
+        monkeypatch.setattr(vpn_check, "SqlServerRepository", RepoFalso)
+        monkeypatch.setattr(vpn_check, "ConnectionTester", FalsoTester)
+        return FalsoTester
+
+    def test_host_sin_configurar_se_reporta_con_su_nombre(self, monkeypatch):
+        self._falsos(monkeypatch, CredentialsMissing("PESOS_OFFER"))
+        assert "PESOS_OFFER" in vpn_check._problema_base("botDB")
+
+    def test_conexion_correcta_no_reporta_problema(self, monkeypatch):
+        conexion = ConnectionSettings("srv", "u", "p")
+        tester = self._falsos(monkeypatch, conexion, ResultadoConexion(Categoria.OK, "Conexión correcta."))
+        assert vpn_check._problema_base("botDB") is None
+        assert tester.llamada == (conexion, "botDB")
+
+    def test_falla_devuelve_el_mensaje_del_tester(self, monkeypatch):
+        self._falsos(monkeypatch, ConnectionSettings("srv", "u", "p"),
+                     ResultadoConexion(Categoria.LOGIN_RECHAZADO, "El servidor rechazó el usuario"))
+        assert vpn_check._problema_base("botDB") == "El servidor rechazó el usuario"
 
 
 class TestRepositoriosDeAgencia:

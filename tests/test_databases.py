@@ -3,18 +3,24 @@ import pyodbc
 import pytest
 
 from config import databases
+from config.credentials import (
+    DRIVER_POR_DEFECTO, ConnectionSettings, CredentialsMissing, CredentialStore,
+)
 from services import db
 from services.db import SqlServerRepository, credenciales_de_host
+from tests.test_credentials import FakeKeyring
 
 
-def _env_host(monkeypatch, host, server="srv", user="usr", password="pwd", driver=None):
-    monkeypatch.setenv(f"{host}_SERVER", server)
-    monkeypatch.setenv(f"{host}_USER", user)
-    monkeypatch.setenv(f"{host}_PASSWORD", password)
-    if driver:
-        monkeypatch.setenv(f"{host}_DRIVER", driver)
-    else:
-        monkeypatch.delenv(f"{host}_DRIVER", raising=False)
+@pytest.fixture
+def almacen(tmp_path, monkeypatch):
+    """Almacén aislado (archivo temporal + llavero falso) que `services.db` usa en lugar del real."""
+    store = CredentialStore(path=tmp_path / "connections.json", backend=FakeKeyring())
+    monkeypatch.setattr(db, "CredentialStore", lambda: store)
+    return store
+
+
+def _host(almacen, host, server="srv", user="usr", password="pwd", driver=DRIVER_POR_DEFECTO):
+    almacen.save_connection(host, ConnectionSettings(server, user, password, driver))
 
 
 class TestMapeoBaseHost:
@@ -36,22 +42,19 @@ class TestMapeoBaseHost:
 
 
 class TestCredenciales:
-    def test_lee_variables_del_host(self, monkeypatch):
-        _env_host(monkeypatch, "CNFS", "10.0.0.1", "u", "p", "Mi Driver")
+    def test_lee_la_conexion_del_host(self, almacen):
+        _host(almacen, "CNFS", "10.0.0.1", "u", "p", "Mi Driver")
         c = credenciales_de_host("CNFS")
         assert (c.server, c.user, c.password, c.driver) == ("10.0.0.1", "u", "p", "Mi Driver")
 
-    def test_driver_por_defecto(self, monkeypatch):
-        _env_host(monkeypatch, "CNFS")
-        assert credenciales_de_host("CNFS").driver == db.DRIVER_POR_DEFECTO
+    def test_driver_por_defecto(self, almacen):
+        almacen.save_connection("CNFS", ConnectionSettings("srv", "u", "p"))
+        assert credenciales_de_host("CNFS").driver == DRIVER_POR_DEFECTO
 
-    def test_faltantes_nombra_las_variables(self, monkeypatch):
-        for campo in ("SERVER", "USER", "PASSWORD"):
-            monkeypatch.delenv(f"PESOS_OFFER_{campo}", raising=False)
-        with pytest.raises(EnvironmentError) as exc:
+    def test_host_sin_configurar_lanza_credentials_missing(self, almacen):
+        with pytest.raises(CredentialsMissing) as exc:
             credenciales_de_host("PESOS_OFFER")
-        for campo in ("SERVER", "USER", "PASSWORD"):
-            assert f"PESOS_OFFER_{campo}" in str(exc.value)
+        assert "PESOS_OFFER" in str(exc.value)
 
     def test_host_desconocido(self):
         with pytest.raises(ValueError, match="desconocido"):
@@ -59,8 +62,7 @@ class TestCredenciales:
 
 
 class TestSqlServerRepository:
-    def test_construir_no_exige_env(self, monkeypatch):
-        monkeypatch.delenv("PESOS_OFFER_SERVER", raising=False)
+    def test_construir_no_exige_credenciales(self, almacen):
         repo = SqlServerRepository("Originacion")
         assert repo.host == "PESOS_OFFER"
 
@@ -68,19 +70,19 @@ class TestSqlServerRepository:
         with pytest.raises(ValueError):
             SqlServerRepository("NoExiste")
 
-    def test_cadena_usa_credenciales_del_host_y_la_base(self, monkeypatch):
-        _env_host(monkeypatch, "PESOS_OFFER", "srv-po", "u-po", "p-po", "DRV")
-        _env_host(monkeypatch, "CNFS", "srv-cnfs", "u-cnfs", "p-cnfs", "DRV")
+    def test_cadena_usa_credenciales_del_host_y_la_base(self, almacen):
+        _host(almacen, "PESOS_OFFER", "srv-po", "u-po", "p-po", "DRV")
+        _host(almacen, "CNFS", "srv-cnfs", "u-cnfs", "p-cnfs", "DRV")
         po = SqlServerRepository("Originacion")._connection_string()
         cnfs = SqlServerRepository("CNFS_uat")._connection_string()
-        assert "SERVER=srv-po" in po and "DATABASE=Originacion" in po and "UID=u-po" in po
-        assert "SERVER=srv-cnfs" in cnfs and "DATABASE=CNFS_uat" in cnfs and "UID=u-cnfs" in cnfs
+        assert "SERVER=srv-po" in po and "DATABASE={Originacion}" in po and "UID={u-po}" in po
+        assert "SERVER=srv-cnfs" in cnfs and "DATABASE={CNFS_uat}" in cnfs and "UID={u-cnfs}" in cnfs
         # botDB y Originacion comparten host (mismas credenciales), distinta base
         bot = SqlServerRepository("botDB")._connection_string()
-        assert "SERVER=srv-po" in bot and "DATABASE=botDB" in bot
+        assert "SERVER=srv-po" in bot and "DATABASE={botDB}" in bot
 
-    def test_reintenta_ante_error_transitorio(self, monkeypatch):
-        _env_host(monkeypatch, "CNFS")
+    def test_reintenta_ante_error_transitorio(self, monkeypatch, almacen):
+        _host(almacen, "CNFS")
         monkeypatch.setattr(db.time, "sleep", lambda s: None)
         llamadas = []
 
@@ -94,8 +96,8 @@ class TestSqlServerRepository:
         assert SqlServerRepository("CNFS_uat")._get_connection() == "conexion"
         assert len(llamadas) == 3
 
-    def test_no_reintenta_error_no_transitorio(self, monkeypatch):
-        _env_host(monkeypatch, "CNFS")
+    def test_no_reintenta_error_no_transitorio(self, monkeypatch, almacen):
+        _host(almacen, "CNFS")
         llamadas = []
 
         def connect(cadena):
@@ -107,8 +109,8 @@ class TestSqlServerRepository:
             SqlServerRepository("CNFS_uat")._get_connection()
         assert len(llamadas) == 1
 
-    def test_agota_reintentos_y_relanza(self, monkeypatch):
-        _env_host(monkeypatch, "CNFS")
+    def test_agota_reintentos_y_relanza(self, monkeypatch, almacen):
+        _host(almacen, "CNFS")
         monkeypatch.setattr(db.time, "sleep", lambda s: None)
         monkeypatch.setattr(
             db.pyodbc, "connect", lambda c: (_ for _ in ()).throw(pyodbc.Error("08S01", "x"))
@@ -125,8 +127,8 @@ class TestSqlServerRepository:
         repo._escribir("UPDATE t SET a = ? WHERE b = ?", (1, 2))
         assert repo.dry_run_log == [("UPDATE t SET a = ? WHERE b = ?", (1, 2))]
 
-    def test_escribir_real_ejecuta_y_hace_commit(self, monkeypatch):
-        _env_host(monkeypatch, "CNFS")
+    def test_escribir_real_ejecuta_y_hace_commit(self, monkeypatch, almacen):
+        _host(almacen, "CNFS")
         eventos = []
 
         class Cursor:

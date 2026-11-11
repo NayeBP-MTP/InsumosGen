@@ -65,20 +65,21 @@ No hay linter ni type-checker configurado en el proyecto.
 
 Son 5 hosts, cada uno con sus bases (una base vive en un solo host): **Challenger**
 (`Challenger_uat`), **CNFS** (`CNFS_uat`), **Customer_App**, **Pesos_Offer** (`botDB` y
-`Originacion`) y **PaymentLink**. Una conexión (un juego de variables `.env`) por host; la base se
-elige con nombre de tres partes. Las variables `.env` llevan el nombre del host
-(`PESOS_OFFER_*`, `CNFS_*`, `CHALLENGER_*`…) y el mapeo base → host vive en `config/databases.py`
+`Originacion`) y **PaymentLink**. Una conexión (servidor, usuario, contraseña y driver, en el almacén de credenciales) por host; la
+base se elige con nombre de tres partes. Las conexiones llevan el nombre del host
+(`PESOS_OFFER`, `CNFS`, `CHALLENGER`…) y el mapeo base → host vive en `config/databases.py`
 (diseño en `config/Context/crearClientesFC/CREAR_CLIENTES.md`, decisión 4). Los repositorios
 heredan de `services/db.py` (`SqlServerRepository`), que se construye con el nombre de la **base**
-y resuelve el host y las credenciales. `Originacion` usa las variables de Pesos_Offer porque
+y resuelve el host y las credenciales. `Originacion` usa la conexión de Pesos_Offer porque
 comparte host con `botDB`. No dupliques credenciales ni conexiones por base.
 
 ### Antes de correr contra botDB (flujos CF/OF)
 
-Se requiere VPN/red corporativa activa y un `.env` (copiado de `.env.example`) con
-`PESOS_OFFER_SERVER`, `PESOS_OFFER_USER`, `PESOS_OFFER_PASSWORD`, `PESOS_OFFER_DRIVER` (host de
-`botDB`; el flujo de agencia también usa `CHALLENGER_*`). `utils/vpn_check.py` verifica
-alcanzabilidad del portal UAT y del SQL Server antes de correr; `run.py` la invoca desde la UI.
+Se requiere VPN/red corporativa activa y las conexiones a las bases guardadas en la app (botón 🔌
+**Conexiones** de la UI: servidor, usuario, contraseña y driver por host; el diálogo se abre solo si
+falta alguna y permite probarlas). No hay `.env`: si existe uno de versiones anteriores, la UI lo importa
+una vez y ofrece borrarlo. `utils/vpn_check.py` verifica el portal UAT y `services/connection_gate.py`
+prueba, por cada host que la corrida necesita, TCP + login + lectura de su tabla; la UI lo invoca antes de correr.
 
 ## Arquitectura
 
@@ -87,9 +88,11 @@ alcanzabilidad del portal UAT y del SQL Server antes de correr; `run.py` la invo
 `config/settings.py` define `Settings` con defaults hardcodeados, pero los **sobreescribe** con lo
 que encuentre en `data/run_config.json` al importarse (se relee en cada subproceso pytest). `run.py`
 genera ese `run_config.json` desde la UI interactiva (`ui/selector_ui.py`) antes de lanzar cada fase,
-y lo reescribe por fase (`tipo_cliente`, `ciclos`) en `_ejecutar_fase`. Las credenciales de botDB
-viven aparte, en `.env`, y las lee `services/offer_repository.py` vía `python-dotenv` — nunca desde
-`Settings`.
+y lo reescribe por fase (`tipo_cliente`, `ciclos`) en `_ejecutar_fase`. Las credenciales de las
+bases de datos viven aparte, en `config/credentials.py` (`CredentialStore`: contraseñas en el Administrador
+de credenciales de Windows vía `keyring`; servidor/usuario/driver en `connections.json` dentro de
+`utils/paths.app_data_dir()`) — nunca desde `Settings` ni en archivos de texto. Los repositorios
+(`services/*_repository.py`) piden su host al almacén; las estrellas del portal siguen en el catálogo.
 
 ### Orquestación de una corrida (`run.py`)
 
@@ -248,7 +251,7 @@ Si mueves o renombras carpetas dentro de `InsumosGen/`, revisa las rutas hardcod
 ## Riesgos conocidos (no los repitas al tocar código nuevo)
 
 - Credenciales de portal (`ESTRELLA`, `PASSWORD`) tienen defaults hardcodeados en `config/settings.py`
-  como fallback si no hay `run_config.json`; las de `botDB` sí están correctamente en `.env`.
+  como fallback si no hay `run_config.json`; las de las bases de datos sí están en el almacén de credenciales (no en el código).
 - Datos personales/laborales del formulario de préstamo están hardcodeados dentro de
   `pages/prestamo_personal_page.py` (`llenar_datos_personales`, `llenar_datos_laborales_financieros`).
 - `utils/utils.py` duplica helpers (`wait_until_visible`, `scroll_to_bottom`) que también existen en

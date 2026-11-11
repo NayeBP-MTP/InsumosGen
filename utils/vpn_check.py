@@ -1,34 +1,17 @@
 import concurrent.futures
-import os
 import socket
 import ssl
 import urllib.error
 import urllib.request
 from urllib.parse import urlparse
 
-import pyodbc
-from dotenv import load_dotenv
-
+from config.credentials import CredentialsMissing
 from config.settings import Settings
+from services.connection_tester import ConnectionTester
 from services.db import SqlServerRepository
-
-load_dotenv()
 
 TIMEOUT_SEG = 4
 TIMEOUT_HTTP_SEG = 10
-TIMEOUT_LOGIN_SEG = 10
-
-
-def _host_puerto(host_bd: str):
-    r"""
-    Host y puerto de `<HOST_BD>_SERVER` del .env (formatos 'host', 'host,1433', 'host\instancia').
-    `host_bd` es el host de base de datos (ver config/databases.py), p. ej. PESOS_OFFER.
-    """
-    server = os.environ.get(f"{host_bd}_SERVER", "").strip()
-    if not server:
-        return None
-    host, _, puerto = server.replace("tcp:", "").partition(",")
-    return host.split("\\")[0], int(puerto) if puerto.strip().isdigit() else 1433
 
 
 def _motivo_red(exc: BaseException, host: str) -> str:
@@ -80,42 +63,14 @@ def _problema_portal(url: str):
         return _motivo_red(exc, host)
 
 
-def _motivo_login(exc: pyodbc.Error, base: str, driver: str) -> str:
-    """Traduce un error de pyodbc al problema real: driver, credenciales, timeout, base inexistente…"""
-    sqlstate = exc.args[0] if exc.args else ""
-    texto = str(exc.args[1] if len(exc.args) > 1 else exc).strip()
-    bajo = texto.lower()
-    if sqlstate == "IM002" or "data source name not found" in bajo:
-        return (f"no se encontró el driver ODBC '{driver}'. Instálalo o ajusta <HOST>_DRIVER en .env. "
-                f"Detalle: {texto}")
-    if sqlstate in ("28000", "28P01") or "login failed" in bajo:
-        return f"el servidor rechazó el usuario/contraseña del .env (o ese usuario no tiene acceso a {base}). Detalle: {texto}"
-    if "cannot open database" in bajo:
-        return f"la base '{base}' no existe en ese servidor o el usuario no tiene permiso. Detalle: {texto}"
-    if "timeout" in bajo or sqlstate == "HYT00":
-        return (f"el servidor no contestó el inicio de sesión en {TIMEOUT_LOGIN_SEG}s (login timeout). El puerto "
-                "responde pero SQL Server está caído, saturado o inaccesible desde tu red. "
-                f"Detalle: {texto}")
-    return f"[{sqlstate}] {texto}"
-
-
 def _problema_base(base: str):
     """None si se puede iniciar sesión y ejecutar SELECT 1 en `base`; si no, la causa concreta."""
-    repo = SqlServerRepository(base)
     try:
-        cadena = repo._connection_string()
-    except EnvironmentError as exc:
+        conexion = SqlServerRepository(base).credenciales
+    except CredentialsMissing as exc:
         return str(exc)
-    destino = _host_puerto(repo.host)
-    problema = _problema_tcp(*destino)
-    if problema:
-        return f"el servidor SQL {destino[0]}:{destino[1]} no es alcanzable: {problema}"
-    try:
-        with pyodbc.connect(cadena, timeout=TIMEOUT_LOGIN_SEG) as conn:
-            conn.execute("SELECT 1").fetchone()
-        return None
-    except pyodbc.Error as exc:
-        return _motivo_login(exc, base, repo.credenciales.driver)
+    resultado = ConnectionTester().probar(conexion, base=base)
+    return None if resultado.ok else resultado.mensaje
 
 
 def verificar_vpn(requiere_bd: bool = True, requiere_challenger: bool = False,

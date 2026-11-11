@@ -1,76 +1,43 @@
-import os
 import time
-from dataclasses import dataclass
+from typing import Optional
 
 import pyodbc
-from dotenv import load_dotenv
 
+from config.credentials import ConnectionSettings, CredentialStore
 from config.databases import HOSTS, host_de
 
-load_dotenv()
 
-DRIVER_POR_DEFECTO = "ODBC Driver 17 for SQL Server"
-
-
-@dataclass(frozen=True)
-class Credenciales:
-    server: str
-    user: str
-    password: str
-    driver: str
-
-
-def credenciales_de_host(host: str) -> Credenciales:
-    """Lee `<HOST>_SERVER/USER/PASSWORD/DRIVER` del entorno (.env)."""
+def credenciales_de_host(host: str, store: Optional[CredentialStore] = None) -> ConnectionSettings:
+    """Conexión guardada del host en el almacén de credenciales (`CredentialsMissing` si falta)."""
     if host not in HOSTS:
         raise ValueError(f"Host '{host}' desconocido. Hosts: {', '.join(HOSTS)}.")
-    faltantes = [
-        f"{host}_{campo}" for campo in ("SERVER", "USER", "PASSWORD")
-        if not os.environ.get(f"{host}_{campo}")
-    ]
-    if faltantes:
-        raise EnvironmentError(
-            f"Faltan variables de entorno para el host {host}: {', '.join(faltantes)}. "
-            "Revisa tu .env contra .env.example."
-        )
-    return Credenciales(
-        server=os.environ[f"{host}_SERVER"],
-        user=os.environ[f"{host}_USER"],
-        password=os.environ[f"{host}_PASSWORD"],
-        driver=os.environ.get(f"{host}_DRIVER", DRIVER_POR_DEFECTO),
-    )
+    return (store or CredentialStore()).get_connection(host)
 
 
 class SqlServerRepository:
     """
     Base de los repositorios de SQL Server. Se construye con el nombre de la BASE; el host (y con
-    él las credenciales del .env) se resuelve con config/databases.py, así una base nunca se abre
+    él las credenciales del almacén de credenciales) se resuelve con config/databases.py, así una base nunca se abre
     con las credenciales de otro host.
 
     Con `dry_run=True` las escrituras (`_escribir`) no se ejecutan: se guardan en `dry_run_log`
     como (sql, params). Las lecturas siguen yendo a la BD.
     """
 
-    def __init__(self, base: str, dry_run: bool = False):
+    def __init__(self, base: str, dry_run: bool = False, store: Optional[CredentialStore] = None):
         self.base = base
         self.host = host_de(base)
         self.dry_run = dry_run
+        self._store = store
         self.dry_run_log: list = []
 
     @property
-    def credenciales(self) -> Credenciales:
-        # Lazy: construir el repositorio (p. ej. en dry-run o en pruebas) no exige el .env.
-        return credenciales_de_host(self.host)
+    def credenciales(self) -> ConnectionSettings:
+        # Lazy: construir el repositorio (p. ej. en dry-run o en pruebas) no exige credenciales.
+        return credenciales_de_host(self.host, self._store)
 
     def _connection_string(self) -> str:
-        c = self.credenciales
-        return (
-            f"DRIVER={{{c.driver}}};"
-            f"SERVER={c.server};"
-            f"DATABASE={self.base};"
-            f"UID={c.user};"
-            f"PWD={c.password};"
-        )
+        return self.credenciales.connection_string(self.base)
 
     def _get_connection(self, intentos: int = 3):
         """

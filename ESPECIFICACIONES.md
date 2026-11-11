@@ -370,14 +370,11 @@ inserta el registro en `dbo.Ofertas` **antes de abrir el navegador** (se ejecuta
 `ejecutar_venta_cf`).
 
 #### Conexión a base de datos
-- Dependencia: `pyodbc`. Credenciales y cadena de conexión **vía variables de entorno** (no hardcodear ni commitear):
-  - `PESOS_OFFER_SERVER`
-  - `PESOS_OFFER_USER`
-  - `PESOS_OFFER_PASSWORD`
-  - Opcional: `PESOS_OFFER_DRIVER` (default `ODBC Driver 17 for SQL Server`)
-  - Las variables llevan el nombre del **host** (Pesos_Offer, que aloja `botDB` y `Originacion`),
-    no el de la base; la base (`botDB`) y su host se mapean en `config/databases.py`.
-- Se cargan con `python-dotenv` desde `.env` (ignorado por git; plantilla en `.env.example`).
+- Dependencia: `pyodbc`. Credenciales y cadena de conexión **desde el almacén de credenciales** (host `PESOS_OFFER`,
+  base `botDB`; no hardcodear ni commitear): servidor, usuario, contraseña y driver (default
+  `ODBC Driver 17 for SQL Server`), capturados en el diálogo **Conexiones** de la UI. Ver `config/credentials.py`.
+  - Las conexiones se guardan por **host** (Pesos_Offer aloja `botDB` y `Originacion`), no por base;
+    la base (`botDB`) y su host se mapean en `config/databases.py`.
 - Módulo: `services/offer_repository.py` (sobre `services/db.py`, clase base común de conexión).
 
 #### Construcción de la oferta
@@ -510,7 +507,7 @@ Si un ciclo falla, `LoginPage.recuperar_sesion_tras_fallo()` intenta cerrar sesi
 `services/offer_repository.py`:
 
 - **`OfferData`** (`dataclass`): representa una fila de `dbo.Ofertas`, con los campos fijos/`NULL` ya con su valor por defecto, y `FechaActualizacion` autogenerado en `__post_init__` si no se provee.
-- **`OfferRepository`**: hereda de `SqlServerRepository` (base `botDB`, host Pesos_Offer; lee `PESOS_OFFER_*` del `.env`).
+- **`OfferRepository`**: hereda de `SqlServerRepository` (base `botDB`, host Pesos_Offer; lee la conexión del almacén de credenciales).
   - `test_connection()`: valida la conexión (`SELECT 1`).
   - `insert_offer(offer: OfferData)`: construye el `INSERT` dinámicamente a partir de los campos del dataclass y ejecuta con parámetros (`?`) — nunca por interpolación de strings, para evitar inyección SQL.
   - `offer_exists(id_oferta)`: chequeo de duplicados antes de insertar.

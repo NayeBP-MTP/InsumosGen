@@ -16,8 +16,8 @@ COLUMNAS_MONTOS = (
 
 class OriginacionRepository(SqlServerRepository):
     """
-    Acceso a Originacion.dbo.ExpedienteCliente y ExpedienteOferta (host Pesos_Offer, variables
-    PESOS_OFFER_*). Implementa la `FuenteExpediente` que usa `ContextoVenta`.
+    Acceso a Originacion.dbo.ExpedienteCliente y ExpedienteOferta (host Pesos_Offer, conexión
+    PESOS_OFFER del almacén de credenciales). Implementa la `FuenteExpediente` que usa `ContextoVenta`.
 
     Nota: `ExpedienteCliente.IdExpedienteOferta` viene NULL en todas las filas (comprobado en UAT);
     el vínculo real es `ExpedienteOferta.IdExpedienteCliente`.

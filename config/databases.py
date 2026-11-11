@@ -2,8 +2,8 @@
 Mapeo base de datos -> host de SQL Server.
 
 Hay 5 hosts y cada uno aloja varias bases (una base vive en un solo host). Las credenciales
-se definen una vez por host en el `.env` (`<HOST>_SERVER`, `<HOST>_USER`, `<HOST>_PASSWORD`,
-`<HOST>_DRIVER`); aquí es el único lugar donde se escribe el nombre de una base.
+se definen una vez por host en el almacén de credenciales (config/credentials.py, editable desde
+la UI en 'Conexiones'); aquí es el único lugar donde se escribe el nombre de una base.
 Diseño: config/Context/crearClientesFC/CREAR_CLIENTES.md (decisión 4).
 """
 
