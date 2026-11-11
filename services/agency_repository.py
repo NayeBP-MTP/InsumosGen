@@ -1,4 +1,3 @@
-import os
 import random
 import re
 import unicodedata
@@ -6,12 +5,10 @@ from dataclasses import dataclass
 from typing import Optional
 
 import pyodbc
-from dotenv import load_dotenv
 
+from config.credentials import ConnectionSettings, CredentialStore
 from utils.agency_id_allocator import AgencyIdAllocator, AgencySectionAllocator
 from utils.mexican_names import MexicanNames
-
-load_dotenv()
 
 
 def _sin_acentos(texto: str) -> str:
@@ -38,21 +35,15 @@ class ChallengerRepository:
     Ver config/Context/NUEVA_ESTRUCTURA_AGENCIA.md para el diseño completo.
     """
 
-    def __init__(self):
-        self.server = os.environ["CHALLENGER_SERVER"]
-        self.database = os.environ["CHALLENGER_DATABASE"]
-        self.user = os.environ["CHALLENGER_USER"]
-        self.password = os.environ["CHALLENGER_PASSWORD"]
-        self.driver = os.environ.get("CHALLENGER_DRIVER", "ODBC Driver 17 for SQL Server")
+    HOST = "CHALLENGER"
+    BASE = "Challenger_uat"
+
+    def __init__(self, conexion: Optional[ConnectionSettings] = None):
+        self.conexion = conexion or CredentialStore().get_connection(self.HOST)
+        self.database = self.BASE
 
     def _get_connection(self):
-        connection_string = (
-            f"DRIVER={{{self.driver}}};"
-            f"SERVER={self.server};"
-            f"DATABASE={self.database};"
-            f"UID={self.user};"
-            f"PWD={self.password};"
-        )
+        connection_string = self.conexion.connection_string(self.database)
         return pyodbc.connect(connection_string)
 
     def test_connection(self) -> bool:
@@ -208,25 +199,19 @@ class ChallengerRepository:
 class BotDbAgencyRepository:
     """
     Acceso a botDB para el flujo "Nueva estructura de agencia":
-    Agency_Representative_AWS y tblRepresentative_Table_AWS. Reutiliza las mismas
-    variables BOTDB_* de .env que services/offer_repository.py.
+    Agency_Representative_AWS y tblRepresentative_Table_AWS. Reutiliza el mismo
+    host (PESOS_OFFER) del almacén de credenciales que services/offer_repository.py.
     """
 
-    def __init__(self):
-        self.server = os.environ["BOTDB_SERVER"]
-        self.database = os.environ["BOTDB_DATABASE"]
-        self.user = os.environ["BOTDB_USER"]
-        self.password = os.environ["BOTDB_PASSWORD"]
-        self.driver = os.environ.get("BOTDB_DRIVER", "ODBC Driver 17 for SQL Server")
+    HOST = "PESOS_OFFER"
+    BASE = "botDB"
+
+    def __init__(self, conexion: Optional[ConnectionSettings] = None):
+        self.conexion = conexion or CredentialStore().get_connection(self.HOST)
+        self.database = self.BASE
 
     def _get_connection(self):
-        connection_string = (
-            f"DRIVER={{{self.driver}}};"
-            f"SERVER={self.server};"
-            f"DATABASE={self.database};"
-            f"UID={self.user};"
-            f"PWD={self.password};"
-        )
+        connection_string = self.conexion.connection_string(self.database)
         return pyodbc.connect(connection_string)
 
     def insert_agency_representative(self, agency_id: int, representative_id: int, branch: int) -> None:

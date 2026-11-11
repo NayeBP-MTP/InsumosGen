@@ -8,14 +8,21 @@ from tkinter import messagebox, ttk
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from keyring.errors import KeyringError
+
+from config.credentials import CredentialStore
+from config.legacy_env import importar_env
 from config.settings import Settings
 from config.sucursales import SUCURSALES, get_sucursal_by_nombre
+from services.connection_gate import hosts_requeridos, hosts_sin_configurar, probar_hosts
+from ui.conexiones_ui import open_connections_dialog
 from ui.history_ui import open_history_dialog
 from utils.catalog_db import CatalogDB
 from utils.vpn_check import verificar_vpn
 
 
 RUN_CONFIG_PATH = Path("data/run_config.json")
+ENV_LEGADO = Path(__file__).resolve().parents[1] / ".env"
 INSUMOS = [
     ("OF", "Oferta (solo inserción en BD)"),
     ("VENTA", "Venta (CN / CF)"),
@@ -52,6 +59,7 @@ class SelectorUI:
         self._icon_img = self._make_snowflake_icon()
         self.root.iconphoto(True, self._icon_img)
 
+        self.credenciales = CredentialStore()
         self.agencias = CatalogDB.get_agencias()
         self.metodos = CatalogDB.get_metodos_entrega()
 
@@ -77,6 +85,7 @@ class SelectorUI:
         self.confirmed = False
 
         self._build_ui()
+        self._importar_env_legado()
         self._agregar_fila_oferta()
         self._agregar_fila_agencia()
         self._agregar_fila_venta()
@@ -266,6 +275,22 @@ class SelectorUI:
         )
         historial_btn.grid(row=0, column=1, sticky="e", padx=(0, 10))
         self._add_tooltip(historial_btn, "Historial")
+
+        conexiones_btn = tk.Button(
+            self.title_frame,
+            text="🔌",
+            font=("Segoe UI", 15),
+            bg=ACCENT,
+            fg="white",
+            activebackground="#0d47a1",
+            activeforeground="white",
+            relief="flat",
+            bd=0,
+            cursor="hand2",
+            command=lambda: open_connections_dialog(self.root, self.credenciales)
+        )
+        conexiones_btn.grid(row=0, column=3, sticky="e", padx=(0, 15))
+        self._add_tooltip(conexiones_btn, "Conexiones")
 
         # ── Paso 1: tipo de insumo ──────────────────────────────
         form = tk.Frame(self.root, bg=BG, padx=40, pady=12)
@@ -982,6 +1007,44 @@ class SelectorUI:
         celular_entry.focus_set()
         dialog.wait_window()
 
+    def _importar_env_legado(self):
+        """
+        Migra una sola vez las conexiones de un .env de versiones anteriores al almacén seguro y
+        ofrece borrar el archivo (ya no se usa). Sin .env, o sin nada nuevo que importar, no hace nada.
+        """
+        if not ENV_LEGADO.exists():
+            return
+        try:
+            importados = importar_env(self.credenciales, ENV_LEGADO)
+        except (KeyringError, OSError):
+            return  # sin almacén seguro: el diálogo "Conexiones" lo explicará cuando haga falta
+        if importados and messagebox.askyesno(
+            "Conexiones importadas",
+            f"Se importaron al almacén seguro de Windows las conexiones del archivo .env: "
+            f"{', '.join(importados)}.\n\nEl .env ya no se usa. ¿Quieres borrarlo ahora?",
+        ):
+            ENV_LEGADO.unlink()
+
+    def _asegurar_conexiones(self, hosts: list) -> bool:
+        """
+        True si los hosts que la corrida necesita ya están configurados. Si falta alguno, abre
+        el diálogo "Conexiones" y vuelve a comprobar (False si el usuario cancela).
+        """
+        try:
+            faltantes = hosts_sin_configurar(self.credenciales, hosts)
+        except KeyringError:
+            faltantes = list(hosts)  # el diálogo explica por qué no hay almacén seguro
+        if not faltantes:
+            return True
+        open_connections_dialog(
+            self.root, self.credenciales, hosts=hosts,
+            mensaje="Faltan las conexiones que esta ejecución necesita. Captúralas y prueba que funcionen.",
+        )
+        try:
+            return not hosts_sin_configurar(self.credenciales, hosts)
+        except KeyringError:
+            return False
+
     def _on_confirm(self):
         insumo = self.insumo_var.get()
 
@@ -1078,13 +1141,19 @@ class SelectorUI:
                 return
             tomar_capturas = self.tomar_capturas_var.get()
 
-        # La ejecución requiere VPN de Provident (portal UAT, botDB y, para AGENCIA,
-        # también Challenger_uat, solo accesibles con ella).
+        hosts = hosts_requeridos(insumo)
+        if not self._asegurar_conexiones(hosts):
+            return
+
+        # La ejecución requiere VPN de Provident (portal UAT y las bases de datos, solo
+        # accesibles con ella) y que las credenciales guardadas funcionen: se prueba el
+        # portal y, por cada base que la corrida necesita, el login y la lectura de su tabla.
         self.root.configure(cursor="watch")
-        self.confirm_btn.configure(state="disabled", text="Verificando VPN…")
+        self.confirm_btn.configure(state="disabled", text="Verificando conexiones…")
         self.root.update_idletasks()
         try:
-            vpn_ok, faltantes = verificar_vpn(requiere_bd=True, requiere_challenger=(insumo == "AGENCIA"))
+            vpn_ok, faltantes = verificar_vpn(requiere_bd=False)
+            resultados = probar_hosts(self.credenciales, hosts) if vpn_ok else {}
         finally:
             self.root.configure(cursor="")
             self._on_insumo_changed()
@@ -1095,6 +1164,15 @@ class SelectorUI:
                 "\n\nNo se pudo alcanzar:\n  • " + "\n  • ".join(faltantes) +
                 "\n\nConéctate a la VPN e inténtalo de nuevo."
             )
+            return
+        fallidas = {h: r for h, r in resultados.items() if not r.ok}
+        if fallidas:
+            detalle = "\n\n".join(f"{h}: {r.mensaje}" for h, r in fallidas.items())
+            if messagebox.askyesno(
+                "Conexión a la base de datos fallida",
+                f"No se puede iniciar la ejecución.\n\n{detalle}\n\n¿Quieres revisar las conexiones?",
+            ):
+                open_connections_dialog(self.root, self.credenciales, hosts=list(fallidas))
             return
 
         if insumo == "OF":
