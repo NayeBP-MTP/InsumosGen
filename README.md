@@ -1,6 +1,6 @@
-# 🚀 Framework Provident - Automatización Web con Python, Selenium y Allure
+# 🚀 InsumosGen - Automatización web con Python, Selenium y Allure
 
-> Proyecto base para ejecutar una prueba automatizada de login sobre **Provident UAT** desde **Visual Studio Code**, utilizando **Python + Selenium + Pytest + Allure Reports** y capturas de pantalla en cada paso.
+> **InsumosGen** automatiza el flujo de venta y ofertas del portal **Provident UAT**, ejecutándolo desde **Visual Studio Code** con **Python + Selenium + Pytest + Allure Reports** y capturas de pantalla en cada paso.
 
 ---
 
@@ -18,7 +18,7 @@
 ## 🗂️ Estructura del proyecto
 
 ```bash
-Providigital_Ventas/
+InsumosGen/
 ├── config/
 │   └── settings.py
 ├── data/

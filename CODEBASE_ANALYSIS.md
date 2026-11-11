@@ -1,4 +1,4 @@
-# Análisis del CodeBase: Providigital_Ventas
+# Análisis del CodeBase: InsumosGen
 
 > **Fecha de análisis:** Mayo 2026  
 > **Propósito:** Documentación técnica de referencia del framework de automatización de pruebas E2E para la plataforma Provident UAT.
@@ -31,7 +31,7 @@ Framework de automatización de pruebas end-to-end (E2E) construido sobre **Pyth
 ## 3. Estructura del Proyecto
 
 ```
-Providigital_Ventas/
+InsumosGen/
 ├── config/
 │   └── settings.py               # Configuración centralizada (URL, credenciales, rutas de archivos)
 ├── pages/

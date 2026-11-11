@@ -182,7 +182,7 @@ Administrador de credenciales de Windows     contraseñas (servicio `InsumosGen`
 
 ### Pasos
 
-- [ ] **5.0** Renombrar a **InsumosGen** en todo el repo (un solo commit, antes de lo demás):
+- [x] **5.0** Renombrar a **InsumosGen** en todo el repo (un solo commit, antes de lo demás):
   - Código: `utils/paths.py` (`APP_NAME`), `config/credentials.py` (`SERVICE`). Las contraseñas guardadas por los probadores con el nombre viejo quedan huérfanas: se vuelven a capturar una vez (aceptado).
   - Documentos: título y árbol de carpetas de `README.md`, `CODEBASE_ANALYSIS.md`, `ESPECIFICACIONES.md`, `config/Context/REGLAS_DE_NEGOCIO.md`, `PLAN_IMPLEMENTACIONES.md` y `CLAUDE.md` si aplica.
   - Comprobar con `grep -rIn "Providigital_Ventas\|ProvidigitalVentas\|Providigital Ventas"` que no queda nada (la carpeta `InsumosGen/` del repo, con los generadores SQL, no tiene relación con el nombre de la app). Renombrar la carpeta local del clon es opcional.

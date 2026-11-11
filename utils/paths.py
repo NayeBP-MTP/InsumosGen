@@ -3,14 +3,14 @@ import sys
 from pathlib import Path
 
 
-APP_NAME = "ProvidigitalVentas"
+APP_NAME = "InsumosGen"
 
 
 def app_data_dir() -> Path:
     r"""
     Carpeta de datos escribibles del usuario (config, credenciales no secretas, SQLite...).
 
-    Congelado (exe): %LOCALAPPDATA%\ProvidigitalVentas, fuera de la carpeta de instalación
+    Congelado (exe): %LOCALAPPDATA%\InsumosGen, fuera de la carpeta de instalación
     para que sobreviva a updates y desinstalación. Desde código fuente: <repo>/data, así el
     flujo de desarrollo no cambia.
     """

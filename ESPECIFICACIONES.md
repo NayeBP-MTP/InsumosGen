@@ -1,4 +1,4 @@
-# Especificaciones del flujo E2E automatizado — Providigital Ventas
+# Especificaciones del flujo E2E automatizado — InsumosGen
 
 **Fecha de validación CN:** 22/09/2026  
 **Fecha de validación CF:** 23/09/2026  
@@ -21,7 +21,7 @@ Automatización E2E del proceso completo de venta de préstamo personal en el po
 ## Estructura del proyecto
 
 ```
-Providigital_Ventas/
+InsumosGen/
 ├── config/
 │   ├── settings.py             # Credenciales, URLs, rutas de imágenes, selección de la UI (lee data/run_config.json)
 │   └── Context/
