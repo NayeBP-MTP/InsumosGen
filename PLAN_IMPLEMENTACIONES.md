@@ -186,7 +186,7 @@ Administrador de credenciales de Windows     contraseñas (servicio `InsumosGen`
   - Código: `utils/paths.py` (`APP_NAME`), `config/credentials.py` (`SERVICE`). Las contraseñas guardadas por los probadores con el nombre viejo quedan huérfanas: se vuelven a capturar una vez (aceptado).
   - Documentos: título y árbol de carpetas de `README.md`, `CODEBASE_ANALYSIS.md`, `ESPECIFICACIONES.md`, `config/Context/REGLAS_DE_NEGOCIO.md`, `PLAN_IMPLEMENTACIONES.md` y `CLAUDE.md` si aplica.
   - Comprobar con `grep -rIn "Providigital_Ventas\|ProvidigitalVentas\|Providigital Ventas"` que no queda nada (la carpeta `InsumosGen/` del repo, con los generadores SQL, no tiene relación con el nombre de la app). Renombrar la carpeta local del clon es opcional.
-- [ ] **5.1** `version.py` con `__version__ = "1.0.0"` (única fuente; la leen el updater, la ventana, el script de build y el instalador).
+- [x] **5.1** `version.py` con `__version__ = "1.0.0"` (única fuente; la leen el updater, la ventana, el script de build y el instalador).
 - [ ] **5.2** Rutas y modo instalado:
   - `app_data_dir()` (ya existe) pasa de `sys.frozen` a la variable `INSUMOSGEN_INSTALADO`; en desarrollo sigue siendo `<repo>/data`.
   - Migrar el resto de rutas escribibles a `app_data_dir()`: `run_config*.json`, `run_results*.json`, `run_progress*.jsonl`, `user_settings.json`, las SQLite (`catalog`, `generated_*`), historial, `allure-results`, `screenshots`, `diag_comprobante.html`.
