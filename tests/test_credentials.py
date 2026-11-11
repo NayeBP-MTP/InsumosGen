@@ -161,7 +161,9 @@ def test_backend_no_disponible_informa_el_motivo(tmp_path):
     assert "sin backend" in detalle
 
 
-def test_app_data_dir_desde_codigo_fuente_es_data_del_repo():
+def test_app_data_dir_desde_codigo_fuente_es_data_del_repo(monkeypatch):
+    monkeypatch.delenv(ENV_INSTALADA, raising=False)
+
     assert app_data_dir().name == "data"
 
 
