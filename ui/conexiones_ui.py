@@ -69,7 +69,8 @@ def open_connections_dialog(parent: tk.Misc, store: Optional[CredentialStore] = 
 
         server_var = tk.StringVar(value=actual.server if actual else "")
         user_var = tk.StringVar(value=actual.user if actual else "")
-        password_var = tk.StringVar()
+        # Se precarga la contraseña guardada (enmascarada) para que se vea que sí quedó guardada.
+        password_var = tk.StringVar(value=actual.password if actual else "")
         driver_var = tk.StringVar(value=actual.driver if actual else driver_sugerido(instalados))
 
         def _fila(fila, etiqueta, widget):
@@ -85,18 +86,16 @@ def open_connections_dialog(parent: tk.Misc, store: Optional[CredentialStore] = 
 
         mostrar_var = tk.BooleanVar(value=False)
         tk.Checkbutton(
-            card, text="Mostrar", variable=mostrar_var, bg=BG, font=("Segoe UI", 9),
+            card, text="Mostrar contraseña", variable=mostrar_var, bg=BG, font=("Segoe UI", 9),
             command=lambda e=password_entry, v=mostrar_var: e.configure(show="" if v.get() else "•"),
         ).grid(row=4, column=1, sticky="w", padx=(8, 0))
-        if actual:
-            tk.Label(card, text="Contraseña guardada: déjala vacía para conservarla.",
-                     font=("Segoe UI", 8), bg=BG, fg="#555555").grid(row=4, column=2, sticky="e")
 
-        resultado = tk.Label(card, text="", font=("Segoe UI", 9), bg=BG, wraplength=400, justify="left", anchor="w")
-        resultado.grid(row=6, column=0, columnspan=3, sticky="ew", pady=(4, 0))
-        resultado.grid_remove()  # solo ocupa espacio una vez que hay un resultado que mostrar
+        # El resultado va junto al botón; si el mensaje es largo se envuelve y la ventana crece.
         probar_btn = tk.Button(card, text="Probar", font=("Segoe UI", 9, "bold"), cursor="hand2")
         probar_btn.grid(row=5, column=0, sticky="w", pady=(6, 0))
+        resultado = tk.Label(card, text="", font=("Segoe UI", 8), bg=BG, wraplength=330,
+                             justify="left", anchor="w")
+        resultado.grid(row=5, column=1, columnspan=2, sticky="ew", padx=(8, 0), pady=(6, 0))
 
         tarjetas[host] = {
             "server": server_var, "user": user_var, "password": password_var, "driver": driver_var,
@@ -114,12 +113,10 @@ def open_connections_dialog(parent: tk.Misc, store: Optional[CredentialStore] = 
             conexion = _leer(host)
         except ValueError as e:
             t["resultado"].config(text=str(e), fg="#c62828")
-            t["resultado"].grid()
             return
         info = HOSTS_BD[host]
         t["probar"].config(state="disabled")
         t["resultado"].config(text="Probando…", fg="#555555")
-        t["resultado"].grid()
         salida = {}
 
         def _trabajo():
