@@ -154,7 +154,7 @@ Nota: un menú hamburguesa abierto en una captura de falla normalmente es la rec
 | `pages/prestamo_personal_page.py` | Pantallas del préstamo (checks de contrato, finalizar, etc.) |
 | `services/offer_repository.py` | Conexión e insert en `botDB` |
 | `utils/offer_id_allocator.py`, `utils/mexican_names.py`, `utils/catalog_db.py` | Ids, nombres y catálogo de agencias |
-| `utils/generate_fake_camera_video.py` | Genera `data/selfie.y4m` |
+| `utils/generate_fake_camera_video.py` | Genera `images/selfie.y4m` (carpeta de imágenes del usuario) |
 | `conftest.py` | Driver, cierre garantizado de Chrome |
 | `config/settings.py` | Configuración; lee `data/run_config.json` (incluye `monto` y topes) |
 

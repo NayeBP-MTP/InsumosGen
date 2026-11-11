@@ -27,7 +27,8 @@ documentadas en `Context.md` y `config/Context/REGLAS_DE_NEGOCIO.md`.
 # Instalar dependencias (entorno virtual recomendado)
 pip install -r requirements.txt
 
-# Generar el video de cámara fake requerido por Legalario (una vez, o si cambia data/selfie.jpeg)
+# Video de cámara fake requerido por Legalario: se genera desde Ajustes (⚙ → Generar video) con la selfie
+# que sube cada usuario (una vez, o si cambia la selfie); a mano: python utils/generate_fake_camera_video.py
 python utils/generate_fake_camera_video.py
 
 # Ejecutar vía el asistente interactivo (recomendado): pide agencia, tipo(s) de cliente,
@@ -111,7 +112,8 @@ flujo actual de los tests).
 ### Cámara fake para facematch desatendido
 
 Legalario requiere una cámara real para el facematch; `utils/generate_fake_camera_video.py` genera
-`data/selfie.y4m` a partir de `data/selfie.jpeg` (con zoom progresivo para disparar el trigger de
+`<datos>/images/selfie.y4m` a partir de `<datos>/images/selfie.jpeg` (la selfie, INE y comprobante los sube
+el usuario desde Ajustes; no hay imágenes por defecto; con zoom progresivo para disparar el trigger de
 "acércate" del SDK). `conftest.py` monta Chrome con `--use-fake-device-for-media-stream` apuntando a
 ese archivo cuando `Settings.USE_FAKE_CAMERA=True`. Debe regenerarse si cambia `selfie.jpeg`.
 

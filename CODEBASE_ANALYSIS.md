@@ -109,9 +109,9 @@ El interceptor de red se instala **antes** de las capturas para poder:
 
 | Paso | Endpoint Legalario interceptado | Archivo mock |
 |---|---|---|
-| INE Frontal | `sdk/onboarding/identify/front` | `data/ine_frente.jpeg` |
-| INE Trasera | `sdk/onboarding/identify/reverse` | `data/ine_tras.jpeg` |
-| Facematch | `sdk/onboarding/identify/facematch` | `data/selfie.jpeg` (+ `selfie.y4m` en cámara fake) |
+| INE Frontal | `sdk/onboarding/identify/front` | `images/ine_frente.jpeg` |
+| INE Trasera | `sdk/onboarding/identify/reverse` | `images/ine_tras.jpeg` |
+| Facematch | `sdk/onboarding/identify/facematch` | `images/selfie.jpeg` (+ `selfie.y4m` en cámara fake) |
 
 Adicionalmente, después de la captura frontal se **modifica la fecha de nacimiento OCR** con una fecha única generada por `BirthdateAllocator` para evitar duplicados entre ejecuciones.
 
@@ -206,7 +206,7 @@ Inyecta JavaScript en el navegador para interceptar `fetch` y `XMLHttpRequest` g
 
 ### `generate_fake_camera_video.py`
 - Script standalone (no se ejecuta en el test, debe correrse manualmente previamente).
-- Genera `data/selfie.y4m` (10 segundos, 30fps, 640x480) a partir de `data/selfie.jpeg`.
+- Genera `images/selfie.y4m` (10 segundos, 30fps, 640x480) a partir de `images/selfie.jpeg`.
 - Simula zoom progresivo: estable 0-5s → zoom suave 5-8s → zoom fuerte 8-10s para disparar el trigger de "acércate" del SDK de facematch.
 - Requiere `opencv-python`, `pillow`, `numpy` (dependencias opcionales no incluidas en `requirements.txt`).
 

@@ -153,9 +153,12 @@ pip install -r requirements.txt
 
 ---
 
-### 3) Preparar archivos en `data/`
+### 3) Cargar tus imágenes de prueba
 
-Coloca los siguientes archivos dentro de la carpeta `data/` antes de ejecutar:
+No hay imágenes por defecto: cada usuario aporta las suyas. Se cargan desde **Ajustes (⚙)**, con
+los botones *Subir…*, y quedan en la carpeta `images/` de los datos de la app (`data/images/` en
+desarrollo; `%LOCALAPPDATA%\InsumosGen\images\` con la app instalada). La app no te deja operar
+hasta que estén todas:
 
 | Archivo | Descripción |
 |---|---|
@@ -164,13 +167,9 @@ Coloca los siguientes archivos dentro de la carpeta `data/` antes de ejecutar:
 | `selfie.jpeg` | Selfie del cliente (base para generar la cámara fake) |
 | `comprobante.jpeg` | Comprobante de domicilio |
 
-Luego genera el video de cámara fake:
-
-```bash
-python utils/generate_fake_camera_video.py
-```
-
-Esto crea `data/selfie.y4m` automáticamente.
+Después, en la misma pantalla, pulsa **Generar video**: crea `selfie.y4m` (la cámara fake de Chrome)
+a partir de tu selfie, y se vuelve a pedir cada vez que cambias la selfie. También puedes generarlo
+a mano con `python utils/generate_fake_camera_video.py`.
 
 ---
 

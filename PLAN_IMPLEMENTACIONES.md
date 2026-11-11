@@ -192,7 +192,7 @@ Administrador de credenciales de Windows     contraseñas (servicio `InsumosGen`
   - Migrar el resto de rutas escribibles a `app_data_dir()`: `run_config*.json`, `run_results*.json`, `run_progress*.jsonl`, `user_settings.json`, las SQLite (`catalog`, `generated_*`), historial, `allure-results`, `screenshots`, `diag_comprobante.html`.
   - Archivos a tocar (lista de `grep -rn '"data/\|Path("data'`): `config/settings.py`, `run.py`, `ui/selector_ui.py`, `utils/progress.py`, `utils/run_history.py`, `utils/catalog_db.py`, `utils/*_allocator.py`, `conftest.py`, `pages/prestamo_personal_page.py`.
   - No hace falta `resource_path`: el código instalado tiene la misma estructura que el repo.
-- [ ] **5.2b** Traer de `feat/recipes` la pantalla de ajustes con selectores de imagen y generación del video: `git cherry-pick 3b2da83` (toca solo `ui/selector_ui.py` y `config/settings.py`; esperar un conflicto menor porque `dev` ya cambió `selector_ui.py` con 0.9). Después adaptar:
+- [x] **5.2b** Traer de `feat/recipes` la pantalla de ajustes con selectores de imagen y generación del video: `git cherry-pick 3b2da83` (toca solo `ui/selector_ui.py` y `config/settings.py`; esperar un conflicto menor porque `dev` ya cambió `selector_ui.py` con 0.9). Después adaptar:
   - Las rutas de selfie, INE frente/reverso, comprobante y `selfie.y4m` apuntan a `app_data_dir()/images`; el selector copia ahí la imagen elegida.
   - Sin imágenes por defecto: la compuerta de ajustes ya obliga a cargarlas antes de operar y abre el diálogo en el primer arranque.
   - Los textos que dicen `data/selfie.jpeg` o `python utils/generate_fake_camera_video.py` cambian; el video se genera desde la UI (en proceso, con `cv2`), sin comandos.

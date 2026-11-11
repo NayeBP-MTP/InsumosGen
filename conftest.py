@@ -170,7 +170,7 @@ def driver(request, screenshots_dir):
         else:
             raise FileNotFoundError(
                 "USE_FAKE_CAMERA=True pero no existe el archivo de cámara fake: "
-                f"{fake_video_path}. Genera data/selfie.y4m antes de correr la prueba."
+                f"{fake_video_path}. Genera el video desde Ajustes (⚙ → Generar video) antes de correr la prueba."
             )
 
     if Settings.HEADLESS:

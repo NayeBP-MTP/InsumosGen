@@ -1,7 +1,7 @@
 import json
 import os
 from pathlib import Path
-from utils.paths import app_data_dir
+from utils.paths import app_data_dir, imagenes_dir
 
 
 def _load_run_config() -> dict:
@@ -111,11 +111,12 @@ class Settings:
                 return ubicacion
         return ("Puebla", "Puebla")
 
-    LEGALARIO_FRONT_IMAGE_PATH = os.path.join("data", "ine_frente.jpeg")
-    LEGALARIO_BACK_IMAGE_PATH = os.path.join("data", "ine_tras.jpeg")
-    LEGALARIO_SELFIE_IMAGE_PATH = os.path.join("data", "selfie.jpeg")
-    LEGALARIO_SELFIE_VIDEO_PATH = os.path.join("data", "selfie.y4m")
-    COMPROBANTE_DOMICILIO_PATH = os.path.abspath(os.path.join("data", "comprobante.jpeg"))
+    # Imágenes que aporta el usuario (no hay por defecto): <datos>/images, ver utils/paths.imagenes_dir().
+    LEGALARIO_FRONT_IMAGE_PATH = str(imagenes_dir() / "ine_frente.jpeg")
+    LEGALARIO_BACK_IMAGE_PATH = str(imagenes_dir() / "ine_tras.jpeg")
+    LEGALARIO_SELFIE_IMAGE_PATH = str(imagenes_dir() / "selfie.jpeg")
+    LEGALARIO_SELFIE_VIDEO_PATH = str(imagenes_dir() / "selfie.y4m")
+    COMPROBANTE_DOMICILIO_PATH = str(imagenes_dir() / "comprobante.jpeg")
 
     LEGALARIO_ONBOARDING_ID = "69e1305983beb98b360177f9"
     LEGALARIO_ORGANIZATION_ID = "6099a51598cfb21cf25ad42b"

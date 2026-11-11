@@ -1,4 +1,5 @@
 import os
+import shutil
 from pathlib import Path
 
 
@@ -26,4 +27,23 @@ def app_data_dir() -> Path:
     else:
         carpeta = Path(__file__).resolve().parent.parent / "data"
     carpeta.mkdir(parents=True, exist_ok=True)
+    return carpeta
+
+
+# Archivos que el usuario aporta (fotos) o que se generan a partir de ellos (video de la cámara fake).
+ARCHIVOS_IMAGENES = ("ine_frente.jpeg", "ine_tras.jpeg", "selfie.jpeg", "selfie.y4m", "comprobante.jpeg")
+
+
+def imagenes_dir() -> Path:
+    r"""
+    Carpeta de las imágenes de prueba del usuario (`<datos>/images`): INE, selfie, comprobante y el
+    video de la cámara fake. No se entregan imágenes por defecto. Si hay archivos del esquema anterior
+    (directamente en la carpeta de datos), se mueven aquí una sola vez.
+    """
+    carpeta = app_data_dir() / "images"
+    carpeta.mkdir(parents=True, exist_ok=True)
+    for nombre in ARCHIVOS_IMAGENES:
+        antiguo = app_data_dir() / nombre
+        if antiguo.is_file() and not (carpeta / nombre).exists():
+            shutil.move(str(antiguo), str(carpeta / nombre))
     return carpeta

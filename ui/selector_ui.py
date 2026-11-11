@@ -116,31 +116,37 @@ class SelectorUI:
 
     @staticmethod
     def _estado_archivos() -> list:
-        """Checks obligatorios de archivos: [(etiqueta, ok, detalle)]."""
-        selfie = Path(Settings.LEGALARIO_SELFIE_IMAGE_PATH)
-        frente = Path(Settings.LEGALARIO_FRONT_IMAGE_PATH)
-        trasera = Path(Settings.LEGALARIO_BACK_IMAGE_PATH)
-        video = Path(Settings.LEGALARIO_SELFIE_VIDEO_PATH)
+        """Checks obligatorios de archivos: [(etiqueta, ok, detalle)]. Orden fijo: selfie, INE, comprobante, video."""
+        def _lleno(ruta) -> bool:
+            p = Path(ruta)
+            return p.is_file() and p.stat().st_size > 0
 
-        selfie_ok = selfie.is_file() and selfie.stat().st_size > 0
-        ine_ok = all(p.is_file() and p.stat().st_size > 0 for p in (frente, trasera))
-        video_ok = (
-            video.is_file() and video.stat().st_size > 0
-            and selfie_ok and video.stat().st_mtime >= selfie.stat().st_mtime
-        )
+        selfie = Path(Settings.LEGALARIO_SELFIE_IMAGE_PATH)
+        video = Path(Settings.LEGALARIO_SELFIE_VIDEO_PATH)
+        faltan_ine = [
+            lado for lado, ruta in (("frontal", Settings.LEGALARIO_FRONT_IMAGE_PATH),
+                                    ("trasera", Settings.LEGALARIO_BACK_IMAGE_PATH))
+            if not _lleno(ruta)
+        ]
+
+        selfie_ok = _lleno(selfie)
+        ine_ok = not faltan_ine
+        comprobante_ok = _lleno(Settings.COMPROBANTE_DOMICILIO_PATH)
+        video_ok = _lleno(video) and selfie_ok and video.stat().st_mtime >= selfie.stat().st_mtime
         if video_ok:
             video_detalle = ""
         elif not video.is_file():
-            video_detalle = "Falta generarlo: python utils/generate_fake_camera_video.py"
+            video_detalle = "Falta generarlo con el botón de abajo" if selfie_ok else "Requiere primero la foto de frente"
         elif not selfie_ok:
             video_detalle = "Requiere primero la foto de frente"
         else:
             video_detalle = "Es anterior a la foto de frente; vuelve a generarlo"
         return [
-            ("Foto de frente cargada (data/selfie.jpeg)", selfie_ok,
-             "" if selfie_ok else "Falta data/selfie.jpeg"),
+            ("Foto de frente (selfie) cargada", selfie_ok, "" if selfie_ok else "Súbela con el botón de abajo"),
             ("Foto INE frontal y trasera cargadas", ine_ok,
-             "" if ine_ok else "Faltan data/ine_frente.jpeg y/o data/ine_tras.jpeg"),
+             "" if ine_ok else "Falta la INE " + " y la INE ".join(faltan_ine)),
+            ("Comprobante de domicilio cargado", comprobante_ok,
+             "" if comprobante_ok else "Súbelo con el botón de abajo"),
             ("Video generado a partir de la foto de frente", video_ok, video_detalle),
         ]
 
@@ -1026,11 +1032,9 @@ class SelectorUI:
         dialog.transient(self.root)
         dialog.grab_set()
 
-        width, height = 440, 720
-        self.root.update_idletasks()
-        x = self.root.winfo_x() + (self.root.winfo_width() - width) // 2
-        y = self.root.winfo_y() + (self.root.winfo_height() - height) // 2
-        dialog.geometry(f"{width}x{height}+{x}+{y}")
+        # Solo se fija el ancho (con un espaciador): el alto lo da el contenido, así no sobra espacio
+        # en blanco y la ventana crece si aparecen detalles o errores. Se centra al final.
+        tk.Frame(dialog, width=440, height=0, bg=BG).pack()
 
         tk.Label(
             dialog, text="Ajustes de usuario (valores por defecto)", font=FONT_TITLE, bg=BG,
@@ -1140,7 +1144,7 @@ class SelectorUI:
             for child in checks_frame.winfo_children():
                 child.destroy()
             estado = self._estado_archivos()
-            selfie_ok, video_ok = estado[0][1], estado[2][1]
+            selfie_ok, video_ok = estado[0][1], estado[3][1]
             generando = gen["proc"] is not None
             for i, (etiqueta, ok, detalle) in enumerate(estado):
                 tk.Label(
@@ -1163,6 +1167,9 @@ class SelectorUI:
                         Settings.LEGALARIO_FRONT_IMAGE_PATH, "INE frontal"))
                     _boton(fila, "Subir INE trasera…", lambda: _subir(
                         Settings.LEGALARIO_BACK_IMAGE_PATH, "INE trasera"))
+                elif i == 2:
+                    _boton(fila, "Subir comprobante de domicilio…", lambda: _subir(
+                        Settings.COMPROBANTE_DOMICILIO_PATH, "Comprobante de domicilio"))
                 else:
                     if generando:
                         texto = "Generando video…"
@@ -1236,6 +1243,12 @@ class SelectorUI:
             cursor="hand2",
             command=_save
         ).pack()
+
+        self.root.update_idletasks()
+        dialog.update_idletasks()
+        x = self.root.winfo_x() + (self.root.winfo_width() - dialog.winfo_reqwidth()) // 2
+        y = self.root.winfo_y() + (self.root.winfo_height() - dialog.winfo_reqheight()) // 2
+        dialog.geometry(f"+{max(x, 0)}+{max(y, 0)}")
 
         celular_entry.focus_set()
         dialog.wait_window()
