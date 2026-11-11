@@ -4,6 +4,7 @@ import re
 import subprocess
 import sys
 import tkinter as tk
+import webbrowser
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
@@ -21,6 +22,7 @@ from ui.history_ui import open_history_dialog
 from utils.catalog_db import CatalogDB
 from utils.vpn_check import verificar_vpn
 from utils.paths import app_data_dir
+from utils.prereqs import faltantes as prerrequisitos_faltantes
 from utils.procesos import python_ejecutable
 
 
@@ -111,9 +113,31 @@ class SelectorUI:
         self._agregar_fila_venta()
         self._lock_window_size()
         self._actualizar_gate_ajustes()
+        # Al volver a la ventana se reevalúa el gate: así se libera solo tras instalar Chrome o el driver.
+        self.root.bind("<FocusIn>", self._al_enfocar)
         # Si falta algo obligatorio, abre las ventanas necesarias una tras otra (tras mostrar la ventana).
         if self._pasos_de_arranque():
             self.root.after(300, self._primer_arranque)
+
+    def _al_enfocar(self, event):
+        if event.widget is self.root:
+            self._actualizar_gate_ajustes()
+
+    def _prerrequisitos_pendientes(self) -> list:
+        """Programas externos (Chrome, driver ODBC) que faltan en este equipo."""
+        return prerrequisitos_faltantes()
+
+    def _avisar_prerrequisitos(self):
+        """Avisa de lo que falta instalar y ofrece abrir las páginas de descarga."""
+        faltan = self._prerrequisitos_pendientes()
+        if not faltan:
+            return
+        texto = ("Para usar InsumosGen necesitas instalar:\n\n"
+                 + "\n\n".join(f"• {p.nombre}\n  {p.detalle}" for p in faltan)
+                 + "\n\n¿Quieres abrir las páginas de descarga?")
+        if messagebox.askyesno("Faltan programas por instalar", texto, parent=self.root):
+            for p in faltan:
+                webbrowser.open(p.url)
 
     def _conexiones_pendientes(self) -> list:
         """Hosts que toda corrida necesita y aún no están configurados (sin almacén seguro: todos)."""
@@ -123,8 +147,10 @@ class SelectorUI:
             return list(HOSTS_ARRANQUE)
 
     def _pasos_de_arranque(self) -> list:
-        """Ventanas que hay que abrir al iniciar, en este orden: 'conexiones' y después 'ajustes'."""
+        """Ventanas que hay que abrir al iniciar, en este orden: 'prerrequisitos', 'conexiones' y 'ajustes'."""
         pasos = []
+        if self._prerrequisitos_pendientes():
+            pasos.append("prerrequisitos")
         if self._conexiones_pendientes():
             pasos.append("conexiones")
         if not self._ajustes_completos()[0]:
@@ -134,7 +160,9 @@ class SelectorUI:
     def _primer_arranque(self):
         """Abre, una tras otra, las ventanas de lo que falta; el gate de la pantalla principal sigue bloqueado hasta completarlo."""
         for paso in self._pasos_de_arranque():
-            if paso == "conexiones":
+            if paso == "prerrequisitos":
+                self._avisar_prerrequisitos()
+            elif paso == "conexiones":
                 open_connections_dialog(
                     self.root, self.credenciales, hosts=HOSTS_ARRANQUE,
                     mensaje="Para empezar necesitas la conexión a la base de datos de Pesos_Offer (botDB y "
@@ -205,13 +233,15 @@ class SelectorUI:
         """Bloquea la elección de insumo mientras falten conexiones o ajustes de usuario."""
         ok, motivos = self._ajustes_completos()
         conexiones = self._conexiones_pendientes()
-        if ok and not conexiones:
+        programas = self._prerrequisitos_pendientes()
+        if ok and not conexiones and not programas:
             self.ajustes_aviso.pack_forget()
             self.insumo_combo.configure(state="readonly")
             return
-        pendientes = [f"Conexión {HOSTS_BD[h].titulo}" for h in conexiones] + motivos
+        pendientes = [f"Instalar {p.nombre}" for p in programas]
+        pendientes += [f"Conexión {HOSTS_BD[h].titulo}" for h in conexiones] + motivos
         self.ajustes_aviso.configure(
-            text="⚠ Completa lo pendiente (🔌 Conexiones, ⚙ Ajustes) para continuar.\nPendiente: "
+            text="⚠ Completa lo pendiente para continuar (🔌 Conexiones, ⚙ Ajustes o instala lo que falta).\nPendiente: "
                  + ", ".join(pendientes)
         )
         self.ajustes_aviso.pack(fill="x", pady=(0, 8), before=self.insumo_combo)
@@ -1332,6 +1362,14 @@ class SelectorUI:
             return False
 
     def _on_confirm(self):
+        faltan = self._prerrequisitos_pendientes()
+        if faltan:
+            messagebox.showerror(
+                "Faltan programas por instalar",
+                "No se puede iniciar la ejecución. Instala:\n\n  • " + "\n  • ".join(p.nombre for p in faltan),
+            )
+            self._actualizar_gate_ajustes()
+            return
         ajustes_ok, pendientes = self._ajustes_completos()
         if not ajustes_ok:
             messagebox.showwarning(

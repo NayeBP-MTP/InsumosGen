@@ -7,6 +7,7 @@ from config.credentials import ConnectionSettings, CredentialStore
 from services.connection_gate import HOSTS_ARRANQUE
 from tests.test_credentials import FakeKeyring
 from ui import selector_ui
+from utils import prereqs
 
 
 @pytest.fixture
@@ -21,6 +22,8 @@ def ui(tmp_path, monkeypatch):
     monkeypatch.setattr(selector_ui, "CredentialStore", lambda: almacen)
     monkeypatch.setattr(selector_ui, "ENV_LEGADO", tmp_path / "no_existe.env")
     monkeypatch.setattr(selector_ui, "USER_SETTINGS_PATH", tmp_path / "user_settings.json")
+    # Chrome y el driver ODBC "instalados" por defecto, para no depender de la máquina que corre la prueba.
+    monkeypatch.setattr(selector_ui, "prerrequisitos_faltantes", lambda: [])
     selector = selector_ui.SelectorUI(config_path=tmp_path / "run_config.json")
     selector.almacen = almacen
     yield selector
@@ -118,3 +121,81 @@ def test_el_gate_se_libera_al_completar_conexiones_y_ajustes(ui, monkeypatch):
     ui._actualizar_gate_ajustes()
 
     assert str(ui.insumo_combo.cget("state")) == "readonly"
+
+
+CHROME_FALTA = prereqs.Prerrequisito("Google Chrome", False, "No se encontró Google Chrome.", "https://chrome.test")
+DRIVER_FALTA = prereqs.Prerrequisito("ODBC Driver", False, "No se encontró el driver.", "https://odbc.test")
+
+
+def test_los_programas_faltantes_se_avisan_antes_que_las_conexiones_y_los_ajustes(ui, monkeypatch):
+    monkeypatch.setattr(selector_ui, "prerrequisitos_faltantes", lambda: [CHROME_FALTA])
+
+    assert ui._pasos_de_arranque() == ["prerrequisitos", "conexiones", "ajustes"]
+
+
+def test_primer_arranque_avisa_de_los_programas_y_luego_sigue_con_el_resto(ui, monkeypatch):
+    monkeypatch.setattr(selector_ui, "prerrequisitos_faltantes", lambda: [CHROME_FALTA])
+    abiertas = []
+    monkeypatch.setattr(ui, "_avisar_prerrequisitos", lambda: abiertas.append("prerrequisitos"))
+    monkeypatch.setattr(selector_ui, "open_connections_dialog", lambda *a, **k: abiertas.append("conexiones"))
+    monkeypatch.setattr(ui, "_open_settings_dialog", lambda: abiertas.append("ajustes"))
+
+    ui._primer_arranque()
+
+    assert abiertas == ["prerrequisitos", "conexiones", "ajustes"]
+
+
+def test_el_aviso_ofrece_abrir_las_descargas(ui, monkeypatch):
+    monkeypatch.setattr(selector_ui, "prerrequisitos_faltantes", lambda: [CHROME_FALTA, DRIVER_FALTA])
+    mensajes, abiertas = [], []
+    monkeypatch.setattr(selector_ui.messagebox, "askyesno", lambda titulo, texto, **k: mensajes.append(texto) or True)
+    monkeypatch.setattr(selector_ui.webbrowser, "open", abiertas.append)
+
+    ui._avisar_prerrequisitos()
+
+    assert abiertas == ["https://chrome.test", "https://odbc.test"]
+    assert "Google Chrome" in mensajes[0] and "No se encontró el driver." in mensajes[0]
+
+
+def test_si_se_rechaza_el_aviso_no_se_abre_nada(ui, monkeypatch):
+    monkeypatch.setattr(selector_ui, "prerrequisitos_faltantes", lambda: [CHROME_FALTA])
+    abiertas = []
+    monkeypatch.setattr(selector_ui.messagebox, "askyesno", lambda *a, **k: False)
+    monkeypatch.setattr(selector_ui.webbrowser, "open", abiertas.append)
+
+    ui._avisar_prerrequisitos()
+
+    assert abiertas == []
+
+
+def test_sin_programas_faltantes_no_hay_aviso(ui, monkeypatch):
+    monkeypatch.setattr(selector_ui.messagebox, "askyesno", lambda *a, **k: (_ for _ in ()).throw(AssertionError()))
+
+    ui._avisar_prerrequisitos()
+
+
+def test_el_gate_pide_instalar_lo_que_falta_y_se_libera_al_instalarlo(ui, monkeypatch):
+    _completar_conexiones(ui)
+    _completar_ajustes(ui, monkeypatch)
+    faltan = [CHROME_FALTA]
+    monkeypatch.setattr(selector_ui, "prerrequisitos_faltantes", lambda: list(faltan))
+
+    ui._actualizar_gate_ajustes()
+    assert str(ui.insumo_combo.cget("state")) == "disabled"
+    assert "Instalar Google Chrome" in ui.ajustes_aviso.cget("text")
+
+    faltan.clear()  # el usuario instaló Chrome y volvió a la ventana
+    ui._al_enfocar(type("Evento", (), {"widget": ui.root})())
+
+    assert str(ui.insumo_combo.cget("state")) == "readonly"
+
+
+def test_confirmar_sin_los_programas_no_inicia_la_ejecucion(ui, monkeypatch):
+    monkeypatch.setattr(selector_ui, "prerrequisitos_faltantes", lambda: [DRIVER_FALTA])
+    errores = []
+    monkeypatch.setattr(selector_ui.messagebox, "showerror", lambda titulo, texto, **k: errores.append(texto))
+
+    ui._on_confirm()
+
+    assert "ODBC Driver" in errores[0]
+    assert ui.confirmed is False
