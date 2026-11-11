@@ -52,6 +52,7 @@ Source: "{#StageDir}\*"; DestDir: "{app}\app"; Flags: recursesubdirs createallsu
 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\runtime\venv\Scripts\pythonw.exe"; Parameters: """{app}\app\launch.pyw"""; WorkingDir: "{app}\app"
+Name: "{autoprograms}\Reparar {#AppName}"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""& '{app}\app\installer\bootstrap.ps1' -InstallDir '{app}'; Read-Host 'Presiona Enter para cerrar'"""; Comment: "Vuelve a preparar Python y las librerías"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\runtime\venv\Scripts\pythonw.exe"; Parameters: """{app}\app\launch.pyw"""; WorkingDir: "{app}\app"
 
 [Run]

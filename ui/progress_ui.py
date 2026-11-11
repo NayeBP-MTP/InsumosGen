@@ -43,7 +43,7 @@ class ProgressUI:
         DISABLED_BG = "#90a4ae"  # gris azulado: distingue "inactivo" sin ocultar el texto
         self.DISABLED_BG = DISABLED_BG
         self.root = tk.Tk()
-        self.root.title("Providigital — Ejecución en curso")
+        self.root.title("InsumosGen — Ejecución en curso")
         self.root.configure(bg=BG)
         self.root.protocol("WM_DELETE_WINDOW", lambda: None)  # solo se cierra al terminar
 

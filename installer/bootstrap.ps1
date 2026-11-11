@@ -144,8 +144,9 @@ function Read-State {
 }
 
 function Write-State([string]$pythonVersion, [string]$hash) {
+    $previo = Read-State
     $estado = [ordered]@{
-        appVersion         = $AppVersion
+        appVersion         = if ($AppVersion) { $AppVersion } elseif ($previo -and $previo.appVersion) { $previo.appVersion } else { '' }
         pythonVersion      = $pythonVersion
         requirementsSha256 = $hash
         bootstrapVersion   = $BootstrapVersion

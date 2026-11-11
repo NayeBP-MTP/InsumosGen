@@ -24,6 +24,9 @@ def ui(tmp_path, monkeypatch):
     monkeypatch.setattr(selector_ui, "USER_SETTINGS_PATH", tmp_path / "user_settings.json")
     # Chrome y el driver ODBC "instalados" por defecto, para no depender de la máquina que corre la prueba.
     monkeypatch.setattr(selector_ui, "prerrequisitos_faltantes", lambda: [])
+    # Sin consultas reales a GitHub desde las pruebas.
+    monkeypatch.setattr(selector_ui.updater, "comprobar_al_arrancar", lambda: None)
+    monkeypatch.setattr(selector_ui.updater, "cerrar_actualizacion", lambda: None)
     selector = selector_ui.SelectorUI(config_path=tmp_path / "run_config.json")
     selector.almacen = almacen
     yield selector

@@ -1,8 +1,10 @@
 import json
 import math
 import re
+import os
 import subprocess
 import sys
+import threading
 import tkinter as tk
 import webbrowser
 from pathlib import Path
@@ -19,11 +21,13 @@ from config.sucursales import SUCURSALES, get_sucursal_by_nombre
 from services.connection_gate import HOSTS_ARRANQUE, HOSTS_BD, hosts_requeridos, hosts_sin_configurar, probar_hosts
 from ui.conexiones_ui import open_connections_dialog
 from ui.history_ui import open_history_dialog
+from utils import updater
 from utils.catalog_db import CatalogDB
 from utils.vpn_check import verificar_vpn
 from utils.paths import app_data_dir
 from utils.prereqs import faltantes as prerrequisitos_faltantes
 from utils.procesos import python_ejecutable
+from version import __version__
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -73,7 +77,7 @@ class SelectorUI:
         self.config_path = config_path or RUN_CONFIG_PATH
 
         self.root = tk.Tk()
-        self.root.title("Providigital — Configuración de Ejecución")
+        self.root.title(f"InsumosGen v{__version__} — Configuración de Ejecución")
         self.root.resizable(False, False)
         self._icon_img = self._make_snowflake_icon()
         self.root.iconphoto(True, self._icon_img)
@@ -116,8 +120,11 @@ class SelectorUI:
         # Al volver a la ventana se reevalúa el gate: así se libera solo tras instalar Chrome o el driver.
         self.root.bind("<FocusIn>", self._al_enfocar)
         # Si falta algo obligatorio, abre las ventanas necesarias una tras otra (tras mostrar la ventana).
-        if self._pasos_de_arranque():
+        self._dialogos_arranque = bool(self._pasos_de_arranque())
+        if self._dialogos_arranque:
             self.root.after(300, self._primer_arranque)
+        self.root.after(500, self._tras_actualizar)
+        self._iniciar_comprobacion_arranque()
 
     def _al_enfocar(self, event):
         if event.widget is self.root:
@@ -171,7 +178,119 @@ class SelectorUI:
                 )
             else:
                 self._open_settings_dialog()
+        self._dialogos_arranque = False
         self._actualizar_gate_ajustes()
+
+    # --- Actualizaciones ---------------------------------------------------------------------------------
+
+    def _iniciar_comprobacion_arranque(self):
+        """Consulta GitHub en un hilo (una vez por arranque de la app); el aviso sale sin pisar otras ventanas."""
+        self._resultado_arranque = None
+        self._comprobacion_lista = False
+
+        def _trabajo():
+            self._resultado_arranque = updater.comprobar_al_arrancar()
+            self._comprobacion_lista = True
+
+        threading.Thread(target=_trabajo, daemon=True).start()
+        self.root.after(1000, self._esperar_comprobacion_arranque)
+
+    def _esperar_comprobacion_arranque(self):
+        if not self._comprobacion_lista or self._dialogos_arranque:
+            self.root.after(500, self._esperar_comprobacion_arranque)
+            return
+        resultado = self._resultado_arranque
+        if resultado and resultado.hay_nueva:
+            self._ofrecer_actualizacion(resultado, self.root)
+
+    def _tras_actualizar(self):
+        """Si la app acaba de actualizarse (o la actualización falló y se restauró), lo avisa y limpia app.old."""
+        resultado = updater.cerrar_actualizacion()
+        if not resultado:
+            return
+        if resultado.get("ok"):
+            messagebox.showinfo("InsumosGen", resultado.get("mensaje", "Actualización completada."), parent=self.root)
+        else:
+            messagebox.showwarning(
+                "No se pudo actualizar",
+                resultado.get("mensaje", "La actualización falló.") + "\n\nSigues con tu versión anterior. "
+                "Puedes descargar el instalador nuevo desde " + updater.URL_RELEASES, parent=self.root)
+
+    def _ofrecer_actualizacion(self, resultado, parent):
+        """Muestra las notas de la versión nueva y, si el usuario acepta, la instala (o abre la descarga)."""
+        notas = resultado.notas if len(resultado.notas) <= 700 else resultado.notas[:700].rstrip() + "…"
+        cuerpo = (f"Hay una versión nueva de InsumosGen: {resultado.version_nueva} "
+                  f"(tienes la {resultado.version_actual}).\n\n" + (notas + "\n\n" if notas else ""))
+        if resultado.puede_actualizar_solo:
+            if messagebox.askyesno(
+                    "Actualización disponible",
+                    cuerpo + "¿Actualizar ahora? La app se cerrará y volverá a abrirse sola.", parent=parent):
+                self._instalar_actualizacion(resultado, parent)
+        elif messagebox.askyesno("Actualización disponible", cuerpo + "¿Abrir la página de descarga?", parent=parent):
+            webbrowser.open(resultado.url_setup or resultado.url_pagina)
+
+    def _instalar_actualizacion(self, resultado, parent):
+        """Descarga y prepara la versión nueva (con una ventana de avance) y cierra la app para que update.py la aplique."""
+        instalacion = updater.carpeta_instalacion()
+        if instalacion is None:
+            webbrowser.open(resultado.url_pagina)
+            return
+
+        ventana = tk.Toplevel(parent)
+        ventana.title("Actualizando")
+        ventana.resizable(False, False)
+        ventana.transient(parent)
+        ventana.grab_set()
+        ventana.protocol("WM_DELETE_WINDOW", lambda: None)  # no se cierra a media descarga
+        tk.Label(ventana, text=f"Descargando la versión {resultado.version_nueva}…", font=("Segoe UI", 10),
+                 padx=30, pady=14).pack()
+        barra = ttk.Progressbar(ventana, length=280, mode="indeterminate")
+        barra.pack(padx=30, pady=(0, 18))
+        barra.start(15)
+
+        estado = {"hecho": 0, "total": 0, "fin": False, "error": None}
+
+        def _trabajo():
+            try:
+                updater.descargar_actualizacion(
+                    resultado, instalacion, progreso=lambda h, t: estado.update(hecho=h, total=t))
+            except Exception as e:
+                estado["error"] = e
+            estado["fin"] = True
+
+        threading.Thread(target=_trabajo, daemon=True).start()
+
+        def _sondear():
+            if not estado["fin"]:
+                if estado["total"] and str(barra.cget("mode")) == "indeterminate":
+                    barra.stop()
+                    barra.config(mode="determinate", maximum=estado["total"])
+                if estado["total"]:
+                    barra["value"] = estado["hecho"]
+                ventana.after(150, _sondear)
+                return
+            ventana.destroy()
+            error = estado["error"]
+            if error is None:
+                try:
+                    updater.lanzar_actualizacion(instalacion, os.getpid())
+                except OSError as e:
+                    messagebox.showerror("No se pudo actualizar", f"No se pudo iniciar la actualización ({e}).",
+                                         parent=parent)
+                    return
+                sys.exit(0)  # update.py espera a que este proceso termine para cambiar la carpeta app
+            if isinstance(error, updater.PythonNuevoError):
+                if messagebox.askyesno("Actualización disponible", f"{error}\n\n¿Abrir la página de descarga?",
+                                       parent=parent):
+                    webbrowser.open(resultado.url_setup or resultado.url_pagina)
+            else:
+                messagebox.showerror(
+                    "No se pudo actualizar",
+                    f"{error}\n\nPuedes descargar el instalador manualmente desde {updater.URL_RELEASES}",
+                    parent=parent)
+
+        ventana.after(150, _sondear)
+        ventana.wait_window()
 
     def _abrir_conexiones(self):
         """Botón 🔌: abre todas las conexiones y refresca el gate (puede completar lo que faltaba)."""
@@ -1255,6 +1374,59 @@ class SelectorUI:
             form, text="", font=("Segoe UI", 8), bg=BG, fg="#c62828", wraplength=350, justify="left"
         )
         error_label.pack(fill="x", pady=(4, 0))
+
+        tk.Frame(form, height=1, bg="#d0d0d0").pack(fill="x", pady=(12, 6))
+        fila_version = tk.Frame(form, bg=BG)
+        fila_version.pack(fill="x")
+        tk.Label(fila_version, text=f"InsumosGen v{__version__}", font=("Segoe UI", 9, "bold"), bg=BG).pack(side="left")
+        boton_buscar = tk.Button(
+            fila_version, text="Buscar actualizaciones", font=("Segoe UI", 8), relief="flat", bg="#e3f2fd",
+            cursor="hand2")
+        boton_buscar.pack(side="right")
+        resultado_frame = tk.Frame(form, bg=BG)
+        resultado_frame.pack(fill="x", pady=(4, 0))
+
+        def _mostrar_resultado(texto, color="#424242", resultado=None, enlace=None):
+            for hijo in resultado_frame.winfo_children():
+                hijo.destroy()
+            tk.Label(resultado_frame, text=texto, font=("Segoe UI", 8), bg=BG, fg=color, wraplength=350,
+                     justify="left", anchor="w").pack(fill="x")
+            if resultado is not None:
+                tk.Button(
+                    resultado_frame, text="Actualizar" if resultado.puede_actualizar_solo else "Ver descarga",
+                    font=("Segoe UI", 8, "bold"), relief="flat", bg=ACCENT, fg="white", cursor="hand2",
+                    command=lambda: self._ofrecer_actualizacion(resultado, dialog)).pack(anchor="w", pady=(4, 0))
+            if enlace:
+                tk.Button(resultado_frame, text="Ver releases", font=("Segoe UI", 8), relief="flat", bg="#e3f2fd",
+                          cursor="hand2", command=lambda: webbrowser.open(enlace)).pack(anchor="w", pady=(4, 0))
+
+        def _buscar():
+            boton_buscar.config(state="disabled")
+            _mostrar_resultado("Buscando…")
+            salida = {}
+
+            def _trabajo():
+                salida["res"] = updater.comprobar()
+
+            hilo = threading.Thread(target=_trabajo, daemon=True)
+            hilo.start()
+
+            def _sondear():
+                if hilo.is_alive():
+                    dialog.after(100, _sondear)
+                    return
+                boton_buscar.config(state="normal")
+                res = salida["res"]
+                if res.hay_nueva:
+                    _mostrar_resultado(f"Hay una versión nueva: {res.version_nueva}.", "#1565C0", resultado=res)
+                elif res.estado == updater.ESTADO_AL_DIA:
+                    _mostrar_resultado("Estás al día.", "#2e7d32")
+                else:
+                    _mostrar_resultado(res.mensaje, "#c62828", enlace=updater.URL_RELEASES)
+
+            dialog.after(100, _sondear)
+
+        boton_buscar.config(command=_buscar)
 
         def _save():
             celular = celular_entry.get().strip()
