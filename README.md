@@ -31,7 +31,6 @@ InsumosGen/
 │   ├── login_page.py
 │   ├── legalario_page.py
 │   └── prestamo_personal_page.py
-├── screenshots/
 ├── services/
 │   ├── image_encoder.py
 │   ├── legalario_auth_resolver.py
@@ -254,6 +253,9 @@ Las capturas se generan automáticamente en cada paso importante del flujo y se 
 Después de ejecutar la prueba, lanza:
 
 ```bash
+# Corridas lanzadas con run.py / la UI (en desarrollo; instalada: %LOCALAPPDATA%\InsumosGen\allure-results)
+allure serve data/allure-results
+# Corridas de pytest directo con --alluredir=allure-results
 allure serve allure-results
 ```
 

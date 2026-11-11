@@ -187,7 +187,7 @@ Administrador de credenciales de Windows     contraseñas (servicio `InsumosGen`
   - Documentos: título y árbol de carpetas de `README.md`, `CODEBASE_ANALYSIS.md`, `ESPECIFICACIONES.md`, `config/Context/REGLAS_DE_NEGOCIO.md`, `PLAN_IMPLEMENTACIONES.md` y `CLAUDE.md` si aplica.
   - Comprobar con `grep -rIn "Providigital_Ventas\|ProvidigitalVentas\|Providigital Ventas"` que no queda nada (la carpeta `InsumosGen/` del repo, con los generadores SQL, no tiene relación con el nombre de la app). Renombrar la carpeta local del clon es opcional.
 - [x] **5.1** `version.py` con `__version__ = "1.0.0"` (única fuente; la leen el updater, la ventana, el script de build y el instalador).
-- [ ] **5.2** Rutas y modo instalado:
+- [x] **5.2** Rutas y modo instalado:
   - `app_data_dir()` (ya existe) pasa de `sys.frozen` a la variable `INSUMOSGEN_INSTALADO`; en desarrollo sigue siendo `<repo>/data`.
   - Migrar el resto de rutas escribibles a `app_data_dir()`: `run_config*.json`, `run_results*.json`, `run_progress*.jsonl`, `user_settings.json`, las SQLite (`catalog`, `generated_*`), historial, `allure-results`, `screenshots`, `diag_comprobante.html`.
   - Archivos a tocar (lista de `grep -rn '"data/\|Path("data'`): `config/settings.py`, `run.py`, `ui/selector_ui.py`, `utils/progress.py`, `utils/run_history.py`, `utils/catalog_db.py`, `utils/*_allocator.py`, `conftest.py`, `pages/prestamo_personal_page.py`.

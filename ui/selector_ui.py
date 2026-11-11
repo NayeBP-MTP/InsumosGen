@@ -19,9 +19,10 @@ from ui.conexiones_ui import open_connections_dialog
 from ui.history_ui import open_history_dialog
 from utils.catalog_db import CatalogDB
 from utils.vpn_check import verificar_vpn
+from utils.paths import app_data_dir
 
 
-RUN_CONFIG_PATH = Path("data/run_config.json")
+RUN_CONFIG_PATH = app_data_dir() / "run_config.json"
 ENV_LEGADO = Path(__file__).resolve().parents[1] / ".env"
 INSUMOS = [
     ("OF", "Oferta (solo inserción en BD)"),
@@ -39,7 +40,7 @@ NIVELES_PRECIO = [
     ("PP25", "PP25"),
 ]
 INSUMO_PLACEHOLDER = "Selecciona una opción"
-USER_SETTINGS_PATH = Path("data/user_settings.json")
+USER_SETTINGS_PATH = app_data_dir() / "user_settings.json"
 DEFAULT_CELULAR = "5513096751"
 DEFAULT_CORREO = "luis.andrade@mtpinternational.mx"
 EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")

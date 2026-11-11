@@ -1,5 +1,4 @@
 import json
-import sys
 
 import pytest
 from keyring.errors import NoKeyringError, PasswordDeleteError
@@ -12,7 +11,7 @@ from config.credentials import (
     CredentialStore,
     EstrellaCredentials,
 )
-from utils.paths import APP_NAME, app_data_dir
+from utils.paths import APP_NAME, ENV_INSTALADA, app_data_dir
 
 
 class FakeKeyring:
@@ -166,11 +165,22 @@ def test_app_data_dir_desde_codigo_fuente_es_data_del_repo():
     assert app_data_dir().name == "data"
 
 
-def test_app_data_dir_congelado_usa_localappdata(monkeypatch, tmp_path):
-    monkeypatch.setattr(sys, "frozen", True, raising=False)
+def test_app_data_dir_instalada_usa_localappdata(monkeypatch, tmp_path):
+    monkeypatch.setenv(ENV_INSTALADA, "1")
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
 
     carpeta = app_data_dir()
 
     assert carpeta == tmp_path / APP_NAME
     assert carpeta.is_dir()
+
+
+def test_el_nombre_de_la_carpeta_de_datos_es_insumosgen():
+    assert APP_NAME == "InsumosGen"
+
+
+def test_las_rutas_de_datos_siguen_a_app_data_dir_en_desarrollo():
+    from utils import catalog_db, run_history
+
+    assert catalog_db.DB_PATH.parent == app_data_dir()
+    assert run_history.HISTORY_PATH.parent == app_data_dir()

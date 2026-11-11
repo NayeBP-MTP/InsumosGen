@@ -12,6 +12,7 @@ from ui.results_ui import ResultsUI
 from ui.selector_ui import SelectorUI
 from utils.progress import Progress
 from utils.run_history import RunHistory
+from utils.paths import app_data_dir
 
 
 def _matar_arbol_proceso(pid: int) -> None:
@@ -93,7 +94,7 @@ ORDEN_TIPOS = ["OF", "CF", "CN", "AGENCIA"]
 # su propio aislamiento por lote (`run_id`); esto cubre lo que faltaba.
 PROCESO_ID = str(os.getpid())
 
-CONFIG_PATH = Path(f"data/run_config_{PROCESO_ID}.json")
+CONFIG_PATH = app_data_dir() / f"run_config_{PROCESO_ID}.json"
 
 
 def _config_path(run_id: str = None) -> Path:
@@ -101,20 +102,20 @@ def _config_path(run_id: str = None) -> Path:
     propia agencia), cada uno escribe/lee su propio archivo en vez de pisar el
     config.json global — así varios lotes del mismo tipo (ej. dos lotes CN) no se
     pisan entre sí, incluso si en el futuro se lanzan concurrentemente."""
-    return Path(f"data/run_config_{run_id}.json") if run_id else CONFIG_PATH
+    return app_data_dir() / f"run_config_{run_id}.json" if run_id else CONFIG_PATH
 
 
 def _results_path(tipo: str, run_id: str = None) -> Path:
     """Resultados de esta fase. Sin `run_id` (OF/AGENCIA), se usa PROCESO_ID como
     sufijo — antes era una ruta fija compartida por tipo, y dos ventanas de
     run.py haciendo OF/AGENCIA a la vez podían leer el resultado de la otra."""
-    return Path(f"data/run_results_{tipo.lower()}_{run_id or PROCESO_ID}.json")
+    return app_data_dir() / f"run_results_{tipo.lower()}_{run_id or PROCESO_ID}.json"
 
 
 def _resumen_error(error: str) -> str:
     """Primera línea útil del error (sin el stacktrace de chromedriver)."""
     primera = (error or "").strip().splitlines()[0] if error else ""
-    primera = primera.replace("Message:", "").strip() or "Falló (ver logs / data/diagnostico_cf)"
+    primera = primera.replace("Message:", "").strip() or "Falló (ver logs / carpeta diagnostico_cf de los datos de la app)"
     return primera[:90]
 
 
@@ -198,7 +199,7 @@ def _ejecutar_fase(
         [
             sys.executable, "-m", "pytest",
             TEST_FILE_BY_TIPO_CLIENTE[tipo],
-            "--alluredir=allure-results",
+            f"--alluredir={app_data_dir() / 'allure-results'}",
             "-s", "-v"
         ],
         cwd=Path(__file__).parent,
@@ -391,7 +392,7 @@ def _ejecutar_ronda(
 def main():
     # Propio para este proceso (ver PROCESO_ID): dos ventanas de `python run.py`
     # corriendo a la vez ya no comparten ni se truncan el canal de progreso.
-    Progress.set_path(f"data/run_progress_{PROCESO_ID}.jsonl")
+    Progress.set_path(str(app_data_dir() / f"run_progress_{PROCESO_ID}.jsonl"))
 
     while True:
         ui = SelectorUI(config_path=CONFIG_PATH)

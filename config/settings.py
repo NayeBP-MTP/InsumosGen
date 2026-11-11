@@ -1,6 +1,7 @@
 import json
 import os
 from pathlib import Path
+from utils.paths import app_data_dir
 
 
 def _load_run_config() -> dict:
@@ -8,7 +9,7 @@ def _load_run_config() -> dict:
     # (p. ej. un lote de venta con su propia agencia) vía esta variable de entorno,
     # en vez de siempre leer data/run_config.json. Si no está definida, se mantiene
     # el comportamiento de siempre (una sola config global).
-    config_path = Path(os.environ.get("PROVIDIGITAL_RUN_CONFIG_PATH", "data/run_config.json"))
+    config_path = Path(os.environ.get("PROVIDIGITAL_RUN_CONFIG_PATH", app_data_dir() / "run_config.json"))
     if config_path.exists():
         return json.loads(config_path.read_text(encoding="utf-8"))
     return {}

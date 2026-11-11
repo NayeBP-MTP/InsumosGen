@@ -17,6 +17,7 @@ import allure
 from config.settings import Settings
 from utils.allure_utils import ensure_dir, take_step_screenshot
 from utils.progress import Progress
+from utils.paths import app_data_dir
 
 
 # Cada `with allure.step("...")` también se reporta a la ventana de progreso.
@@ -106,7 +107,7 @@ def screenshots_dir():
     # segundo (p. ej. lotes de venta ejecutados uno detrás de otro muy rápido,
     # o en paralelo a futuro) comparan la misma carpeta de screenshots.
     folder = os.path.join(
-        os.getcwd(),
+        str(app_data_dir()),
         "screenshots",
         datetime.now().strftime("run_%Y%m%d_%H%M%S") + f"_{os.getpid()}"
     )
@@ -216,7 +217,7 @@ def pytest_runtest_makereport(item, call):
 
     if report.when == "call" and report.failed:
         driver = item.funcargs.get("driver")
-        screenshots_dir = getattr(item, "screenshots_dir", "screenshots")
+        screenshots_dir = getattr(item, "screenshots_dir", str(app_data_dir() / "screenshots"))
         if driver:
             try:
                 take_step_screenshot(driver, f"error_{item.name}", screenshots_dir, force=True)

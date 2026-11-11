@@ -43,8 +43,9 @@ pytest tests/test_oferta.py --alluredir=allure-results      # OF (solo inserta o
 # Un solo test (cada archivo define una única clase/test end-to-end)
 pytest tests/test_login_cf.py::TestLoginProvidentCF::test_login_exitoso_cf -s -v
 
-# Ver el reporte
-allure serve allure-results
+# Ver el reporte (lo que genera run.py queda en la carpeta de datos: <repo>/data/allure-results en
+# desarrollo, %LOCALAPPDATA%\InsumosGen\allure-results con la app instalada)
+allure serve data/allure-results
 ```
 
 No hay linter ni type-checker configurado en el proyecto.
