@@ -15,24 +15,34 @@ from services.connection_tester import ConnectionTester, ResultadoConexion
 
 @dataclass(frozen=True)
 class HostBd:
-    """Host de SQL Server que la app sabe configurar, con la base y tabla que se prueban."""
+    """
+    Host de SQL Server que la app sabe configurar, con la base y tabla que se prueban. Los hosts
+    sin bases registradas todavía (Customer_App, PaymentLink) solo prueban el inicio de sesión.
+    """
     host: str
     titulo: str
-    base: str
-    tabla: str
+    base: Optional[str] = None
+    tabla: Optional[str] = None
 
 
 HOSTS_BD = {
     h.host: h for h in (
-        HostBd("PESOS_OFFER", "Pesos_Offer (botDB)", "botDB", "dbo.Ofertas"),
+        HostBd("PESOS_OFFER", "Pesos_Offer (botDB, Originacion)", "botDB", "dbo.Ofertas"),
+        HostBd("CNFS", "CNFS (CNFS_uat)", "CNFS_uat", "[NFS_DBO].[Customer_Table]"),
         HostBd("CHALLENGER", "Challenger (Challenger_uat)", "Challenger_uat", "dbo.AgencyStructure"),
+        HostBd("CUSTOMER_APP", "Customer_App"),
+        HostBd("PAYMENTLINK", "PaymentLink"),
     )
 }
 
 
 def hosts_requeridos(insumo: str) -> list[str]:
-    """Hosts que necesita una corrida: botDB siempre; Challenger además para crear estructuras de agencia."""
-    return ["PESOS_OFFER", "CHALLENGER"] if insumo == "AGENCIA" else ["PESOS_OFFER"]
+    """
+    Hosts que necesita una corrida: Pesos_Offer siempre (botDB y Originacion); CNFS además al
+    registrar clientes (las recetas escriben en CNFS_uat); Challenger para crear estructuras de agencia.
+    """
+    adicionales = {"REGISTRO": ["CNFS"], "AGENCIA": ["CHALLENGER"]}
+    return ["PESOS_OFFER"] + adicionales.get(insumo, [])
 
 
 def hosts_sin_configurar(store: CredentialStore, hosts: list[str]) -> list[str]:

@@ -1452,6 +1452,10 @@ class SelectorUI:
                 "\n\nSi todos son de red (DNS o timeout), revisa la VPN; si son de credenciales o driver, "
                 "revisa tus conexiones (botón 🔌 Conexiones)."
             )
+            if any(p.startswith("Base de datos") for p in faltantes) and messagebox.askyesno(
+                "Conexiones", "¿Quieres revisar las conexiones a las bases de datos?",
+            ):
+                open_connections_dialog(self.root, self.credenciales, hosts=hosts)
             return
         if insumo == "OF":
             # Oferta no inicia sesión en el portal ni abre navegador: no requiere

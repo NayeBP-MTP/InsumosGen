@@ -55,6 +55,17 @@ def open_connections_dialog(parent: tk.Misc, store: Optional[CredentialStore] = 
         font=("Segoe UI", 9), bg=BG, fg="#555555", wraplength=460, justify="center",
     ).pack(padx=20, pady=(0, 8))
 
+    # Con cinco hosts las tarjetas no caben en pantalla: van en una zona con desplazamiento.
+    zona = tk.Frame(dialog, bg=BG)
+    zona.pack(fill="both", expand=True)
+    lienzo = tk.Canvas(zona, bg=BG, highlightthickness=0)
+    barra = ttk.Scrollbar(zona, orient="vertical", command=lienzo.yview)
+    lienzo.configure(yscrollcommand=barra.set)
+    lista = tk.Frame(lienzo, bg=BG)
+    lienzo.create_window((0, 0), window=lista, anchor="nw")
+    lista.bind("<Configure>", lambda _e: lienzo.configure(scrollregion=lienzo.bbox("all")))
+    lienzo.pack(side="left", fill="both", expand=True)
+
     tarjetas = {}
     for host in hosts or list(HOSTS_BD):
         info = HOSTS_BD[host]
@@ -63,7 +74,7 @@ def open_connections_dialog(parent: tk.Misc, store: Optional[CredentialStore] = 
         except CredentialsMissing:
             actual = None
 
-        card = tk.LabelFrame(dialog, text=f" {info.titulo} ", font=FONT_LABEL, bg=BG, padx=12, pady=8)
+        card = tk.LabelFrame(lista, text=f" {info.titulo} ", font=FONT_LABEL, bg=BG, padx=12, pady=8)
         card.pack(fill="x", padx=20, pady=6)
         card.grid_columnconfigure(1, weight=1)
 
@@ -136,6 +147,11 @@ def open_connections_dialog(parent: tk.Misc, store: Optional[CredentialStore] = 
     for host, t in tarjetas.items():
         t["probar"].config(command=lambda h=host: _probar(h))
 
+    def _rueda(event):
+        lienzo.yview_scroll(-1 if event.delta > 0 else 1, "units")
+
+    dialog.bind("<MouseWheel>", _rueda)
+
     error_label = tk.Label(dialog, text="", font=("Segoe UI", 9), bg=BG, fg="#c62828", wraplength=460)
     error_label.pack(padx=20)
 
@@ -166,6 +182,11 @@ def open_connections_dialog(parent: tk.Misc, store: Optional[CredentialStore] = 
         command=dialog.destroy,
     ).pack(side="left", padx=6)
 
+    dialog.update_idletasks()
+    alto_maximo = int(dialog.winfo_screenheight() * 0.55)
+    lienzo.configure(width=lista.winfo_reqwidth(), height=min(lista.winfo_reqheight(), alto_maximo))
+    if lista.winfo_reqheight() > alto_maximo:
+        barra.pack(side="right", fill="y")
     dialog.update_idletasks()
     x = parent.winfo_x() + (parent.winfo_width() - dialog.winfo_width()) // 2
     y = parent.winfo_y() + max((parent.winfo_height() - dialog.winfo_height()) // 2, 0)

@@ -1,6 +1,7 @@
 import pytest
 
 from config.credentials import ConnectionSettings, CredentialStore
+from config.databases import HOSTS
 from services import connection_gate as gate
 from services.connection_tester import Categoria, ResultadoConexion
 from tests.test_credentials import FakeKeyring
@@ -24,10 +25,25 @@ class FalsoTester:
         return self.resultados[base]
 
 
-def test_agencia_requiere_tambien_challenger():
+def test_hosts_requeridos_por_tipo_de_corrida():
     assert gate.hosts_requeridos("OF") == ["PESOS_OFFER"]
     assert gate.hosts_requeridos("VENTA") == ["PESOS_OFFER"]
+    assert gate.hosts_requeridos("REGISTRO") == ["PESOS_OFFER", "CNFS"]
     assert gate.hosts_requeridos("AGENCIA") == ["PESOS_OFFER", "CHALLENGER"]
+
+
+def test_el_dialogo_tiene_tarjeta_para_cada_host_conocido():
+    assert tuple(gate.HOSTS_BD) == HOSTS
+
+
+def test_host_sin_bases_registradas_solo_prueba_el_login(store):
+    store.save_connection("CUSTOMER_APP", CONEXION)
+    tester = FalsoTester({None: ResultadoConexion(Categoria.OK, "Conexión correcta.")})
+
+    resultados = gate.probar_hosts(store, ["CUSTOMER_APP"], tester)
+
+    assert resultados["CUSTOMER_APP"].ok
+    assert tester.llamadas == [("srv,1433", None, None)]
 
 
 def test_hosts_sin_configurar(store):
