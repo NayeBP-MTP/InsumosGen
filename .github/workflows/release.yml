@@ -25,7 +25,7 @@ jobs:
       publicar: ${{ steps.version.outputs.publicar }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
       - name: Leer la versión y comprobar si ya tiene tag
@@ -60,7 +60,7 @@ jobs:
       VERSION: ${{ needs.decidir.outputs.version }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
           cache: pip
