@@ -10,9 +10,10 @@ from services.agency_repository import (
     DmInfo, AmInfo, generar_dm_nuevo, generar_am_nuevo, insertar_persona, crear_agencia,
 )
 from utils.progress import Progress
+from utils.paths import app_data_dir
 
 
-RUN_RESULTS_PATH = Path("data/run_results_agencia.json")
+RUN_RESULTS_PATH = Path(Settings.RUN_RESULTS_PATH) if Settings.RUN_RESULTS_PATH else app_data_dir() / "run_results_agencia.json"
 
 
 def _resolver_dm_am(cfg: dict, sucursal: dict, challenger: ChallengerRepository, botdb: BotDbAgencyRepository):

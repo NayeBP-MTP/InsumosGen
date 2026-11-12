@@ -21,7 +21,7 @@ class ResultsUI:
         FONT_BTN = ("Segoe UI", 10, "bold")
 
         self.root = tk.Tk()
-        self.root.title("Providigital — Resultado de la ejecución")
+        self.root.title("InsumosGen — Resultado de la ejecución")
         self.root.configure(bg=BG)
         self.root.protocol("WM_DELETE_WINDOW", self._close)
 
@@ -42,7 +42,10 @@ class ResultsUI:
         ok = sum(1 for v in slots.values() for s in v if s["estado"] == "exitosa")
         pendientes = total - ok
 
-        if config.get("agencia_label"):
+        if config.get("ventas_batches"):
+            agencias = sorted({b["agencia_label"] for b in config["ventas_batches"]})
+            encabezado = f"{len(config['ventas_batches'])} lote(s) de venta · {', '.join(agencias)}"
+        elif config.get("agencia_label"):
             encabezado = f"{config['agencia_label']}  ·  {config.get('metodo_entrega', '')}"
         elif config.get("agencias"):
             encabezado = f"{len(config['agencias'])} agencia(s) nueva(s)"

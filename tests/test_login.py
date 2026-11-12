@@ -17,9 +17,56 @@ from utils.allure_utils import take_step_screenshot
 from utils.progress import Progress
 from pages.prestamo_personal_page import PrestamoPersonalPage
 from utils.birthdate_allocator import BirthdateAllocator
+from utils.paths import app_data_dir
 
 
-RUN_RESULTS_PATH = Path("data/run_results.json")
+# Facematch forzado (fallback cuando el SDK no lo completa solo): intentos y pausa entre ellos.
+# Espera al facematch automático del SDK. La cámara fake a veces tarda ~30s en dar
+# stream vivo; el fallback forzado no es fiable (Rekognition lo rechaza con 400).
+FACEMATCH_ESPERA_SDK = 120
+FACEMATCH_KICK_CAMARA_TRAS = 15
+
+# "Enviar SMS" (OTP Legalario): espera máxima de los inputs tras cada click y a los cuántos
+# segundos sin inputs (y sin request send-code) se considera perdido el click. El SMS de
+# Legalario llegó a tardar 33-67s: con un umbral corto se re-pulsaba y cada click genera
+# un código nuevo que invalida el anterior.
+OTP_ESPERA_INPUTS = 90
+OTP_CLICK_PERDIDO_TRAS = 60
+FACEMATCH_CORTE_SIN_CAMARA = 45
+FACEMATCH_REINTENTOS = 3
+FACEMATCH_ESPERA_REINTENTO = 3
+
+# Foto INE (frontal/trasera): espera máxima de la request del SDK y a los cuántos
+# segundos sin request se vuelve a pulsar "Tomar Foto" (cámara aún no lista / click perdido).
+FOTO_ESPERA_REQUEST = 40
+FOTO_REINTENTO_CLICK_TRAS = 15
+
+RUN_RESULTS_PATH = Path(Settings.RUN_RESULTS_PATH) if Settings.RUN_RESULTS_PATH else app_data_dir() / "run_results.json"
+
+
+def _esperar_request_foto(interceptor, legalario_page, endpoint: str) -> list:
+    """
+    Espera a que el SDK de Legalario envíe la request de la foto (`endpoint`). En vez
+    de un sleep fijo, hace polling hasta FOTO_ESPERA_REQUEST segundos y, si pasados
+    FOTO_REINTENTO_CLICK_TRAS no hay request, vuelve a pulsar "Tomar Foto" una vez.
+    Devuelve las requests encontradas (lista vacía si no llegó ninguna).
+    """
+    inicio = time.time()
+    reintento_hecho = False
+    while time.time() - inicio < FOTO_ESPERA_REQUEST:
+        requests_foto = interceptor.get_legalario_requests_by_endpoint(endpoint)
+        if requests_foto:
+            return requests_foto
+        if not reintento_hecho and time.time() - inicio >= FOTO_REINTENTO_CLICK_TRAS:
+            reintento_hecho = True
+            print(f"Sin request '{endpoint}' tras {FOTO_REINTENTO_CLICK_TRAS}s — reintentando 'Tomar Foto'")
+            Progress.emit("Sin respuesta del SDK, reintentando 'Tomar Foto'", "info")
+            try:
+                legalario_page.click_tomar_foto()
+            except Exception as exc:
+                print(f"No se pudo reintentar 'Tomar Foto': {exc}")
+        time.sleep(1)
+    return interceptor.get_legalario_requests_by_endpoint(endpoint)
 
 
 def _ejecutar_venta(driver, numero_ciclo: int) -> None:
@@ -115,7 +162,7 @@ def _flujo_identidad_a_otp(
         legalario_page.click_tomar_foto()
 
     with allure.step("Esperar requests del SDK frontal"):
-        time.sleep(5)
+        _esperar_request_foto(interceptor, legalario_page, "sdk/onboarding/identify/front")
 
     with allure.step("Guardar requests capturadas frontal"):
         all_path = interceptor.save_all_requests_to_file("captured_requests_front.json")
@@ -167,7 +214,7 @@ def _flujo_identidad_a_otp(
         legalario_page.click_tomar_foto()
 
     with allure.step("Esperar requests del SDK trasera"):
-        time.sleep(5)
+        _esperar_request_foto(interceptor, legalario_page, "sdk/onboarding/identify/reverse")
 
     with allure.step("Guardar requests capturadas trasera"):
         all_path = interceptor.save_all_requests_to_file("captured_requests_back.json")
@@ -222,12 +269,14 @@ def _flujo_identidad_a_otp(
         legalario_page.click_comenzar_grabar()
         time.sleep(2)
 
-    with allure.step("Esperar facematch automático del SDK (60s) o forzar como fallback"):
-        deadline = time.time() + 60
+    with allure.step("Esperar facematch automático del SDK (120s) o forzar como fallback"):
+        deadline = time.time() + FACEMATCH_ESPERA_SDK
         legalario_requests_auto = []
         sdk_exitoso = False
         _inicio_espera = time.time()
         _ultimo_diag = 0
+        _kick_hecho = False
+        _captura_atascado = False
         while time.time() < deadline:
             # Diagnóstico cada ~10s: estado de la cámara falsa y mensaje que muestra el SDK
             if time.time() - _ultimo_diag >= 10:
@@ -247,12 +296,53 @@ def _flujo_identidad_a_otp(
                 except Exception as _ce:
                     _estado_cam = f"error: {_ce}"
                 print(f">>> CÁMARA t={int(time.time() - _inicio_espera)}s: {_estado_cam}")
+                if not _captura_atascado and time.time() - _inicio_espera >= 30:
+                    # Qué ve realmente el SDK si lleva 30s sin completar (cara/óvalo).
+                    _captura_atascado = True
+                    take_step_screenshot(driver, "facematch_atascado_30s", force=True)
             legalario_requests_auto = interceptor.get_legalario_requests_by_endpoint(
                 "sdk/onboarding/identify/facematch"
             )
             if legalario_requests_auto:
                 print(f"Facematch capturado automáticamente por el SDK")
                 break
+            if not _kick_hecho and time.time() - _inicio_espera >= FACEMATCH_KICK_CAMARA_TRAS:
+                _camara_viva = driver.execute_script(
+                    "return [...document.querySelectorAll('video')].some(v => v.srcObject && "
+                    "v.srcObject.getVideoTracks().some(t => t.readyState === 'live'));"
+                )
+                if not _camara_viva:
+                    _kick_hecho = True
+                    # Intenta "despertar" el dispositivo fake: pide y suelta un stream.
+                    try:
+                        _kick = driver.execute_async_script(
+                            """
+                            const cb = arguments[arguments.length - 1];
+                            const t0 = Date.now();
+                            const timer = setTimeout(() => cb('timeout 10s'), 10000);
+                            navigator.mediaDevices.getUserMedia({video: true}).then(s => {
+                                s.getTracks().forEach(t => t.stop());
+                                clearTimeout(timer);
+                                cb('ok en ' + (Date.now() - t0) + 'ms');
+                            }).catch(e => { clearTimeout(timer); cb('error: ' + e); });
+                            """
+                        )
+                    except Exception as _ke:
+                        _kick = f"excepción: {_ke}"
+                    print(f">>> CÁMARA kick getUserMedia (sin stream vivo a los {FACEMATCH_KICK_CAMARA_TRAS}s): {_kick}")
+            if time.time() - _inicio_espera >= FACEMATCH_CORTE_SIN_CAMARA:
+                # Sin stream vivo el SDK nunca arranca y el fallback forzado siempre da
+                # 400: se corta pronto con un error claro en vez de esperar todo el plazo.
+                _camara_viva = driver.execute_script(
+                    "return [...document.querySelectorAll('video')].some(v => v.srcObject && "
+                    "v.srcObject.getVideoTracks().some(t => t.readyState === 'live'));"
+                )
+                if not _camara_viva:
+                    take_step_screenshot(driver, "facematch_camara_sin_stream", force=True)
+                    raise AssertionError(
+                        "Cámara fake sin stream vivo tras "
+                        f"{FACEMATCH_CORTE_SIN_CAMARA}s: el SDK de Legalario no inició el facematch"
+                    )
             if driver.find_elements(
                 By.XPATH, "//*[contains(normalize-space(.),'procesamiento de las fotograf')]"
             ):
@@ -265,17 +355,33 @@ def _flujo_identidad_a_otp(
 
         facematch_result = {"ok": bool(legalario_requests_auto) or sdk_exitoso, "status": 200 if (legalario_requests_auto or sdk_exitoso) else 0}
         if not legalario_requests_auto and not sdk_exitoso:
-            print("SDK no completó facematch en 60s — enviando request forzado como fallback")
-            facematch_result = interceptor.force_facematch_request(
-                mock_selfie_data_url,
-                Settings.LEGALARIO_ONBOARDING_ID,
-                auth_token=_auth_token,
-                base_url=_legalario_base_url,
-                front_data_url=mock_image_data_url_1,
-            )
-            print(f"Facematch forzado: status={facematch_result.get('status')}, ok={facematch_result.get('ok')}, error={facematch_result.get('error')}")
-            if facematch_result.get("body"):
-                print(f"Facematch body: {facematch_result.get('body')}")
+            print(f"SDK no completó facematch en {FACEMATCH_ESPERA_SDK}s — enviando request forzado como fallback")
+            # Legalario/Rekognition rechaza a veces (400 CompareFaces) el mismo payload
+            # que otras veces acepta (200): se reintenta antes de dar el paso por fallido.
+            for _intento in range(1, FACEMATCH_REINTENTOS + 1):
+                facematch_result = interceptor.force_facematch_request(
+                    mock_selfie_data_url,
+                    Settings.LEGALARIO_ONBOARDING_ID,
+                    auth_token=_auth_token,
+                    base_url=_legalario_base_url,
+                    front_data_url=mock_image_data_url_1,
+                )
+                print(
+                    f"Facematch forzado (intento {_intento}/{FACEMATCH_REINTENTOS}): "
+                    f"status={facematch_result.get('status')}, ok={facematch_result.get('ok')}, "
+                    f"error={facematch_result.get('error')}"
+                )
+                if facematch_result.get("body"):
+                    print(f"Facematch body: {str(facematch_result.get('body'))[:500]}")
+                if facematch_result.get("ok"):
+                    break
+                if _intento < FACEMATCH_REINTENTOS:
+                    Progress.emit(
+                        f"Facematch rechazado (status {facematch_result.get('status')}), "
+                        f"reintentando {_intento + 1}/{FACEMATCH_REINTENTOS}",
+                        "info",
+                    )
+                    time.sleep(FACEMATCH_ESPERA_REINTENTO)
 
     with allure.step("Guardar requests capturadas facematch"):
         all_path = interceptor.save_all_requests_to_file("captured_requests_facematch.json")
@@ -288,13 +394,62 @@ def _flujo_identidad_a_otp(
             "sdk/onboarding/identify/facematch"
         )
         print(f"Requests Legalario facematch: {len(legalario_requests)}")
-        assert facematch_result.get("ok") or legalario_requests, \
-            f"No hubo requests de Legalario en facematch (timeout 90s)\nassert {legalario_requests}"
+        for _r in legalario_requests:
+            # Estructura (no el contenido) de la request: permite comparar la del SDK
+            # con la forzada sin volcar megas de base64 a la consola.
+            try:
+                _b = json.loads(_r["body"]) if isinstance(_r.get("body"), str) else (_r.get("body") or {})
+                _estructura = {
+                    k: (f"{len(v)}ch '{v[:28]}'" if isinstance(v, str) else v)
+                    for k, v in _b.items()
+                }
+            except Exception as _e:
+                _estructura = f"no analizable: {_e}"
+            print(f"Facematch request status={_r.get('status')} estructura={_estructura}")
+        assert facematch_result.get("ok"), (
+            f"Facematch rechazado tras {FACEMATCH_REINTENTOS} intento(s): "
+            f"status={facematch_result.get('status')} error={facematch_result.get('error')} "
+            f"body={str(facematch_result.get('body'))[:500]}"
+        )
+        for _r in legalario_requests:
+            print(
+                f"Facematch respuesta: status={_r.get('status')} "
+                f"body={_r.get('responseText')}"
+            )
 
     with allure.step("Guardar base64 selfie"):
         base64_clean_selfie = legalario_page.extract_base64_from_data_url(mock_selfie_data_url)
         json_path_selfie = save_base64_to_json(base64_clean_selfie, "debug_base64_selfie.json")
         print(f"Base64 selfie guardado en: {json_path_selfie}")
+
+    with allure.step("Esperar resultado del facematch en la UI"):
+        # Se espera la pantalla de éxito del SDK ("¡Proceso exitoso!" con su botón
+        # Continuar) antes de liberar la cámara. No se busca la ausencia del texto
+        # "Ajusta tu cara…": sigue en el DOM, oculto tras el modal de éxito.
+        _fin_ui = time.time() + 45
+        while time.time() < _fin_ui:
+            if any(
+                e.is_displayed()
+                for e in driver.find_elements(
+                    By.XPATH,
+                    "//*[@id='legalarioModalButtonOk'] | "
+                    "//*[contains(normalize-space(.),'validación de las fotograf')]",
+                )
+            ):
+                break
+            time.sleep(1)
+        else:
+            _resp = [
+                (r.get("status"), r.get("responseText"))
+                for r in interceptor.get_legalario_requests_by_endpoint(
+                    "sdk/onboarding/identify/facematch"
+                )
+            ]
+            take_step_screenshot(driver, "facematch_no_completo", force=True)
+            raise AssertionError(
+                "Facematch no completó en la UI de Legalario: no apareció "
+                f"'Proceso exitoso' en 45s. Respuestas facematch: {_resp}"
+            )
 
     with allure.step("Liberar cámara fake post-facematch"):
         try:
@@ -611,24 +766,55 @@ def _flujo_beneficiario_a_finalizar(
 
     # El click en "Enviar SMS" a veces no dispara nada (la pantalla aún está recargando
     # el expediente y el componente se vuelve a renderizar): no sale la request
-    # send-code ni el cuadro del código. Se reintenta el click hasta 3 veces.
+    # send-code. Pero Legalario también puede tardar >25s en responder: volver a pulsar
+    # entonces genera un código NUEVO que invalida el anterior (el 03/11 el código
+    # tecleado llegó expirado/inválido y el contrato nunca se desbloqueó). Por eso solo
+    # se vuelve a pulsar si NO salió ninguna request send-code; si salió, se espera.
+    def _send_code_capturados():
+        return [
+            r for r in interceptor.get_captured_requests()
+            if "/sdk/invites/send-code" in str(r.get("url", ""))
+        ]
+
     with allure.step("Enviar SMS Legalario y esperar inputs OTP"):
         time.sleep(3)  # dejar que la pantalla termine de cargar antes del primer click
         _otp_visible = False
         for _intento in range(1, 4):
             interceptor.clear_last_legalario_otp_response()
+            _envios_antes = len(_send_code_capturados())
             prestamo_personal_page.click_enviar_sms()
-            try:
-                WebDriverWait(driver, 25).until(
-                    EC.visibility_of_element_located(
-                        prestamo_personal_page.INPUT_OTP_1
-                    )
-                )
-                _otp_visible = True
+            _inicio_click = time.time()
+            while time.time() - _inicio_click < OTP_ESPERA_INPUTS:
+                if any(
+                    e.is_displayed()
+                    for e in driver.find_elements(*prestamo_personal_page.INPUT_OTP_1)
+                ):
+                    _otp_visible = True
+                    break
+                if (
+                    time.time() - _inicio_click >= OTP_CLICK_PERDIDO_TRAS
+                    and len(_send_code_capturados()) == _envios_antes
+                ):
+                    break  # no salió send-code: el click se perdió
+                time.sleep(1)
+            if _otp_visible:
                 break
-            except Exception:
-                print(f"Enviar SMS: sin inputs OTP tras el click #{_intento} — reintentando")
-        assert _otp_visible, "No aparecieron los inputs OTP de Legalario tras 3 clicks en 'Enviar SMS'"
+            _vistos = len(_send_code_capturados()) - _envios_antes
+            print(
+                f"Enviar SMS: click #{_intento} sin inputs OTP tras "
+                f"{int(time.time() - _inicio_click)}s (send-code vistos por el interceptor: {_vistos}) — reintentando"
+            )
+        if not _otp_visible:
+            _envios = [
+                (r.get("status"), str(r.get("responseText"))[:200])
+                for r in _send_code_capturados()
+            ]
+            print(f"send-code capturados ({len(_envios)}): {_envios}")
+            take_step_screenshot(driver, "enviar_sms_sin_inputs_otp", force=True)
+        assert _otp_visible, (
+            "No aparecieron los inputs OTP de Legalario tras 3 clicks en 'Enviar SMS'"
+            + ("" if _otp_visible else f" (send-code: {_envios})")
+        )
 
     with allure.step("Obtener OTP Legalario"):
         WebDriverWait(driver, 30).until(
@@ -705,7 +891,11 @@ def _flujo_beneficiario_a_finalizar(
         _aceptar_deadline = time.time() + 15
         _aceptar_clickeado = False
         while time.time() < _aceptar_deadline:
+            # El log "Finalización — Exitoso <folio>" puede llegar después de los 5s
+            # iniciales; se sigue buscando antes de que "Aceptar" recargue la página.
+            _folio_temprano = _folio_temprano or _obtener_folio_finalizacion(interceptor)
             if driver.find_elements(*prestamo_personal_page.BTN_ACEPTAR):
+                _folio_temprano = _folio_temprano or _obtener_folio_finalizacion(interceptor)
                 prestamo_personal_page.click_aceptar()
                 _aceptar_clickeado = True
                 time.sleep(10)
@@ -743,6 +933,12 @@ def _flujo_beneficiario_a_finalizar(
                 "registro 'Finalización - Exitoso' en useractivitylogger)"
             )
         print(f"Folio de finalización: {folio}")
+        if folio is None:
+            _acciones = []
+            for _req in interceptor.get_captured_requests():
+                if "useractivitylogger" in str(_req.get("url", "")):
+                    _acciones.append(str(_req.get("body"))[:120])
+            print(f"Folio no detectado; useractivitylogger capturados ({len(_acciones)}): {_acciones[-5:]}")
 
     with allure.step("Cerrar sesión"):
         login_page.cerrar_sesion_local()
@@ -811,6 +1007,12 @@ class TestLoginProvident:
                         f"Venta CN {ciclo}/{total} FALLÓ: {(str(exc).splitlines() or [''])[0][:120]}",
                         "error",
                     )
+                    # Evidencia del estado real en el momento del fallo, antes de que la
+                    # recuperación de sesión navegue al login.
+                    try:
+                        take_step_screenshot(driver, "fallo_en_ciclo", force=True)
+                    except Exception:
+                        pass
                     LoginPage(driver).recuperar_sesion_tras_fallo()
 
         # =========================

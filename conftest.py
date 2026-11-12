@@ -10,13 +10,13 @@ import pytest
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
 
 import allure
 
 from config.settings import Settings
 from utils.allure_utils import ensure_dir, take_step_screenshot
 from utils.progress import Progress
+from utils.paths import app_data_dir
 
 
 # Cada `with allure.step("...")` también se reporta a la ventana de progreso.
@@ -102,10 +102,13 @@ for _sig in ("SIGTERM", "SIGBREAK"):
 
 @pytest.fixture(scope="session")
 def screenshots_dir():
+    # PID en el nombre evita que dos subprocesos pytest lanzados en el mismo
+    # segundo (p. ej. lotes de venta ejecutados uno detrás de otro muy rápido,
+    # o en paralelo a futuro) comparan la misma carpeta de screenshots.
     folder = os.path.join(
-        os.getcwd(),
+        str(app_data_dir()),
         "screenshots",
-        datetime.now().strftime("run_%Y%m%d_%H%M%S")
+        datetime.now().strftime("run_%Y%m%d_%H%M%S") + f"_{os.getpid()}"
     )
     ensure_dir(folder)
     return folder
@@ -136,6 +139,15 @@ def driver(request, screenshots_dir):
     chrome_options.add_argument("--use-fake-ui-for-media-stream")
     chrome_options.add_argument("--enable-geolocation")
 
+    # Evita que Chrome reduzca la prioridad de esta ventana cuando otra la tapa o está
+    # en segundo plano (la corrida se hace en un escritorio en uso): el SDK de Legalario
+    # detecta el rostro en JS y, throttleado, la cámara fake tardaba en inicializar o el
+    # SDK no validaba la cara a tiempo.
+    chrome_options.add_argument("--disable-renderer-backgrounding")
+    chrome_options.add_argument("--disable-background-timer-throttling")
+    chrome_options.add_argument("--disable-backgrounding-occluded-windows")
+    chrome_options.add_argument("--disable-features=CalculateNativeWinOcclusion")
+
     # Estabilidad WebRTC con cámara fake en Windows
     # NOTA: NO usar --disable-gpu en Windows con display real, causa crashes
     chrome_options.add_argument("--no-sandbox")
@@ -157,7 +169,7 @@ def driver(request, screenshots_dir):
         else:
             raise FileNotFoundError(
                 "USE_FAKE_CAMERA=True pero no existe el archivo de cámara fake: "
-                f"{fake_video_path}. Genera data/selfie.y4m antes de correr la prueba."
+                f"{fake_video_path}. Genera el video desde Ajustes (⚙ → Generar video) antes de correr la prueba."
             )
 
     if Settings.HEADLESS:
@@ -171,12 +183,19 @@ def driver(request, screenshots_dir):
 
     _cleanup_orphan_browsers()
 
-    service = Service(ChromeDriverManager().install())
+    # Sin ruta de driver: Selenium Manager (incluido en Selenium) descarga la primera vez el chromedriver
+    # que corresponde al Chrome instalado y lo guarda en caché. Sin acceso a esa descarga, apuntar la
+    # variable de entorno SE_CHROMEDRIVER a un chromedriver.exe local (ver README).
+    service = Service()
     driver = webdriver.Chrome(service=service, options=chrome_options)
     if service.process:
         _CHROMEDRIVER_PIDS.add(service.process.pid)
 
     driver.implicitly_wait(Settings.IMPLICIT_WAIT)
+    # El default de Selenium (~30s) se queda corto para execute_async_script en
+    # force_facematch_request cuando el sandbox de Legalario responde lento (más
+    # aún con varias corridas en paralelo compitiendo por el mismo sandbox/VPN).
+    driver.set_script_timeout(90)
 
     request.node.screenshots_dir = screenshots_dir
     try:
@@ -200,7 +219,7 @@ def pytest_runtest_makereport(item, call):
 
     if report.when == "call" and report.failed:
         driver = item.funcargs.get("driver")
-        screenshots_dir = getattr(item, "screenshots_dir", "screenshots")
+        screenshots_dir = getattr(item, "screenshots_dir", str(app_data_dir() / "screenshots"))
         if driver:
             try:
                 take_step_screenshot(driver, f"error_{item.name}", screenshots_dir, force=True)

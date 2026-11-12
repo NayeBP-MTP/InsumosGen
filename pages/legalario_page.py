@@ -16,7 +16,10 @@ class LegalarioPage:
         "nacimiento_ocr"
     )
 
-    def __init__(self, driver, timeout: int = 15):
+    def __init__(self, driver, timeout: int = 45):
+        # 45s: tras cada foto (frontal/trasera) Legalario tarda en validar antes de
+        # habilitar el botón "OK"; con el default anterior de 15s el ciclo 4 de esta
+        # corrida reventó aquí ("Elemento no clickable: legalarioModalButtonOk").
         self.driver = driver
         self.wait = WebDriverWait(driver, timeout)
 
@@ -56,13 +59,36 @@ class LegalarioPage:
         take_step_screenshot(self.driver, "legalario_antes_tomar_foto")
         button.click()
 
-    def click_comenzar_grabar(self) -> None:
-        """Click en el botón 'Comenzar a grabar' que aparece antes del facematch."""
+    def click_comenzar_grabar(self, timeout_camara: int = 60) -> None:
+        """
+        Click en 'Comenzar a grabar' (pantalla previa al facematch), solo cuando la
+        cámara terminó de inicializar. Pulsarlo mientras el SDK muestra "Inicializando
+        la cámara…" se perdía (o estorbaba la inicialización) y la cámara fake se
+        quedaba sin stream. Si el SDK avanza solo, el botón ya no está visible y no
+        se pulsa nada.
+        """
         import time as _time
+        inicializando = (
+            By.XPATH,
+            "//*[contains(normalize-space(text()),'Inicializando la cámara')]",
+        )
+        fin = _time.time() + timeout_camara
+        while _time.time() < fin:
+            if not any(e.is_displayed() for e in self.driver.find_elements(*inicializando)):
+                break
+            _time.sleep(1)
+        else:
+            print(f"'Inicializando la cámara…' sigue visible tras {timeout_camara}s")
+
         try:
-            button = WebDriverWait(self.driver, 15).until(
-                EC.presence_of_element_located(self.BTN_COMENZAR_GRABAR)
-            )
+            botones = [
+                b for b in self.driver.find_elements(*self.BTN_COMENZAR_GRABAR)
+                if b.is_displayed() and b.is_enabled()
+            ]
+            if not botones:
+                print("Botón 'Comenzar a grabar' no visible/habilitado — el SDK avanzó solo")
+                return
+            button = botones[0]
             take_step_screenshot(self.driver, "legalario_comenzar_grabar")
             self.driver.execute_script("arguments[0].scrollIntoView(true);", button)
             _time.sleep(0.3)
@@ -81,10 +107,16 @@ class LegalarioPage:
     def extract_base64_from_data_url(self, data_url: str) -> str:
         return data_url.split(",", 1)[1]
     
-    def cambiar_fecha_nacimiento_ocr(self, fecha: str) -> None:
+    def cambiar_fecha_nacimiento_ocr(self, fecha: str, timeout: int = 60) -> None:
+        """
+        timeout=60s: la validación del frente (identify/front) en el sandbox de
+        Legalario a veces tarda mucho más que el resto del flujo; el spinner
+        "Validando el frente de la identificación..." se queda visible hasta que
+        responde, y el input nacimiento_ocr no existe antes de eso.
+        """
         with allure.step(f"Cambiar fecha nacimiento OCR: {fecha}"):
 
-            input_fecha = self.wait.until(
+            input_fecha = WebDriverWait(self.driver, timeout).until(
                 EC.presence_of_element_located(
                     self.INPUT_FECHA_NACIMIENTO_OCR
                 )

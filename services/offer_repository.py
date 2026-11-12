@@ -1,13 +1,11 @@
-import os
 import time
 from dataclasses import dataclass, fields
 from datetime import datetime
 from typing import Optional
 
 import pyodbc
-from dotenv import load_dotenv
 
-load_dotenv()
+from config.credentials import ConnectionSettings, CredentialStore
 
 
 @dataclass
@@ -55,25 +53,33 @@ class OfferData:
 class OfferRepository:
     """
     Acceso a la tabla botDB.dbo.Ofertas usada por el flujo de Cliente Frecuente.
-    La cadena de conexiÃ³n se lee de variables de entorno (.env), nunca hardcodeada.
+    La cadena de conexiÃ³n se lee de variables del almacén de credenciales (CredentialStore), nunca hardcodeada.
     """
 
-    def __init__(self):
-        self.server = os.environ["BOTDB_SERVER"]
-        self.database = os.environ["BOTDB_DATABASE"]
-        self.user = os.environ["BOTDB_USER"]
-        self.password = os.environ["BOTDB_PASSWORD"]
-        self.driver = os.environ.get("BOTDB_DRIVER", "ODBC Driver 17 for SQL Server")
+    HOST = "PESOS_OFFER"
+    BASE = "botDB"
 
-    def _get_connection(self):
-        connection_string = (
-            f"DRIVER={{{self.driver}}};"
-            f"SERVER={self.server};"
-            f"DATABASE={self.database};"
-            f"UID={self.user};"
-            f"PWD={self.password};"
-        )
-        return pyodbc.connect(connection_string)
+    def __init__(self, conexion: Optional[ConnectionSettings] = None):
+        self.conexion = conexion or CredentialStore().get_connection(self.HOST)
+        self.database = self.BASE
+
+    def _get_connection(self, intentos: int = 3):
+        """
+        Reintenta la conexión ante errores transitorios ("Named pipe provider: no se
+        pudo abrir...", '08001'/'08S01'): con varias corridas en paralelo abriendo
+        conexiones al mismo tiempo contra la VPN, el primer intento a veces falla
+        aunque el servidor esté disponible.
+        """
+        connection_string = self.conexion.connection_string(self.database)
+        for intento in range(1, intentos + 1):
+            try:
+                return pyodbc.connect(connection_string)
+            except pyodbc.Error as exc:
+                sqlstate = exc.args[0] if exc.args else ""
+                if sqlstate not in ("08001", "08S01") or intento == intentos:
+                    raise
+                print(f"Conexión a botDB falló (intento {intento}/{intentos}, {sqlstate}), reintentando…")
+                time.sleep(2 * intento)
 
     def test_connection(self) -> bool:
         """Verifica que la conexiÃ³n a botDB pueda establecerse. Ãštil para diagnÃ³stico."""

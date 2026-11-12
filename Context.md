@@ -90,7 +90,8 @@ Código compartido en `tests/test_login.py`: `_flujo_metodo_entrega`, `_flujo_id
 | CF con BBVA | ✅ (corrida del 23/09 13:01) |
 | CF con HSBC | ✅ (ciclo completo del 23/09) |
 | CF con Efectivo / Cheque | ⬜ sin probar |
-| CF con Finabien | 🟡 llegó hasta el contrato (16:22); falló en "Enviar SMS" (§5), corregido; falta corrida completa |
+| CF con Finabien | ✅ ciclo completo del 03/11 (Izcalli 335, monto $9,900, folio capturado). Con monto ≥ 10,000 el botón no aparece: el test elige monto < 10,000 si el método es Finabien |
+| CN con BBVA / HSBC / Finabien | ✅ corridas del 03/11 (Izcalli 335) |
 | Ciclos múltiples (≥2) | ⬜ sin corrida exitosa con el código final |
 | Regla de Tijuana (monto < 10,000 en pantalla "Oferta") | ✅ implementada · ⬜ falta corrida end-to-end que la confirme |
 
@@ -115,7 +116,7 @@ Código compartido en `tests/test_login.py`: `_flujo_metodo_entrega`, `_flujo_id
 4. **Sonda de métodos por agencia: resultados incompletos.** Una sonda temporal (ya eliminada) listó los botones de "Método de entrega" en 11 agencias y solo vio Cheque y HSBC; leyó la lista apenas apareció el primer botón, así que faltan botones que cargan después. No es concluyente. Si se repite, esperar a que estabilice la lista.
 5. **Video de cámara fake.** El generador recortaba una franja central de una foto vertical en un cuadro horizontal (a 2.5x solo quedaban ojos y nariz). Ahora `utils/generate_fake_camera_video.py` detecta la cara y la mantiene centrada: 0–4 s pequeña, 4–12 s acercamiento, 12–30 s fija. `data/selfie_old.y4m` es el video anterior (respaldo).
 6. **Sesión concurrente con la misma estrella.** Dos ejecuciones simultáneas con el mismo usuario pueden interferir entre sí. Correr una a la vez.
-7. **Acceso a `botDB`.** Solo con red/VPN corporativa (`BOTDB_SERVER:1433`). Sin acceso, el ciclo CF falla en el insert antes de abrir el navegador.
+7. **Acceso a `botDB`.** Solo con red/VPN corporativa (servidor del host `PESOS_OFFER`, puerto 1433). Sin acceso, el ciclo CF falla en el insert antes de abrir el navegador.
 8. **`dbo.Ofertas` es una tabla compartida y las ofertas de prueba desaparecen.** Comprobado el 25/09: la tabla tiene ~2,100 filas y otras personas insertan en ella (p. ej. `idOferta` 2609 7xxx de la agencia 335, ese mismo día), y **ninguna** de las ofertas de prueba de las corridas del 23/09 (26090022, 26090023, 26090028, 26090029 y 26090053) sigue en la tabla, ni tampoco las anteriores a 26090060. Algo las borra (limpieza o recarga periódica de UAT, no identificada). Consecuencias: (a) la oferta insertada debe usarse enseguida, por eso se verifica con SELECT justo después del insert; (b) la BD **no** sirve como registro histórico de las ventas de prueba: guardar `idOferta`, `Customer_Id` y folio en `data/run_results_cf.json`; (c) posible colisión de `idOferta` con otras personas que insertan en la misma tabla, dado que `utils/offer_id_allocator.py` lleva su contador solo en SQLite local. Pendiente: confirmar con el equipo de BD qué borra las filas y con qué frecuencia.
 9. **La oferta está en la BD pero no aparece en el listado del front (campo `semana`).** Comprobado el 25/09: el front pide el listado al endpoint `GET /v1/getpesosmsgs?...&agencias=<agencia>&cliente=<nombre>&semana=&...` (el parámetro `semana` del request va vacío y el backend lo ignora) y **solo devuelve las ofertas de la semana más reciente de la tabla**. Ese día había 104 ofertas con `semana=202639` (48 de la agencia 335) y una sola con `semana=202640` (insertada a mano a las 11:41); el listado mostraba únicamente esa, y buscar el nombre de la oferta de prueba (`semana=202639`, id 26090061) devolvía 0 filas aunque `SELECT` la encontraba. Causa: `utils/offer_id_allocator.py` calcula la semana por calendario (corte en miércoles) y ese valor quedó una semana por debajo de la que el backend usa. Corrección: `_ejecutar_venta_cf` usa `max(semana calculada, MAX(semana) de la tabla)` (`OfferRepository.get_max_semana`), y `semana` ahora también se compara en `verify_offer_inserted`. Verificado: una oferta insertada así (26090062, `semana=202640`) apareció en `getpesosmsgs` al buscarla por nombre, y la de `202639` no. Si la búsqueda en el front falla, el error ahora indica la semana de la oferta y la más reciente de la tabla. Pendiente de confirmar con el equipo: si el backend usa la máxima de la tabla o una semana calendario con corte distinto (la evidencia del 23/09 —ofertas con 202639 visibles en miércoles— apunta a la máxima de la tabla); cualquier fila con una semana mayor "esconde" todas las demás, incluidas las de otros usuarios.
 
@@ -131,7 +132,7 @@ Nota: un menú hamburguesa abierto en una captura de falla normalmente es la rec
 
 ## 8. Pendientes
 
-- [ ] Completar una corrida **Finabien** hasta "Finalizar Venta" (el modal de oficina postal ya funcionó en CF con Puebla).
+- [x] Completar una corrida **Finabien** hasta "Finalizar Venta" (hecha el 03/11 en CN y CF, Izcalli 335).
 - [ ] Verificar los nombres de estado/ciudad de la oficina postal para Tijuana y para el resto de agencias (§3).
 - [ ] Probar **Efectivo** y **Cheque** en CF.
 - [ ] Corrida de **2 o más ciclos** consecutivos sin intervención.
@@ -153,6 +154,17 @@ Nota: un menú hamburguesa abierto en una captura de falla normalmente es la rec
 | `pages/prestamo_personal_page.py` | Pantallas del préstamo (checks de contrato, finalizar, etc.) |
 | `services/offer_repository.py` | Conexión e insert en `botDB` |
 | `utils/offer_id_allocator.py`, `utils/mexican_names.py`, `utils/catalog_db.py` | Ids, nombres y catálogo de agencias |
-| `utils/generate_fake_camera_video.py` | Genera `data/selfie.y4m` |
+| `utils/generate_fake_camera_video.py` | Genera `images/selfie.y4m` (carpeta de imágenes del usuario) |
 | `conftest.py` | Driver, cierre garantizado de Chrome |
 | `config/settings.py` | Configuración; lee `data/run_config.json` (incluye `monto` y topes) |
+
+## 9. Cámara fake y facematch de Legalario (observado el 03/11/2026)
+
+- El facematch lo debe completar **el SDK** con la cámara fake. El fallback `force_facematch_request` **no sirve**: Legalario/Rekognition lo rechaza siempre con 400 `CompareFaces InvalidParameterException` (envía la INE completa como `front`, un JPEG etiquetado como mp4 y no lleva `organization_id`/`requested_by`; la request real del SDK trae un recorte de cara de ~37 KB y un video webm real).
+- **No usar un video de cara fija** (`HOLD_ONLY=True` en `utils/generate_fake_camera_video.py`, probado con 0.58 y 0.68): el SDK se queda en "Ajusta tu cara dentro del óvalo" y nunca valida, incluso donde el video original pasaba. El SDK necesita ver el acercamiento progresivo (cara pequeña → grande).
+- Chrome comparte un solo dispositivo fake durante la sesión y el video se repite cada 30 s, así que la fase en que arranca el facematch es arbitraria. Con el video original la tasa de éxito observada fue ~2/3; los fallos restantes siguen sin causa confirmada.
+- Modos de fallo vistos: (a) "Inicializando la cámara" colgado con el stream `ended` (causa probable: pulsar "Comenzar a grabar" antes de que termine la inicialización; corregido esperando a que desaparezca el overlay), (b) SDK en "Ajusta tu cara" sin completar, (c) SDK sin mensaje tras detectar. El diagnóstico `>>> CÁMARA t=…` en consola y la captura `facematch_atascado_30s` ayudan a distinguirlos.
+- Finabien solo aparece con monto < 10,000: en CF el test ya elige un monto menor cuando el método es Finabien.
+- Con `run.py` en paralelo (CN 334 + CF 335) fallaron ambas. El fallo de facematch de la CN se reproduce también en secuencial, así que ese no se debe al paralelismo. El de la CF (OTP de Legalario con 3 clicks en "Enviar SMS" y luego `legalarioButtonDocumentAccept` no clickable) **no se reprodujo en secuencial pero tampoco se repitió en paralelo**: causa sin determinar.
+- **OTP de Legalario ("Enviar SMS").** El SMS puede tardar más de 25 s. Volver a pulsar "Enviar SMS" genera un código nuevo e invalida el anterior: el 03/11 se tecleó un código expirado (pantalla con campos vacíos y "El código expirará en: 00:00") y `legalarioButtonDocumentAccept` nunca fue clickable. El test solo re-pulsa si no salió ninguna request `/sdk/invites/send-code` (a los 10 s); si salió, espera hasta 90 s los inputs (`OTP_ESPERA_INPUTS`, `OTP_CLICK_PERDIDO_TRAS` en `tests/test_login.py`). Una corrida CF/HSBC pasó con esto; falta más muestra.
+- **Video fake de 12 s** (`DURATION_SECONDS=12` en `utils/generate_fake_camera_video.py`; respaldo del de 30 s en `data/selfie_phased.y4m`): 3 de 3 CN y 1 CF sin fallos de cámara, frente a ~2/3 con el de 30 s. Muestra pequeña: no es una mejora demostrada.

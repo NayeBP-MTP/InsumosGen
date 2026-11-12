@@ -1,4 +1,4 @@
-# Análisis del CodeBase: Providigital_Ventas
+# Análisis del CodeBase: InsumosGen
 
 > **Fecha de análisis:** Mayo 2026  
 > **Propósito:** Documentación técnica de referencia del framework de automatización de pruebas E2E para la plataforma Provident UAT.
@@ -19,8 +19,8 @@ Framework de automatización de pruebas end-to-end (E2E) construido sobre **Pyth
 | selenium | 4.33.0 | Automatización del navegador |
 | pytest | 8.4.1 | Motor de pruebas |
 | allure-pytest | 2.14.2 | Reportes enriquecidos con pasos y capturas |
-| webdriver-manager | 4.0.2 | Gestión automática del ChromeDriver |
-| python-dotenv | 1.1.1 | Variables de entorno desde `.env` |
+| Selenium Manager | *(incluido en selenium)* | Descarga y cachea el ChromeDriver que corresponde al Chrome instalado |
+| keyring | 25.6.0 | Contraseñas de BD en el Administrador de credenciales de Windows |
 | opencv-python | *(opcional)* | Generación de video fake para cámara |
 | pillow + numpy | *(opcional)* | Procesamiento de imagen para video fake |
 
@@ -31,7 +31,7 @@ Framework de automatización de pruebas end-to-end (E2E) construido sobre **Pyth
 ## 3. Estructura del Proyecto
 
 ```
-Providigital_Ventas/
+InsumosGen/
 ├── config/
 │   └── settings.py               # Configuración centralizada (URL, credenciales, rutas de archivos)
 ├── pages/
@@ -68,7 +68,7 @@ Providigital_Ventas/
 
 ## 4. Configuración (`config/settings.py`)
 
-Todas las constantes están hardcodeadas en la clase `Settings`. **No usa `.env` en la práctica actual** (el README lo menciona como buena práctica, pero el código lee directamente de la clase).
+Todas las constantes están hardcodeadas en la clase `Settings`. Las credenciales de bases de datos no están ahí: viven en el almacén de `config/credentials.py` (no hay `.env`).
 
 | Parámetro | Valor | Descripción |
 |---|---|---|
@@ -109,9 +109,9 @@ El interceptor de red se instala **antes** de las capturas para poder:
 
 | Paso | Endpoint Legalario interceptado | Archivo mock |
 |---|---|---|
-| INE Frontal | `sdk/onboarding/identify/front` | `data/ine_frente.jpeg` |
-| INE Trasera | `sdk/onboarding/identify/reverse` | `data/ine_tras.jpeg` |
-| Facematch | `sdk/onboarding/identify/facematch` | `data/selfie.jpeg` (+ `selfie.y4m` en cámara fake) |
+| INE Frontal | `sdk/onboarding/identify/front` | `images/ine_frente.jpeg` |
+| INE Trasera | `sdk/onboarding/identify/reverse` | `images/ine_tras.jpeg` |
+| Facematch | `sdk/onboarding/identify/facematch` | `images/selfie.jpeg` (+ `selfie.y4m` en cámara fake) |
 
 Adicionalmente, después de la captura frontal se **modifica la fecha de nacimiento OCR** con una fecha única generada por `BirthdateAllocator` para evitar duplicados entre ejecuciones.
 
@@ -206,7 +206,7 @@ Inyecta JavaScript en el navegador para interceptar `fetch` y `XMLHttpRequest` g
 
 ### `generate_fake_camera_video.py`
 - Script standalone (no se ejecuta en el test, debe correrse manualmente previamente).
-- Genera `data/selfie.y4m` (10 segundos, 30fps, 640x480) a partir de `data/selfie.jpeg`.
+- Genera `images/selfie.y4m` (10 segundos, 30fps, 640x480) a partir de `images/selfie.jpeg`.
 - Simula zoom progresivo: estable 0-5s → zoom suave 5-8s → zoom fuerte 8-10s para disparar el trigger de "acércate" del SDK de facematch.
 - Requiere `opencv-python`, `pillow`, `numpy` (dependencias opcionales no incluidas en `requirements.txt`).
 

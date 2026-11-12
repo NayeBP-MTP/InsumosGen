@@ -27,7 +27,8 @@ documentadas en `Context.md` y `config/Context/REGLAS_DE_NEGOCIO.md`.
 # Instalar dependencias (entorno virtual recomendado)
 pip install -r requirements.txt
 
-# Generar el video de cámara fake requerido por Legalario (una vez, o si cambia data/selfie.jpeg)
+# Video de cámara fake requerido por Legalario: se genera desde Ajustes (⚙ → Generar video) con la selfie
+# que sube cada usuario (una vez, o si cambia la selfie); a mano: python utils/generate_fake_camera_video.py
 python utils/generate_fake_camera_video.py
 
 # Ejecutar vía el asistente interactivo (recomendado): pide agencia, tipo(s) de cliente,
@@ -43,17 +44,20 @@ pytest tests/test_oferta.py --alluredir=allure-results      # OF (solo inserta o
 # Un solo test (cada archivo define una única clase/test end-to-end)
 pytest tests/test_login_cf.py::TestLoginProvidentCF::test_login_exitoso_cf -s -v
 
-# Ver el reporte
-allure serve allure-results
+# Ver el reporte (lo que genera run.py queda en la carpeta de datos: <repo>/data/allure-results en
+# desarrollo, %LOCALAPPDATA%\InsumosGen\allure-results con la app instalada)
+allure serve data/allure-results
 ```
 
 No hay linter ni type-checker configurado en el proyecto.
 
 ### Antes de correr contra botDB (flujos CF/OF)
 
-Se requiere VPN/red corporativa activa y un `.env` (copiado de `.env.example`) con
-`BOTDB_SERVER`, `BOTDB_DATABASE`, `BOTDB_USER`, `BOTDB_PASSWORD`, `BOTDB_DRIVER`. `utils/vpn_check.py`
-verifica alcanzabilidad del portal UAT y del SQL Server antes de correr; `run.py` la invoca desde la UI.
+Se requiere VPN/red corporativa activa y las conexiones a las bases guardadas en la app (botón 🔌
+**Conexiones** de la UI: servidor, usuario, contraseña y driver por host; el diálogo se abre solo si
+falta alguna y permite probarlas). No hay `.env`: si existe uno de versiones anteriores, la UI lo importa
+una vez y ofrece borrarlo. `utils/vpn_check.py` verifica el portal UAT y `services/connection_gate.py`
+prueba, por cada host que la corrida necesita, TCP + login + lectura de su tabla; la UI lo invoca antes de correr.
 
 ## Arquitectura
 
@@ -62,9 +66,11 @@ verifica alcanzabilidad del portal UAT y del SQL Server antes de correr; `run.py
 `config/settings.py` define `Settings` con defaults hardcodeados, pero los **sobreescribe** con lo
 que encuentre en `data/run_config.json` al importarse (se relee en cada subproceso pytest). `run.py`
 genera ese `run_config.json` desde la UI interactiva (`ui/selector_ui.py`) antes de lanzar cada fase,
-y lo reescribe por fase (`tipo_cliente`, `ciclos`) en `_ejecutar_fase`. Las credenciales de botDB
-viven aparte, en `.env`, y las lee `services/offer_repository.py` vía `python-dotenv` — nunca desde
-`Settings`.
+y lo reescribe por fase (`tipo_cliente`, `ciclos`) en `_ejecutar_fase`. Las credenciales de las
+bases de datos viven aparte, en `config/credentials.py` (`CredentialStore`: contraseñas en el Administrador
+de credenciales de Windows vía `keyring`; servidor/usuario/driver en `connections.json` dentro de
+`utils/paths.app_data_dir()`) — nunca desde `Settings` ni en archivos de texto. Los repositorios
+(`services/*_repository.py`) piden su host al almacén; las estrellas del portal siguen en el catálogo.
 
 ### Orquestación de una corrida (`run.py`)
 
@@ -106,7 +112,8 @@ flujo actual de los tests).
 ### Cámara fake para facematch desatendido
 
 Legalario requiere una cámara real para el facematch; `utils/generate_fake_camera_video.py` genera
-`data/selfie.y4m` a partir de `data/selfie.jpeg` (con zoom progresivo para disparar el trigger de
+`<datos>/images/selfie.y4m` a partir de `<datos>/images/selfie.jpeg` (la selfie, INE y comprobante los sube
+el usuario desde Ajustes; no hay imágenes por defecto; con zoom progresivo para disparar el trigger de
 "acércate" del SDK). `conftest.py` monta Chrome con `--use-fake-device-for-media-stream` apuntando a
 ese archivo cuando `Settings.USE_FAKE_CAMERA=True`. Debe regenerarse si cambia `selfie.jpeg`.
 
@@ -173,10 +180,28 @@ discrepen en un tema de negocio, prevalece la fuente de negocio (`onboarding_po.
 Si mueves o renombras carpetas dentro de `InsumosGen/`, revisa las rutas hardcodeadas en los
 `SKILL.md`/`README.md` de estas skills — no se actualizan solas.
 
+## Releases (recordatorio obligatorio)
+
+Desde v1.0.0 un release se publica **solo** al mergear `dev` → `main` (workflow de
+`.github/workflows/release.yml`, ver `PLAN_IMPLEMENTACIONES.md`, paso 5.9). El workflow solo publica
+si `version.py` trae una versión **sin tag todavía**; si no, termina en verde sin publicar y solo deja
+un aviso en Actions, y nadie se entera. Por eso, **antes de abrir o mergear un PR `dev` → `main`,
+recuerda siempre al usuario**:
+
+1. Subir `__version__` en `version.py` (SemVer; el número decide el release).
+2. Escribir `release-notes/<versión>.md` en **español**, para el usuario final (el workflow falla si
+   falta; es el texto que muestra el aviso de actualización de la app). Describe lo que el usuario
+   puede hacer o ya no tiene que hacer, no los commits.
+3. Tras el merge, comprobar en Actions que el workflow publicó y en Releases que están los 4 assets
+   y que no es pre-release ni borrador.
+
+Si el usuario pide preparar o revisar un merge a `main` y falta alguno de estos puntos, díselo antes
+de seguir.
+
 ## Riesgos conocidos (no los repitas al tocar código nuevo)
 
 - Credenciales de portal (`ESTRELLA`, `PASSWORD`) tienen defaults hardcodeados en `config/settings.py`
-  como fallback si no hay `run_config.json`; las de `botDB` sí están correctamente en `.env`.
+  como fallback si no hay `run_config.json`; las de las bases de datos sí están en el almacén de credenciales (no en el código).
 - Datos personales/laborales del formulario de préstamo están hardcodeados dentro de
   `pages/prestamo_personal_page.py` (`llenar_datos_personales`, `llenar_datos_laborales_financieros`).
 - `utils/utils.py` duplica helpers (`wait_until_visible`, `scroll_to_bottom`) que también existen en

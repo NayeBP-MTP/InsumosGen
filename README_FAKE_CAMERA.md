@@ -4,18 +4,19 @@
 
 - `conftest.py` — aplica `--use-file-for-fake-video-capture` al iniciar Chrome
 - `config/settings.py` — controla `USE_FAKE_CAMERA` y rutas de archivos
-- `utils/generate_fake_camera_video.py` — genera `data/selfie.y4m` a partir de `data/selfie.jpeg`
+- `utils/generate_fake_camera_video.py` — genera `selfie.y4m` a partir de `selfie.jpeg` (lo ejecuta el botón *Generar video* de Ajustes)
 
-## Prerrequisitos: archivos en `data/`
+## Prerrequisitos: imágenes del usuario
 
-Coloca los siguientes archivos antes de ejecutar:
+No hay imágenes por defecto. Se suben desde Ajustes (⚙) y viven en la carpeta `images/` de los datos de
+la app (`data/images/` en desarrollo; `%LOCALAPPDATA%\InsumosGen\images\` instalada):
 
 | Archivo | Descripción |
 |---|---|
-| `data/ine_frente.jpeg` | Foto frontal de la INE del cliente |
-| `data/ine_tras.jpeg` | Foto trasera de la INE del cliente |
-| `data/selfie.jpeg` | Selfie del cliente — debe corresponder con la INE frontal |
-| `data/comprobante.jpeg` | Comprobante de domicilio |
+| `images/ine_frente.jpeg` | Foto frontal de la INE del cliente |
+| `images/ine_tras.jpeg` | Foto trasera de la INE del cliente |
+| `images/selfie.jpeg` | Selfie del cliente — debe corresponder con la INE frontal |
+| `images/comprobante.jpeg` | Comprobante de domicilio |
 
 ## Instalar dependencias
 
@@ -27,14 +28,13 @@ pip install -r requirements.txt
 
 ## Generar el video .y4m
 
-```bash
-python utils/generate_fake_camera_video.py
-```
+Desde Ajustes (⚙), botón **Generar video** (disponible cuando hay selfie y el video falta o es anterior a ella).
+También se puede a mano: `python utils/generate_fake_camera_video.py`.
 
-Esto genera `data/selfie.y4m` a partir de `data/selfie.jpeg`.
+Esto genera `images/selfie.y4m` a partir de `images/selfie.jpeg`.
 El video simula un rostro estático con acercamiento progresivo para activar el paso "acércate" del SDK.
 
-> **Este paso es obligatorio.** Si `data/selfie.y4m` no existe, `conftest.py` lanzará un `FileNotFoundError` y la prueba no arrancará.
+> **Este paso es obligatorio.** Si `selfie.y4m` no existe, `conftest.py` lanzará un `FileNotFoundError` y la prueba no arrancará.
 
 ## Estado de `USE_FAKE_CAMERA`
 

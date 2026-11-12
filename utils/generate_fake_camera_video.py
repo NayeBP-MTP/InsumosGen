@@ -1,18 +1,18 @@
 """
-Genera data/selfie.y4m para usarlo como cámara fake en Chrome.
+Genera selfie.y4m para usarlo como cámara fake en Chrome. La app lo hace desde Ajustes (botón
+"Generar video"); este script es lo que ese botón ejecuta.
 
 Requisitos:
-    pip install pillow numpy
-    (opencv-python es opcional, se usa solo para resize si está disponible)
+    pip install pillow numpy opencv-python
 
 Uso:
     python utils/generate_fake_camera_video.py
 
-Entrada esperada:
-    data/selfie.jpeg
+Entrada esperada (carpeta de imágenes del usuario, utils/paths.imagenes_dir()):
+    <datos>/images/selfie.jpeg
 
 Salida:
-    data/selfie.y4m
+    <datos>/images/selfie.y4m
 
     python utils/generate_fake_camera_video.py [ruta_salida.y4m]
 
@@ -36,12 +36,34 @@ from PIL import Image
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-INPUT_IMAGE = PROJECT_ROOT / "data" / "selfie.jpeg"
-OUTPUT_VIDEO = PROJECT_ROOT / "data" / "selfie.y4m"
+sys.path.insert(0, str(PROJECT_ROOT))  # al correr como script, sys.path[0] es utils/
+
+from utils.paths import imagenes_dir  # noqa: E402
+
+INPUT_IMAGE = imagenes_dir() / "selfie.jpeg"
+OUTPUT_VIDEO = imagenes_dir() / "selfie.y4m"
 
 # Alto de la cara como fracción del alto del frame
 FRACTION_START = 0.50
 FRACTION_HOLD = 0.68
+
+# True: cara siempre fija y centrada (sin fases). Chrome comparte un solo dispositivo
+# fake durante toda la sesión y el video se repite cada 30s, así que la fase en la que
+# arranca el facematch es arbitraria; con fases, a veces el SDK no lograba validar el
+# rostro ("Ajusta tu cara dentro del óvalo"). False: video con acercamiento progresivo.
+HOLD_ONLY = False
+
+# Línea de tiempo del video (s). Chrome repite el video y comparte el dispositivo fake
+# toda la sesión: el SDK arranca en una fase arbitraria y necesita ver el acercamiento
+# (pequeña → grande). Con un ciclo corto, cualquier arranque ve la secuencia completa
+# pronto. Original: 30 / 4 / 12 (acercamiento y luego 18s de cara fija).
+DURATION_SECONDS = 12
+T_SMALL_END = 2.0
+T_ZOOM_END = 8.0
+# Tamaño en modo HOLD_ONLY. NO USAR HOLD_ONLY=True: el 03/11 el video de cara fija (0.58 y
+# 0.68) hizo que el SDK nunca validara el rostro, incluso en Izcalli 335, donde el video con
+# acercamiento sí pasaba. El SDK necesita ver el acercamiento progresivo.
+FRACTION_STATIC = 0.58
 
 
 def load_image_rgb(path: Path) -> np.ndarray:
@@ -156,7 +178,7 @@ def main(output: Path = OUTPUT_VIDEO):
     width = 320
     height = 240
     fps = 10
-    duration_seconds = 30
+    duration_seconds = DURATION_SECONDS
     total_frames = fps * duration_seconds
 
     source_image = load_image_rgb(INPUT_IMAGE)
@@ -174,17 +196,19 @@ def main(output: Path = OUTPUT_VIDEO):
             # Fase 1 (0-4s): cara pequeña centrada — el SDK detecta el rostro
             # Fase 2 (4-12s): acercamiento progresivo hasta llenar el óvalo
             # Fase 3 (12-30s): cara fija y centrada ("mantén esta posición")
-            if t < 4.0:
+            if HOLD_ONLY:
+                fraction = FRACTION_STATIC
+            elif t < T_SMALL_END:
                 fraction = FRACTION_START
-            elif t < 12.0:
-                prog = (t - 4.0) / 8.0
+            elif t < T_ZOOM_END:
+                prog = (t - T_SMALL_END) / (T_ZOOM_END - T_SMALL_END)
                 fraction = FRACTION_START + prog * (FRACTION_HOLD - FRACTION_START)
             else:
                 fraction = FRACTION_HOLD
 
             # Micro movimiento leve (la cara nunca sale del óvalo). En la fase
             # de mantener posición es aún menor para no romper la validación.
-            amp = 0.006 if t >= 12.0 else 0.012
+            amp = 0.006 if (HOLD_ONLY or t >= T_ZOOM_END) else 0.012
             dx = amp * math.sin(2 * math.pi * t / 3.0)
             dy = amp * math.sin(2 * math.pi * t / 4.0)
 

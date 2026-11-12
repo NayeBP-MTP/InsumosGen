@@ -2,9 +2,10 @@ import sqlite3
 import string
 from datetime import date
 from pathlib import Path
+from utils.paths import app_data_dir
 
 
-DB_PATH = Path("data/generated_agency_ids.sqlite3")
+DB_PATH = app_data_dir() / "generated_agency_ids.sqlite3"
 
 # Sello fijo (2 dígitos) que marca cualquier insumo creado por esta herramienta,
 # independiente del tipo de estructura. Ver config/Context/NUEVA_ESTRUCTURA_AGENCIA.md.

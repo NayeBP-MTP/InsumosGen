@@ -1,0 +1,108 @@
+# Release automático: al mergear a `main` publica InsumosGen-Setup-X.Y.Z.exe y InsumosGen-X.Y.Z.zip (+ .sha256)
+# en GitHub Releases, que es de donde la app y los usuarios los bajan.
+#
+# Solo publica si version.py trae una versión SIN tag todavía. Si ya existe el tag, el merge no subió la
+# versión: termina en verde con un aviso (Actions -> el resumen del job) y no publica nada.
+# Versiones con guion (1.0.0-rc.1) se publican como pre-release: `releases/latest` no las ve.
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  decidir:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      publicar: ${{ steps.version.outputs.publicar }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Leer la versión y comprobar si ya tiene tag
+        id: version
+        run: |
+          version=$(python -c "from version import __version__; print(__version__)")
+          if ! echo "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$'; then
+            echo "::error::La versión '$version' de version.py no es SemVer (X.Y.Z o X.Y.Z-rc.1)."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if git ls-remote --exit-code --tags origin "refs/tags/v$version" > /dev/null 2>&1; then
+            echo "publicar=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::No se publicó nada: el tag v$version ya existe. Para sacar un release, sube __version__ en version.py y agrega release-notes/<versión>.md."
+            echo "### Sin release: el tag v$version ya existe (no subiste la versión en version.py)." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "publicar=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Comprobar las notas del release
+        if: steps.version.outputs.publicar == 'true'
+        run: |
+          if [ ! -s "release-notes/${{ steps.version.outputs.version }}.md" ]; then
+            echo "::error::Falta release-notes/${{ steps.version.outputs.version }}.md (notas en español para el usuario final)."
+            exit 1
+          fi
+
+  publicar:
+    needs: decidir
+    if: needs.decidir.outputs.publicar == 'true'
+    runs-on: windows-latest
+    env:
+      VERSION: ${{ needs.decidir.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -r requirements.txt
+
+      - name: Pruebas unitarias
+        run: python -X utf8 -m pytest tests -q --ignore=tests/test_login.py --ignore=tests/test_login_cf.py --ignore=tests/test_oferta.py --ignore=tests/test_agencia_structure.py
+
+      - name: Zip de código
+        run: python installer/build_release.py --salida dist
+
+      - name: Instalar Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - name: Setup.exe
+        shell: pwsh
+        run: |
+          $iscc = @("${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) { throw 'No se encontró ISCC.exe' }
+          Expand-Archive -Path "dist/InsumosGen-$env:VERSION.zip" -DestinationPath stage
+          & $iscc "/DAppVersion=$env:VERSION" "/DStageDir=$PWD\stage" "/DOutputDir=$PWD\dist" installer\installer.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC falló con código $LASTEXITCODE" }
+          python -c "from pathlib import Path; from installer.build_release import escribir_sha256; escribir_sha256(Path('dist/InsumosGen-Setup-$env:VERSION.exe'))"
+
+      - name: Comprobar los 4 archivos
+        shell: pwsh
+        run: |
+          $esperados = "InsumosGen-$env:VERSION.zip", "InsumosGen-$env:VERSION.zip.sha256", "InsumosGen-Setup-$env:VERSION.exe", "InsumosGen-Setup-$env:VERSION.exe.sha256"
+          foreach ($archivo in $esperados) { if (-not (Test-Path "dist/$archivo")) { throw "Falta dist/$archivo" } }
+          Get-ChildItem dist | Format-Table Name, Length
+
+      - name: Publicar el release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION }}
+          target_commitish: ${{ github.sha }}
+          name: InsumosGen ${{ env.VERSION }}
+          body_path: release-notes/${{ env.VERSION }}.md
+          prerelease: ${{ contains(env.VERSION, '-') }}
+          fail_on_unmatched_files: true
+          files: |
+            dist/InsumosGen-${{ env.VERSION }}.zip
+            dist/InsumosGen-${{ env.VERSION }}.zip.sha256
+            dist/InsumosGen-Setup-${{ env.VERSION }}.exe
+            dist/InsumosGen-Setup-${{ env.VERSION }}.exe.sha256

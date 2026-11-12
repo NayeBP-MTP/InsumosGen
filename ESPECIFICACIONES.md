@@ -1,4 +1,4 @@
-# Especificaciones del flujo E2E automatizado — Providigital Ventas
+# Especificaciones del flujo E2E automatizado — InsumosGen
 
 **Fecha de validación CN:** 22/09/2026  
 **Fecha de validación CF:** 23/09/2026  
@@ -21,7 +21,7 @@ Automatización E2E del proceso completo de venta de préstamo personal en el po
 ## Estructura del proyecto
 
 ```
-Providigital_Ventas/
+InsumosGen/
 ├── config/
 │   ├── settings.py             # Credenciales, URLs, rutas de imágenes, selección de la UI (lee data/run_config.json)
 │   └── Context/
@@ -125,7 +125,7 @@ subproceso pytest propio.
 
 ### 5. Facematch (Legalario SDK + fallback)
 1. Limpiar requests → preparar imagen mock selfie → configurar interceptor
-2. El video `data/selfie.y4m` se usa como cámara fake en Chrome (`--use-file-for-fake-video-capture`)
+2. El video `images/selfie.y4m` se usa como cámara fake en Chrome (`--use-file-for-fake-video-capture`)
 3. Esperar hasta 60s que el SDK complete facematch automáticamente (detectado en `sdk/onboarding/identify/facematch`)
 4. **Si el SDK no completa en 60s** → fallback forzado:
    - Enviar POST a `{base_url}/sdk/onboarding/identify/facematch` con:
@@ -235,7 +235,7 @@ interceptor.get_legalario_requests_by_endpoint("sdk/onboarding/identify/facematc
 ```
 
 ### Cámara fake para Legalario SDK
-- Chrome se lanza con `--use-file-for-fake-video-capture=data/selfie.y4m`
+- Chrome se lanza con `--use-file-for-fake-video-capture=images/selfie.y4m`
 - El `.y4m` es un video YUV4MPEG2 con fases de zoom (1.0x → 2.5x) para simular liveness
 - Generado por `utils/generate_fake_camera_video.py`
 
@@ -308,7 +308,7 @@ python -m pytest tests/test_login.py    --alluredir=allure-results -s -v
 ### Flags de Chrome relevantes
 ```
 --use-fake-device-for-media-stream
---use-file-for-fake-video-capture=data/selfie.y4m
+--use-file-for-fake-video-capture=images/selfie.y4m
 --allow-file-access-from-files
 --disable-web-security
 ```
@@ -359,13 +359,9 @@ inserta el registro en `dbo.Ofertas` **antes de abrir el navegador** (se ejecuta
 `_ejecutar_venta_cf`).
 
 #### Conexión a base de datos
-- Dependencia: `pyodbc`. Credenciales y cadena de conexión **vía variables de entorno** (no hardcodear ni commitear):
-  - `BOTDB_SERVER`
-  - `BOTDB_DATABASE` (`botDB`)
-  - `BOTDB_USER`
-  - `BOTDB_PASSWORD`
-  - Opcional: `BOTDB_DRIVER` (default `ODBC Driver 17 for SQL Server`)
-- Se cargan con `python-dotenv` desde `.env` (ignorado por git; plantilla en `.env.example`).
+- Dependencia: `pyodbc`. Credenciales y cadena de conexión **desde el almacén de credenciales** (host `PESOS_OFFER`,
+  base `botDB`; no hardcodear ni commitear): servidor, usuario, contraseña y driver (default
+  `ODBC Driver 17 for SQL Server`), capturados en el diálogo **Conexiones** de la UI. Ver `config/credentials.py`.
 - Módulo: `services/offer_repository.py`.
 
 #### Construcción de la oferta
@@ -498,7 +494,7 @@ Si un ciclo falla, `LoginPage.recuperar_sesion_tras_fallo()` intenta cerrar sesi
 `services/offer_repository.py`:
 
 - **`OfferData`** (`dataclass`): representa una fila de `dbo.Ofertas`, con los campos fijos/`NULL` ya con su valor por defecto, y `FechaActualizacion` autogenerado en `__post_init__` si no se provee.
-- **`OfferRepository`**: lee `BOTDB_*` desde variables de entorno vía `python-dotenv`.
+- **`OfferRepository`**: lee la conexión del host `PESOS_OFFER` del almacén de credenciales (`CredentialStore`).
   - `test_connection()`: valida la conexión (`SELECT 1`).
   - `insert_offer(offer: OfferData)`: construye el `INSERT` dinámicamente a partir de los campos del dataclass y ejecuta con parámetros (`?`) — nunca por interpolación de strings, para evitar inyección SQL.
   - `offer_exists(id_oferta)`: chequeo de duplicados antes de insertar.

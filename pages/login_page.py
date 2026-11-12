@@ -2,7 +2,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import ElementClickInterceptedException, TimeoutException
 from utils.allure_utils import take_step_screenshot
 
 import time
@@ -123,25 +123,42 @@ class LoginPage:
         take_step_screenshot(self.driver, "04_antes_de_login")
         button.click()
 
+    def _click_robusto(self, locator, screenshot: str) -> None:
+        """
+        Click que tolera un modal con `modal-backdrop` aún visible tras el login o una
+        navegación (ElementClickInterceptedException): espera a que desaparezca y
+        reintenta; como último recurso hace el click por JS.
+        """
+        button = self.wait_until_clickable(locator)
+        take_step_screenshot(self.driver, screenshot)
+        try:
+            button.click()
+            return
+        except ElementClickInterceptedException:
+            print(f"Click interceptado en {locator}: esperando a que se cierre el modal")
+        try:
+            WebDriverWait(self.driver, 20).until(
+                lambda d: not any(
+                    e.is_displayed() for e in d.find_elements(By.CSS_SELECTOR, ".modal-backdrop")
+                )
+            )
+            self.wait_until_clickable(locator).click()
+        except Exception:
+            self.driver.execute_script(
+                "arguments[0].click();", self.driver.find_element(*locator)
+            )
+
     def click_ventas(self) -> None:
-        button = self.wait_until_clickable(self.BTN_VENTAS)
-        take_step_screenshot(self.driver, "05_antes_de_dar_click")
-        button.click()
+        self._click_robusto(self.BTN_VENTAS, "05_antes_de_dar_click")
     
     def click_registrar_ventas(self) -> None:
-        button = self.wait_until_clickable(self.BTN_REGISTRAR_VENTA)
-        take_step_screenshot(self.driver, "06_antes_de_dar_click")
-        button.click()
+        self._click_robusto(self.BTN_REGISTRAR_VENTA, "06_antes_de_dar_click")
 
     def click_cliente_nuevo(self) -> None:
-        button = self.wait_until_clickable(self.BTN_CLIENTE_NUEVO)
-        take_step_screenshot(self.driver, "07_antes_de_dar_click")
-        button.click()
+        self._click_robusto(self.BTN_CLIENTE_NUEVO, "07_antes_de_dar_click")
 
     def click_cliente_frecuente(self) -> None:
-        button = self.wait_until_clickable(self.BTN_CLIENTE_FRECUENTE)
-        take_step_screenshot(self.driver, "07_antes_de_dar_click_cliente_frecuente")
-        button.click()
+        self._click_robusto(self.BTN_CLIENTE_FRECUENTE, "07_antes_de_dar_click_cliente_frecuente")
 
     def click_registrar_una_ventas(self) -> None:
         button = self.wait_until_clickable(self.BTN_REGISTRAR_UNA_VENTA)
@@ -223,6 +240,13 @@ class LoginPage:
         si no es posible (pantalla intermedia, modal, etc.), borra cookies y
         storage. No lanza excepciones.
         """
+        # Primero el cierre local (cookies + storage + volver al login): pulsar "Salir"
+        # tras un fallo a mitad de flujo dejó chromedriver colgado varios minutos.
+        try:
+            self.cerrar_sesion_local()
+            return
+        except Exception as exc:
+            print(f"Recuperación: cerrar_sesion_local falló ({exc}) — intentando 'Salir'")
         try:
             self.cerrar_sesion()
             return

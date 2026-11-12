@@ -14,6 +14,7 @@ from utils.offer_id_allocator import OfferIdAllocator
 from utils.birthdate_allocator import BirthdateAllocator
 from utils.catalog_db import CatalogDB
 from utils.mexican_names import MexicanNames
+from utils.allure_utils import take_step_screenshot
 from utils.progress import Progress
 
 from pages.legalario_page import LegalarioPage
@@ -22,17 +23,28 @@ from tests.test_login import (
     _flujo_identidad_a_otp,
     _flujo_beneficiario_a_finalizar,
 )
+from utils.paths import app_data_dir
 
 
-RUN_RESULTS_PATH = Path("data/run_results_cf.json")
+RUN_RESULTS_PATH = Path(Settings.RUN_RESULTS_PATH) if Settings.RUN_RESULTS_PATH else app_data_dir() / "run_results_cf.json"
 
+
+# Finabien solo aparece en "Método de entrega" si el monto elegido es menor a esto.
+MONTO_MAXIMO_FINABIEN = 10000
 
 def _limite_monto_agencia(agencia_label: str):
-    """Límite EXCLUSIVO de monto CF para la agencia (p. ej. Tijuana: < 10,000), o None."""
-    for prefijo, tope in Settings.MONTO_MAXIMO_CF_POR_AGENCIA.items():
-        if agencia_label.startswith(prefijo):
-            return tope
-    return None
+    """
+    Límite EXCLUSIVO del monto a elegir en CF: el de la agencia (p. ej. Tijuana: < 10,000)
+    y, con método de entrega Finabien, < 10,000 (el portal solo muestra Finabien con
+    montos menores; ver Context.md). Devuelve el más restrictivo, o None.
+    """
+    topes = [
+        tope for prefijo, tope in Settings.MONTO_MAXIMO_CF_POR_AGENCIA.items()
+        if agencia_label.startswith(prefijo)
+    ]
+    if Settings.METODO_ENTREGA == "Finabien":
+        topes.append(MONTO_MAXIMO_FINABIEN)
+    return min(topes) if topes else None
 
 
 def _monto_para_agencia(agencia_label: str) -> int:
@@ -183,9 +195,9 @@ def _insertar_oferta_cf(
 
 
 def _capturar_diagnostico_falla(driver, ciclo: int) -> None:
-    """Guarda screenshot, URL y HTML del punto de falla en data/diagnostico_cf/."""
+    """Guarda screenshot, URL y HTML del punto de falla en la carpeta diagnostico_cf de los datos de la app."""
     try:
-        out = Path("data/diagnostico_cf")
+        out = app_data_dir() / "diagnostico_cf"
         out.mkdir(parents=True, exist_ok=True)
         driver.save_screenshot(str(out / f"ciclo{ciclo}_falla.png"))
         (out / f"ciclo{ciclo}_falla.html").write_text(driver.page_source, encoding="utf-8")
@@ -202,7 +214,7 @@ def _capturar_diagnostico_falla(driver, ciclo: int) -> None:
         print(f"No se pudo capturar diagnóstico: {exc}")
 
 
-def _ejecutar_venta_cf(driver, numero_ciclo: int) -> dict:
+def _ejecutar_venta_cf(driver, numero_ciclo: int, contexto_falla: dict = None) -> dict:
     """
     Flujo completo de venta para Cliente Frecuente (CF).
 
@@ -210,6 +222,12 @@ def _ejecutar_venta_cf(driver, numero_ciclo: int) -> dict:
     identidad Legalario → documentos (+ consentimiento de geolocalización) →
     datos personales (sin OTP Provident) → beneficiario → contrato/firma →
     finalizar venta. Ver ESPECIFICACIONES.md.
+
+    `contexto_falla` (opcional): dict mutable donde se anota el `idOferta` recién
+    insertado en cuanto se conoce, antes de tocar el navegador. Así, si el resto
+    del flujo falla, quien llama puede saber qué oferta quedó huérfana en botDB
+    sin depender de comparar snapshots de la tabla de IDs (que no es seguro
+    cuando hay varias ventas CF corriendo en paralelo).
     """
     login_page = LoginPage(driver)
     interceptor = NetworkInterceptor(driver)
@@ -219,6 +237,8 @@ def _ejecutar_venta_cf(driver, numero_ciclo: int) -> dict:
 
     repo = OfferRepository()
     oferta = _insertar_oferta_cf(repo, numero_ciclo)
+    if contexto_falla is not None:
+        contexto_falla["idOferta"] = oferta.idOferta
 
     # =========================
     # LOGIN Y FLUJO INICIAL (específico de Cliente Frecuente)
@@ -305,8 +325,9 @@ class TestLoginProvidentCF:
             print(f"--- Iniciando ciclo CF {ciclo}/{total} ---")
 
             with allure.step(f"Ciclo CF {ciclo} de {total}"):
+                contexto_falla = {}
                 try:
-                    oferta_info = _ejecutar_venta_cf(driver, ciclo)
+                    oferta_info = _ejecutar_venta_cf(driver, ciclo, contexto_falla=contexto_falla)
                     resultados.append({
                         "ciclo": ciclo,
                         "estado": "exitoso",
@@ -324,7 +345,8 @@ class TestLoginProvidentCF:
                     resultados.append({
                         "ciclo": ciclo,
                         "estado": "fallido",
-                        "error": str(exc)
+                        "error": str(exc),
+                        "idOferta": contexto_falla.get("idOferta"),
                     })
                     print(f"--- Ciclo CF {ciclo} FALLIDO: {exc} ---\n")
                     Progress.emit(
@@ -332,6 +354,12 @@ class TestLoginProvidentCF:
                         "error",
                     )
                     _capturar_diagnostico_falla(driver, ciclo)
+                    # Evidencia del estado real en el momento del fallo, antes de que la
+                    # recuperación de sesión navegue al login.
+                    try:
+                        take_step_screenshot(driver, "fallo_en_ciclo", force=True)
+                    except Exception:
+                        pass
                     LoginPage(driver).recuperar_sesion_tras_fallo()
 
         exitosos = sum(1 for r in resultados if r["estado"] == "exitoso")
