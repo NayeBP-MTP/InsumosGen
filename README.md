@@ -1,6 +1,6 @@
-# 🚀 Framework Provident - Automatización Web con Python, Selenium y Allure
+# 🚀 InsumosGen - Automatización web con Python, Selenium y Allure
 
-> Proyecto base para ejecutar una prueba automatizada de login sobre **Provident UAT** desde **Visual Studio Code**, utilizando **Python + Selenium + Pytest + Allure Reports** y capturas de pantalla en cada paso.
+> **InsumosGen** automatiza el flujo de venta y ofertas del portal **Provident UAT**, ejecutándolo desde **Visual Studio Code** con **Python + Selenium + Pytest + Allure Reports** y capturas de pantalla en cada paso.
 
 ---
 
@@ -18,7 +18,7 @@
 ## 🗂️ Estructura del proyecto
 
 ```bash
-Providigital_Ventas/
+InsumosGen/
 ├── config/
 │   └── settings.py
 ├── data/
@@ -31,7 +31,6 @@ Providigital_Ventas/
 │   ├── login_page.py
 │   ├── legalario_page.py
 │   └── prestamo_personal_page.py
-├── screenshots/
 ├── services/
 │   ├── image_encoder.py
 │   ├── legalario_auth_resolver.py
@@ -154,9 +153,12 @@ pip install -r requirements.txt
 
 ---
 
-### 3) Preparar archivos en `data/`
+### 3) Cargar tus imágenes de prueba
 
-Coloca los siguientes archivos dentro de la carpeta `data/` antes de ejecutar:
+No hay imágenes por defecto: cada usuario aporta las suyas. Se cargan desde **Ajustes (⚙)**, con
+los botones *Subir…*, y quedan en la carpeta `images/` de los datos de la app (`data/images/` en
+desarrollo; `%LOCALAPPDATA%\InsumosGen\images\` con la app instalada). La app no te deja operar
+hasta que estén todas:
 
 | Archivo | Descripción |
 |---|---|
@@ -165,13 +167,9 @@ Coloca los siguientes archivos dentro de la carpeta `data/` antes de ejecutar:
 | `selfie.jpeg` | Selfie del cliente (base para generar la cámara fake) |
 | `comprobante.jpeg` | Comprobante de domicilio |
 
-Luego genera el video de cámara fake:
-
-```bash
-python utils/generate_fake_camera_video.py
-```
-
-Esto crea `data/selfie.y4m` automáticamente.
+Después, en la misma pantalla, pulsa **Generar video**: crea `selfie.y4m` (la cámara fake de Chrome)
+a partir de tu selfie, y se vuelve a pedir cada vez que cambias la selfie. También puedes generarlo
+a mano con `python utils/generate_fake_camera_video.py`.
 
 ---
 
@@ -254,6 +252,9 @@ Las capturas se generan automáticamente en cada paso importante del flujo y se 
 Después de ejecutar la prueba, lanza:
 
 ```bash
+# Corridas lanzadas con run.py / la UI (en desarrollo; instalada: %LOCALAPPDATA%\InsumosGen\allure-results)
+allure serve data/allure-results
+# Corridas de pytest directo con --alluredir=allure-results
 allure serve allure-results
 ```
 
@@ -273,7 +274,10 @@ Ahí podrás ver:
 
 ### 1) Chrome debe estar instalado
 Este proyecto usa **Google Chrome**.
-El driver se descarga automáticamente con `webdriver-manager`.
+El ChromeDriver lo descarga automáticamente **Selenium Manager** (incluido en Selenium) la primera vez que corre
+una prueba, con la versión que corresponde a tu Chrome, y lo guarda en caché (`~/.cache/selenium`). Si tu red
+bloquea esa descarga, baja el `chromedriver.exe` de tu versión de Chrome y define la variable de entorno
+`SE_CHROMEDRIVER` con su ruta.
 
 ### 2) Ambiente UAT
 Si el sitio cambia de diseño, nombre de campos o botones, puede ser necesario ajustar los selectores del archivo:
@@ -305,7 +309,7 @@ Este framework se puede extender fácilmente con:
 
 - Se usa `pytest` como motor de pruebas.
 - Se usa `allure-pytest` para reportes.
-- Se usa `webdriver-manager` para evitar descargar manualmente el ChromeDriver.
+- Se usa Selenium Manager (incluido en Selenium) para no descargar manualmente el ChromeDriver.
 - Los selectores del login fueron diseñados de forma flexible para tolerar cambios menores del DOM.
 
 ---

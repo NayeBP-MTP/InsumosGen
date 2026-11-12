@@ -7,11 +7,14 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
+from config.settings import Settings
 from ui.progress_ui import ProgressUI
 from ui.results_ui import ResultsUI
 from ui.selector_ui import SelectorUI
 from utils.progress import Progress
 from utils.run_history import RunHistory
+from utils.paths import app_data_dir
+from utils.procesos import abrir_log, limpiar_logs, opciones_subproceso, python_ejecutable
 
 
 def _matar_arbol_proceso(pid: int) -> None:
@@ -71,7 +74,8 @@ class RunController:
 # sesiones simultáneas con la misma cuenta. Cada lote abre su propio Chrome con
 # facematch/OTP. Empezar conservador: subirlo sin medir estabilidad de UAT/
 # Legalario y de la máquina local puede generar fallos que no se ven con 1 a la vez.
-MAX_WORKERS_VENTAS = 4
+# Con Settings.PARALELISMO_HABILITADO apagado (hoy) los lotes corren de uno en uno.
+MAX_WORKERS_VENTAS = 4 if Settings.PARALELISMO_HABILITADO else 1
 
 
 TEST_FILE_BY_TIPO_CLIENTE = {
@@ -93,7 +97,7 @@ ORDEN_TIPOS = ["OF", "CF", "CN", "AGENCIA"]
 # su propio aislamiento por lote (`run_id`); esto cubre lo que faltaba.
 PROCESO_ID = str(os.getpid())
 
-CONFIG_PATH = Path(f"data/run_config_{PROCESO_ID}.json")
+CONFIG_PATH = app_data_dir() / f"run_config_{PROCESO_ID}.json"
 
 
 def _config_path(run_id: str = None) -> Path:
@@ -101,20 +105,20 @@ def _config_path(run_id: str = None) -> Path:
     propia agencia), cada uno escribe/lee su propio archivo en vez de pisar el
     config.json global — así varios lotes del mismo tipo (ej. dos lotes CN) no se
     pisan entre sí, incluso si en el futuro se lanzan concurrentemente."""
-    return Path(f"data/run_config_{run_id}.json") if run_id else CONFIG_PATH
+    return app_data_dir() / f"run_config_{run_id}.json" if run_id else CONFIG_PATH
 
 
 def _results_path(tipo: str, run_id: str = None) -> Path:
     """Resultados de esta fase. Sin `run_id` (OF/AGENCIA), se usa PROCESO_ID como
     sufijo — antes era una ruta fija compartida por tipo, y dos ventanas de
     run.py haciendo OF/AGENCIA a la vez podían leer el resultado de la otra."""
-    return Path(f"data/run_results_{tipo.lower()}_{run_id or PROCESO_ID}.json")
+    return app_data_dir() / f"run_results_{tipo.lower()}_{run_id or PROCESO_ID}.json"
 
 
 def _resumen_error(error: str) -> str:
     """Primera línea útil del error (sin el stacktrace de chromedriver)."""
     primera = (error or "").strip().splitlines()[0] if error else ""
-    primera = primera.replace("Message:", "").strip() or "Falló (ver logs / data/diagnostico_cf)"
+    primera = primera.replace("Message:", "").strip() or "Falló (ver logs / carpeta diagnostico_cf de los datos de la app)"
     return primera[:90]
 
 
@@ -194,23 +198,31 @@ def _ejecutar_fase(
         # distingue de qué lote/agencia viene cada paso cuando varios corren a
         # la vez en paralelo.
         env["PROVIDIGITAL_RUN_TAG"] = f"{tipo} · {run_config.get('agencia_label', run_id)}"
-    proc = subprocess.Popen(
-        [
-            sys.executable, "-m", "pytest",
-            TEST_FILE_BY_TIPO_CLIENTE[tipo],
-            "--alluredir=allure-results",
-            "-s", "-v"
-        ],
-        cwd=Path(__file__).parent,
-        env=env,
-    )
-    if controller:
-        controller.add_process(proc)
+    # Instalada (pythonw, sin consola) la salida de pytest va a <datos>/logs/run_<pid>.log y la
+    # ventana del subproceso se oculta; desde consola se ve ahí, como siempre.
+    log = abrir_log(f"run_{PROCESO_ID}")
     try:
-        returncode = proc.wait()
-    finally:
+        proc = subprocess.Popen(
+            [
+                python_ejecutable(), "-m", "pytest",
+                TEST_FILE_BY_TIPO_CLIENTE[tipo],
+                f"--alluredir={app_data_dir() / 'allure-results'}",
+                "-s", "-v"
+            ],
+            cwd=Path(__file__).parent,
+            env=env,
+            **opciones_subproceso(log),
+        )
         if controller:
-            controller.remove_process(proc)
+            controller.add_process(proc)
+        try:
+            returncode = proc.wait()
+        finally:
+            if controller:
+                controller.remove_process(proc)
+    finally:
+        if log:
+            log.close()
     return returncode
 
 
@@ -239,6 +251,8 @@ def _ejecutar_lote_venta(tipo: str, grupo: list, run_config: dict, controller: R
     incorrectos" al intentar 4 logins a la vez con la misma cuenta). El
     paralelismo real es ENTRE lotes (agencias distintas), nunca dentro de uno.
     """
+    if controller and controller.cancel_event.is_set():
+        return []  # se abortó mientras este lote esperaba su turno en el pool: no lanzar otro Chrome
     batch_cfg = grupo[0]["config"]
     run_id = f"{tipo.lower()}_{grupo[0]['batch_id']}"
     fase_config = {**run_config, **batch_cfg}
@@ -391,7 +405,8 @@ def _ejecutar_ronda(
 def main():
     # Propio para este proceso (ver PROCESO_ID): dos ventanas de `python run.py`
     # corriendo a la vez ya no comparten ni se truncan el canal de progreso.
-    Progress.set_path(f"data/run_progress_{PROCESO_ID}.jsonl")
+    Progress.set_path(str(app_data_dir() / f"run_progress_{PROCESO_ID}.jsonl"))
+    limpiar_logs()
 
     while True:
         ui = SelectorUI(config_path=CONFIG_PATH)

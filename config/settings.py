@@ -1,6 +1,7 @@
 import json
 import os
 from pathlib import Path
+from utils.paths import app_data_dir, imagenes_dir
 
 
 def _load_run_config() -> dict:
@@ -8,7 +9,7 @@ def _load_run_config() -> dict:
     # (p. ej. un lote de venta con su propia agencia) vía esta variable de entorno,
     # en vez de siempre leer data/run_config.json. Si no está definida, se mantiene
     # el comportamiento de siempre (una sola config global).
-    config_path = Path(os.environ.get("PROVIDIGITAL_RUN_CONFIG_PATH", "data/run_config.json"))
+    config_path = Path(os.environ.get("PROVIDIGITAL_RUN_CONFIG_PATH", app_data_dir() / "run_config.json"))
     if config_path.exists():
         return json.loads(config_path.read_text(encoding="utf-8"))
     return {}
@@ -32,6 +33,8 @@ class Settings:
     PASSWORD  = _run_config.get("password",  "Estrella1*")
     CELULAR   = _run_config.get("celular",   "5513096751")
     CORREO    = _run_config.get("correo",    "luis.andrade@mtpinternational.mx")
+    NOMBRE_INE         = _run_config.get("nombre_ine", "")
+    NUMERO_COLABORADOR = _run_config.get("numero_colaborador", "")
 
     # Selección de la UI
     TIPO_CLIENTE    = _run_config.get("tipo_cliente",   "CN")
@@ -108,11 +111,12 @@ class Settings:
                 return ubicacion
         return ("Puebla", "Puebla")
 
-    LEGALARIO_FRONT_IMAGE_PATH = os.path.join("data", "ine_frente.jpeg")
-    LEGALARIO_BACK_IMAGE_PATH = os.path.join("data", "ine_tras.jpeg")
-    LEGALARIO_SELFIE_IMAGE_PATH = os.path.join("data", "selfie.jpeg")
-    LEGALARIO_SELFIE_VIDEO_PATH = os.path.join("data", "selfie.y4m")
-    COMPROBANTE_DOMICILIO_PATH = os.path.abspath(os.path.join("data", "comprobante.jpeg"))
+    # Imágenes que aporta el usuario (no hay por defecto): <datos>/images, ver utils/paths.imagenes_dir().
+    LEGALARIO_FRONT_IMAGE_PATH = str(imagenes_dir() / "ine_frente.jpeg")
+    LEGALARIO_BACK_IMAGE_PATH = str(imagenes_dir() / "ine_tras.jpeg")
+    LEGALARIO_SELFIE_IMAGE_PATH = str(imagenes_dir() / "selfie.jpeg")
+    LEGALARIO_SELFIE_VIDEO_PATH = str(imagenes_dir() / "selfie.y4m")
+    COMPROBANTE_DOMICILIO_PATH = str(imagenes_dir() / "comprobante.jpeg")
 
     LEGALARIO_ONBOARDING_ID = "69e1305983beb98b360177f9"
     LEGALARIO_ORGANIZATION_ID = "6099a51598cfb21cf25ad42b"
@@ -123,5 +127,10 @@ class Settings:
     # Elegible desde el panel "Venta" de la UI ("Ejecutar sin mostrar el
     # navegador"). Probado contra UAT: el facematch/OTP con cámara fake funciona
     # igual en headless — solo cambia que no se ve la ventana de Chrome.
-    HEADLESS = _run_config.get("headless", False)
+    # Interruptor de lo que está incompleto de la paralelización (se retomará): mientras sea False,
+    # la opción de navegador invisible no aparece en la UI y HEADLESS se ignora aunque un
+    # run_config.json antiguo lo traiga, y los lotes de venta corren de uno en uno
+    # (run.MAX_WORKERS_VENTAS = 1). Los lotes y ofertas siguen pudiendo agregarse; se ejecutan en secuencia.
+    PARALELISMO_HABILITADO = False
+    HEADLESS = _run_config.get("headless", False) and PARALELISMO_HABILITADO
     IMPLICIT_WAIT = 10

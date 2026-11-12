@@ -1,0 +1,25 @@
+# Pruebas unitarias en cada PR y en cada push a dev. Las e2e (portal UAT / botDB) necesitan VPN y quedan fuera.
+# Este es el chequeo que la protección de `main` debe exigir antes de mergear (nombre del job: "unit-tests").
+name: Tests
+
+on:
+  pull_request:
+    branches: [main, dev]
+  push:
+    branches: [dev]
+
+permissions:
+  contents: read
+
+jobs:
+  unit-tests:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Pruebas unitarias
+        run: python -X utf8 -m pytest tests -q --ignore=tests/test_login.py --ignore=tests/test_login_cf.py --ignore=tests/test_oferta.py --ignore=tests/test_agencia_structure.py

@@ -17,6 +17,7 @@ from utils.allure_utils import take_step_screenshot
 from utils.progress import Progress
 from pages.prestamo_personal_page import PrestamoPersonalPage
 from utils.birthdate_allocator import BirthdateAllocator
+from utils.paths import app_data_dir
 
 
 # Facematch forzado (fallback cuando el SDK no lo completa solo): intentos y pausa entre ellos.
@@ -40,7 +41,7 @@ FACEMATCH_ESPERA_REINTENTO = 3
 FOTO_ESPERA_REQUEST = 40
 FOTO_REINTENTO_CLICK_TRAS = 15
 
-RUN_RESULTS_PATH = Path(Settings.RUN_RESULTS_PATH) if Settings.RUN_RESULTS_PATH else Path("data/run_results.json")
+RUN_RESULTS_PATH = Path(Settings.RUN_RESULTS_PATH) if Settings.RUN_RESULTS_PATH else app_data_dir() / "run_results.json"
 
 
 def _esperar_request_foto(interceptor, legalario_page, endpoint: str) -> list:

@@ -1,4 +1,4 @@
-# Especificaciones del flujo E2E automatizado — Providigital Ventas
+# Especificaciones del flujo E2E automatizado — InsumosGen
 
 **Fecha de validación CN:** 22/09/2026  
 **Fecha de validación CF:** 23/09/2026  
@@ -21,7 +21,7 @@ Automatización E2E del proceso completo de venta de préstamo personal en el po
 ## Estructura del proyecto
 
 ```
-Providigital_Ventas/
+InsumosGen/
 ├── config/
 │   ├── settings.py             # Credenciales, URLs, rutas de imágenes, selección de la UI (lee data/run_config.json)
 │   └── Context/
@@ -125,7 +125,7 @@ subproceso pytest propio.
 
 ### 5. Facematch (Legalario SDK + fallback)
 1. Limpiar requests → preparar imagen mock selfie → configurar interceptor
-2. El video `data/selfie.y4m` se usa como cámara fake en Chrome (`--use-file-for-fake-video-capture`)
+2. El video `images/selfie.y4m` se usa como cámara fake en Chrome (`--use-file-for-fake-video-capture`)
 3. Esperar hasta 60s que el SDK complete facematch automáticamente (detectado en `sdk/onboarding/identify/facematch`)
 4. **Si el SDK no completa en 60s** → fallback forzado:
    - Enviar POST a `{base_url}/sdk/onboarding/identify/facematch` con:
@@ -235,7 +235,7 @@ interceptor.get_legalario_requests_by_endpoint("sdk/onboarding/identify/facematc
 ```
 
 ### Cámara fake para Legalario SDK
-- Chrome se lanza con `--use-file-for-fake-video-capture=data/selfie.y4m`
+- Chrome se lanza con `--use-file-for-fake-video-capture=images/selfie.y4m`
 - El `.y4m` es un video YUV4MPEG2 con fases de zoom (1.0x → 2.5x) para simular liveness
 - Generado por `utils/generate_fake_camera_video.py`
 
@@ -308,7 +308,7 @@ python -m pytest tests/test_login.py    --alluredir=allure-results -s -v
 ### Flags de Chrome relevantes
 ```
 --use-fake-device-for-media-stream
---use-file-for-fake-video-capture=data/selfie.y4m
+--use-file-for-fake-video-capture=images/selfie.y4m
 --allow-file-access-from-files
 --disable-web-security
 ```

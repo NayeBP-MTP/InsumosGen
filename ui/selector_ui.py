@@ -1,10 +1,14 @@
 import json
 import math
 import re
+import os
+import subprocess
 import sys
+import threading
 import tkinter as tk
+import webbrowser
 from pathlib import Path
-from tkinter import messagebox, ttk
+from tkinter import filedialog, messagebox, ttk
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -14,14 +18,20 @@ from config.credentials import CredentialStore
 from config.legacy_env import importar_env
 from config.settings import Settings
 from config.sucursales import SUCURSALES, get_sucursal_by_nombre
-from services.connection_gate import hosts_requeridos, hosts_sin_configurar, probar_hosts
+from services.connection_gate import HOSTS_ARRANQUE, HOSTS_BD, hosts_requeridos, hosts_sin_configurar, probar_hosts
 from ui.conexiones_ui import open_connections_dialog
 from ui.history_ui import open_history_dialog
+from utils import updater
 from utils.catalog_db import CatalogDB
 from utils.vpn_check import verificar_vpn
+from utils.paths import app_data_dir
+from utils.prereqs import faltantes as prerrequisitos_faltantes
+from utils.procesos import python_ejecutable
+from version import __version__
 
 
-RUN_CONFIG_PATH = Path("data/run_config.json")
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+RUN_CONFIG_PATH = app_data_dir() / "run_config.json"
 ENV_LEGADO = Path(__file__).resolve().parents[1] / ".env"
 INSUMOS = [
     ("OF", "Oferta (solo inserción en BD)"),
@@ -39,10 +49,23 @@ NIVELES_PRECIO = [
     ("PP25", "PP25"),
 ]
 INSUMO_PLACEHOLDER = "Selecciona una opción"
-USER_SETTINGS_PATH = Path("data/user_settings.json")
+USER_SETTINGS_PATH = app_data_dir() / "user_settings.json"
 DEFAULT_CELULAR = "5513096751"
 DEFAULT_CORREO = "luis.andrade@mtpinternational.mx"
-EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+EMAIL_REGEX = re.compile(
+    r"^[A-Za-z0-9]+([._%+-][A-Za-z0-9]+)*"       # parte local: sin puntos al borde ni dobles
+    r"@([A-Za-z0-9]+(-[A-Za-z0-9]+)*\.)+[A-Za-z]{2,}$"  # dominio con TLD de 2+ letras
+)
+
+
+def correo_valido(correo: str) -> bool:
+    """Checks básicos: sin espacios, un solo @, parte local/dominio bien formados y longitudes."""
+    local, _, _dominio = correo.partition("@")
+    return len(correo) <= 254 and len(local) <= 64 and bool(EMAIL_REGEX.match(correo))
+NOMBRE_INE_REGEX = re.compile(r"^[A-ZÁÉÍÓÚÜÑ]+( [A-ZÁÉÍÓÚÜÑ]+)*$")
+COLABORADOR_REGEX = re.compile(r"^[0-9]{2}$")
+CELULAR_REGEX = re.compile(r"^[0-9]{10}$")
+AJUSTES_INCOMPLETOS_TEXTO = "Completa los ajustes de usuario para continuar"
 
 
 class SelectorUI:
@@ -54,7 +77,7 @@ class SelectorUI:
         self.config_path = config_path or RUN_CONFIG_PATH
 
         self.root = tk.Tk()
-        self.root.title("Providigital — Configuración de Ejecución")
+        self.root.title(f"InsumosGen v{__version__} — Configuración de Ejecución")
         self.root.resizable(False, False)
         self._icon_img = self._make_snowflake_icon()
         self.root.iconphoto(True, self._icon_img)
@@ -81,6 +104,9 @@ class SelectorUI:
         self.user_settings = self._load_user_settings()
         self.celular_var = tk.StringVar(value=self.user_settings.get("celular", DEFAULT_CELULAR))
         self.correo_var = tk.StringVar(value=self.user_settings.get("correo", DEFAULT_CORREO))
+        # Sin valor por defecto: el usuario debe capturarlos antes de poder operar.
+        self.nombre_ine_var = tk.StringVar(value=self.user_settings.get("nombre_ine", ""))
+        self.colaborador_var = tk.StringVar(value=self.user_settings.get("numero_colaborador", ""))
 
         self.confirmed = False
 
@@ -90,6 +116,257 @@ class SelectorUI:
         self._agregar_fila_agencia()
         self._agregar_fila_venta()
         self._lock_window_size()
+        self._actualizar_gate_ajustes()
+        # Al volver a la ventana se reevalúa el gate: así se libera solo tras instalar Chrome o el driver.
+        self.root.bind("<FocusIn>", self._al_enfocar)
+        # Si falta algo obligatorio, abre las ventanas necesarias una tras otra (tras mostrar la ventana).
+        self._dialogos_arranque = bool(self._pasos_de_arranque())
+        if self._dialogos_arranque:
+            self.root.after(300, self._primer_arranque)
+        self.root.after(500, self._tras_actualizar)
+        self._iniciar_comprobacion_arranque()
+
+    def _al_enfocar(self, event):
+        if event.widget is self.root:
+            self._actualizar_gate_ajustes()
+
+    def _prerrequisitos_pendientes(self) -> list:
+        """Programas externos (Chrome, driver ODBC) que faltan en este equipo."""
+        return prerrequisitos_faltantes()
+
+    def _avisar_prerrequisitos(self):
+        """Avisa de lo que falta instalar y ofrece abrir las páginas de descarga."""
+        faltan = self._prerrequisitos_pendientes()
+        if not faltan:
+            return
+        texto = ("Para usar InsumosGen necesitas instalar:\n\n"
+                 + "\n\n".join(f"• {p.nombre}\n  {p.detalle}" for p in faltan)
+                 + "\n\n¿Quieres abrir las páginas de descarga?")
+        if messagebox.askyesno("Faltan programas por instalar", texto, parent=self.root):
+            for p in faltan:
+                webbrowser.open(p.url)
+
+    def _conexiones_pendientes(self) -> list:
+        """Hosts que toda corrida necesita y aún no están configurados (sin almacén seguro: todos)."""
+        try:
+            return hosts_sin_configurar(self.credenciales, HOSTS_ARRANQUE)
+        except KeyringError:
+            return list(HOSTS_ARRANQUE)
+
+    def _pasos_de_arranque(self) -> list:
+        """Ventanas que hay que abrir al iniciar, en este orden: 'prerrequisitos', 'conexiones' y 'ajustes'."""
+        pasos = []
+        if self._prerrequisitos_pendientes():
+            pasos.append("prerrequisitos")
+        if self._conexiones_pendientes():
+            pasos.append("conexiones")
+        if not self._ajustes_completos()[0]:
+            pasos.append("ajustes")
+        return pasos
+
+    def _primer_arranque(self):
+        """Abre, una tras otra, las ventanas de lo que falta; el gate de la pantalla principal sigue bloqueado hasta completarlo."""
+        for paso in self._pasos_de_arranque():
+            if paso == "prerrequisitos":
+                self._avisar_prerrequisitos()
+            elif paso == "conexiones":
+                open_connections_dialog(
+                    self.root, self.credenciales, hosts=HOSTS_ARRANQUE,
+                    mensaje="Para empezar necesitas la conexión a la base de datos de Pesos_Offer (botDB y "
+                            "Originacion), que toda ejecución usa. Captúrala y pruébala; las demás "
+                            "conexiones se te piden cuando una ejecución las necesite.",
+                )
+            else:
+                self._open_settings_dialog()
+        self._dialogos_arranque = False
+        self._actualizar_gate_ajustes()
+
+    # --- Actualizaciones ---------------------------------------------------------------------------------
+
+    def _iniciar_comprobacion_arranque(self):
+        """Consulta GitHub en un hilo (una vez por arranque de la app); el aviso sale sin pisar otras ventanas."""
+        self._resultado_arranque = None
+        self._comprobacion_lista = False
+
+        def _trabajo():
+            self._resultado_arranque = updater.comprobar_al_arrancar()
+            self._comprobacion_lista = True
+
+        threading.Thread(target=_trabajo, daemon=True).start()
+        self.root.after(1000, self._esperar_comprobacion_arranque)
+
+    def _esperar_comprobacion_arranque(self):
+        if not self._comprobacion_lista or self._dialogos_arranque:
+            self.root.after(500, self._esperar_comprobacion_arranque)
+            return
+        resultado = self._resultado_arranque
+        if resultado and resultado.hay_nueva:
+            self._ofrecer_actualizacion(resultado, self.root)
+
+    def _tras_actualizar(self):
+        """Si la app acaba de actualizarse (o la actualización falló y se restauró), lo avisa y limpia app.old."""
+        resultado = updater.cerrar_actualizacion()
+        if not resultado:
+            return
+        if resultado.get("ok"):
+            messagebox.showinfo("InsumosGen", resultado.get("mensaje", "Actualización completada."), parent=self.root)
+        else:
+            messagebox.showwarning(
+                "No se pudo actualizar",
+                resultado.get("mensaje", "La actualización falló.") + "\n\nSigues con tu versión anterior. "
+                "Puedes descargar el instalador nuevo desde " + updater.URL_RELEASES, parent=self.root)
+
+    def _ofrecer_actualizacion(self, resultado, parent):
+        """Muestra las notas de la versión nueva y, si el usuario acepta, la instala (o abre la descarga)."""
+        notas = resultado.notas if len(resultado.notas) <= 700 else resultado.notas[:700].rstrip() + "…"
+        cuerpo = (f"Hay una versión nueva de InsumosGen: {resultado.version_nueva} "
+                  f"(tienes la {resultado.version_actual}).\n\n" + (notas + "\n\n" if notas else ""))
+        if resultado.puede_actualizar_solo:
+            if messagebox.askyesno(
+                    "Actualización disponible",
+                    cuerpo + "¿Actualizar ahora? La app se cerrará y volverá a abrirse sola.", parent=parent):
+                self._instalar_actualizacion(resultado, parent)
+        elif messagebox.askyesno("Actualización disponible", cuerpo + "¿Abrir la página de descarga?", parent=parent):
+            webbrowser.open(resultado.url_setup or resultado.url_pagina)
+
+    def _instalar_actualizacion(self, resultado, parent):
+        """Descarga y prepara la versión nueva (con una ventana de avance) y cierra la app para que update.py la aplique."""
+        instalacion = updater.carpeta_instalacion()
+        if instalacion is None:
+            webbrowser.open(resultado.url_pagina)
+            return
+
+        ventana = tk.Toplevel(parent)
+        ventana.title("Actualizando")
+        ventana.resizable(False, False)
+        ventana.transient(parent)
+        ventana.grab_set()
+        ventana.protocol("WM_DELETE_WINDOW", lambda: None)  # no se cierra a media descarga
+        tk.Label(ventana, text=f"Descargando la versión {resultado.version_nueva}…", font=("Segoe UI", 10),
+                 padx=30, pady=14).pack()
+        barra = ttk.Progressbar(ventana, length=280, mode="indeterminate")
+        barra.pack(padx=30, pady=(0, 18))
+        barra.start(15)
+
+        estado = {"hecho": 0, "total": 0, "fin": False, "error": None}
+
+        def _trabajo():
+            try:
+                updater.descargar_actualizacion(
+                    resultado, instalacion, progreso=lambda h, t: estado.update(hecho=h, total=t))
+            except Exception as e:
+                estado["error"] = e
+            estado["fin"] = True
+
+        threading.Thread(target=_trabajo, daemon=True).start()
+
+        def _sondear():
+            if not estado["fin"]:
+                if estado["total"] and str(barra.cget("mode")) == "indeterminate":
+                    barra.stop()
+                    barra.config(mode="determinate", maximum=estado["total"])
+                if estado["total"]:
+                    barra["value"] = estado["hecho"]
+                ventana.after(150, _sondear)
+                return
+            ventana.destroy()
+            error = estado["error"]
+            if error is None:
+                try:
+                    updater.lanzar_actualizacion(instalacion, os.getpid())
+                except OSError as e:
+                    messagebox.showerror("No se pudo actualizar", f"No se pudo iniciar la actualización ({e}).",
+                                         parent=parent)
+                    return
+                sys.exit(0)  # update.py espera a que este proceso termine para cambiar la carpeta app
+            if isinstance(error, updater.PythonNuevoError):
+                if messagebox.askyesno("Actualización disponible", f"{error}\n\n¿Abrir la página de descarga?",
+                                       parent=parent):
+                    webbrowser.open(resultado.url_setup or resultado.url_pagina)
+            else:
+                messagebox.showerror(
+                    "No se pudo actualizar",
+                    f"{error}\n\nPuedes descargar el instalador manualmente desde {updater.URL_RELEASES}",
+                    parent=parent)
+
+        ventana.after(150, _sondear)
+        ventana.wait_window()
+
+    def _abrir_conexiones(self):
+        """Botón 🔌: abre todas las conexiones y refresca el gate (puede completar lo que faltaba)."""
+        open_connections_dialog(self.root, self.credenciales)
+        self._actualizar_gate_ajustes()
+
+    @staticmethod
+    def _estado_archivos() -> list:
+        """Checks obligatorios de archivos: [(etiqueta, ok, detalle)]. Orden fijo: selfie, INE, comprobante, video."""
+        def _lleno(ruta) -> bool:
+            p = Path(ruta)
+            return p.is_file() and p.stat().st_size > 0
+
+        selfie = Path(Settings.LEGALARIO_SELFIE_IMAGE_PATH)
+        video = Path(Settings.LEGALARIO_SELFIE_VIDEO_PATH)
+        faltan_ine = [
+            lado for lado, ruta in (("frontal", Settings.LEGALARIO_FRONT_IMAGE_PATH),
+                                    ("trasera", Settings.LEGALARIO_BACK_IMAGE_PATH))
+            if not _lleno(ruta)
+        ]
+
+        selfie_ok = _lleno(selfie)
+        ine_ok = not faltan_ine
+        comprobante_ok = _lleno(Settings.COMPROBANTE_DOMICILIO_PATH)
+        video_ok = _lleno(video) and selfie_ok and video.stat().st_mtime >= selfie.stat().st_mtime
+        if video_ok:
+            video_detalle = ""
+        elif not video.is_file():
+            video_detalle = "Falta generarlo con el botón de abajo" if selfie_ok else "Requiere primero la foto de frente"
+        elif not selfie_ok:
+            video_detalle = "Requiere primero la foto de frente"
+        else:
+            video_detalle = "Es anterior a la foto de frente; vuelve a generarlo"
+        return [
+            ("Foto de frente (selfie) cargada", selfie_ok, "" if selfie_ok else "Súbela con el botón de abajo"),
+            ("Foto INE frontal y trasera cargadas", ine_ok,
+             "" if ine_ok else "Falta la INE " + " y la INE ".join(faltan_ine)),
+            ("Comprobante de domicilio cargado", comprobante_ok,
+             "" if comprobante_ok else "Súbelo con el botón de abajo"),
+            ("Video generado a partir de la foto de frente", video_ok, video_detalle),
+        ]
+
+    def _ajustes_completos(self) -> tuple:
+        """(ok, motivos) — todos los ajustes de usuario deben estar llenos y válidos."""
+        motivos = []
+        celular = self.celular_var.get().strip()
+        if not CELULAR_REGEX.match(celular):
+            motivos.append("Número de celular")
+        if not correo_valido(self.correo_var.get().strip()):
+            motivos.append("Correo electrónico")
+        if not NOMBRE_INE_REGEX.match(self.nombre_ine_var.get().strip()):
+            motivos.append("Nombre como aparece en la INE")
+        if not COLABORADOR_REGEX.match(self.colaborador_var.get().strip()):
+            motivos.append("Número de colaborador")
+        motivos += [etiqueta for etiqueta, ok, _ in self._estado_archivos() if not ok]
+        return not motivos, motivos
+
+    def _actualizar_gate_ajustes(self):
+        """Bloquea la elección de insumo mientras falten conexiones o ajustes de usuario."""
+        ok, motivos = self._ajustes_completos()
+        conexiones = self._conexiones_pendientes()
+        programas = self._prerrequisitos_pendientes()
+        if ok and not conexiones and not programas:
+            self.ajustes_aviso.pack_forget()
+            self.insumo_combo.configure(state="readonly")
+            return
+        pendientes = [f"Instalar {p.nombre}" for p in programas]
+        pendientes += [f"Conexión {HOSTS_BD[h].titulo}" for h in conexiones] + motivos
+        self.ajustes_aviso.configure(
+            text="⚠ Completa lo pendiente para continuar (🔌 Conexiones, ⚙ Ajustes o instala lo que falta).\nPendiente: "
+                 + ", ".join(pendientes)
+        )
+        self.ajustes_aviso.pack(fill="x", pady=(0, 8), before=self.insumo_combo)
+        self.insumo_combo.configure(state="disabled")
+        if self.insumo_var.get():
+            self._volver_al_menu()
 
     @staticmethod
     def _load_user_settings() -> dict:
@@ -287,7 +564,7 @@ class SelectorUI:
             relief="flat",
             bd=0,
             cursor="hand2",
-            command=lambda: open_connections_dialog(self.root, self.credenciales)
+            command=self._abrir_conexiones
         )
         conexiones_btn.grid(row=0, column=3, sticky="e", padx=(0, 15))
         self._add_tooltip(conexiones_btn, "Conexiones")
@@ -307,6 +584,10 @@ class SelectorUI:
             values=[texto for _, texto in INSUMOS], state="readonly", width=40
         )
         self.insumo_combo.pack(fill="x", pady=(0, 12))
+        self.ajustes_aviso = tk.Label(
+            self.step1_frame, text="", font=("Segoe UI", 9), bg=BG, fg="#c62828",
+            wraplength=480, justify="left", anchor="w"
+        )
         self.insumo_combo.bind("<<ComboboxSelected>>", lambda _e: self._on_insumo_changed())
 
         # ── Paso 2a: opciones de Oferta (lista de filas independientes) ──
@@ -432,21 +713,22 @@ class SelectorUI:
             cursor="hand2"
         ).pack(anchor="w", pady=(6, 0))
 
-        tk.Label(
-            self.panel_venta, text="Navegador:", font=FONT_LABEL, bg=BG, anchor="w"
-        ).pack(fill="x", pady=(10, 4))
-        navegador_frame = tk.Frame(self.panel_venta, bg=BG)
-        navegador_frame.pack(fill="x", pady=(0, 4))
-        tk.Radiobutton(
-            navegador_frame, text="Ver el navegador paso a paso", value="visible",
-            variable=self.navegador_var, font=FONT_LABEL, bg=BG, activebackground=BG,
-            cursor="hand2"
-        ).pack(anchor="w")
-        tk.Radiobutton(
-            navegador_frame, text="Ejecutar en segundo plano (sin mostrar el navegador)",
-            value="headless", variable=self.navegador_var, font=FONT_LABEL, bg=BG,
-            activebackground=BG, cursor="hand2"
-        ).pack(anchor="w")
+        if Settings.PARALELISMO_HABILITADO:  # el navegador invisible está incompleto: oculto por ahora
+            tk.Label(
+                self.panel_venta, text="Navegador:", font=FONT_LABEL, bg=BG, anchor="w"
+            ).pack(fill="x", pady=(10, 4))
+            navegador_frame = tk.Frame(self.panel_venta, bg=BG)
+            navegador_frame.pack(fill="x", pady=(0, 4))
+            tk.Radiobutton(
+                navegador_frame, text="Ver el navegador paso a paso", value="visible",
+                variable=self.navegador_var, font=FONT_LABEL, bg=BG, activebackground=BG,
+                cursor="hand2"
+            ).pack(anchor="w")
+            tk.Radiobutton(
+                navegador_frame, text="Ejecutar en segundo plano (sin mostrar el navegador)",
+                value="headless", variable=self.navegador_var, font=FONT_LABEL, bg=BG,
+                activebackground=BG, cursor="hand2"
+            ).pack(anchor="w")
 
         # ── Paso 2c: opciones de Nueva estructura de agencia ──────
         self.panel_agencia = tk.Frame(form, bg=BG)
@@ -914,7 +1196,11 @@ class SelectorUI:
 
         self.insumo_var.set("")
         self.insumo_label_var.set(INSUMO_PLACEHOLDER)
-        self.confirm_btn.configure(text="Elige un insumo para continuar", state="disabled")
+        self.confirm_btn.configure(
+            text="Elige un insumo para continuar"
+            if self._ajustes_completos()[0] else AJUSTES_INCOMPLETOS_TEXTO,
+            state="disabled"
+        )
 
         self.title_label.pack(fill="x")
         self.step1_frame.pack(fill="x")
@@ -934,11 +1220,9 @@ class SelectorUI:
         dialog.transient(self.root)
         dialog.grab_set()
 
-        width, height = 380, 300
-        self.root.update_idletasks()
-        x = self.root.winfo_x() + (self.root.winfo_width() - width) // 2
-        y = self.root.winfo_y() + (self.root.winfo_height() - height) // 2
-        dialog.geometry(f"{width}x{height}+{x}+{y}")
+        # Solo se fija el ancho (con un espaciador): el alto lo da el contenido, así no sobra espacio
+        # en blanco y la ventana crece si aparecen detalles o errores. Se centra al final.
+        tk.Frame(dialog, width=440, height=0, bg=BG).pack()
 
         tk.Label(
             dialog, text="Ajustes de usuario (valores por defecto)", font=FONT_TITLE, bg=BG,
@@ -962,29 +1246,226 @@ class SelectorUI:
 
         correo_entry = tk.Entry(form, font=FONT_LABEL, width=25)
         correo_entry.insert(0, self.correo_var.get())
-        correo_entry.pack(fill="x", pady=(4, 4))
+        correo_entry.pack(fill="x", pady=(4, 10))
+
+        tk.Label(
+            form, text="Nombre como aparece en la INE (MAYÚSCULAS):", font=FONT_LABEL, bg=BG,
+            anchor="w"
+        ).pack(fill="x")
+
+        nombre_var = tk.StringVar(value=self.nombre_ine_var.get())
+        # Fuerza mayúsculas mientras se escribe.
+        nombre_var.trace_add("write", lambda *_: nombre_var.set(nombre_var.get().upper())
+                             if nombre_var.get() != nombre_var.get().upper() else None)
+        nombre_entry = tk.Entry(form, font=FONT_LABEL, width=25, textvariable=nombre_var)
+        nombre_entry.pack(fill="x", pady=(4, 10))
+
+        tk.Label(
+            form, text="Número de colaborador (2 dígitos):", font=FONT_LABEL, bg=BG, anchor="w"
+        ).pack(fill="x")
+
+        colaborador_entry = tk.Entry(form, font=FONT_LABEL, width=25)
+        colaborador_entry.insert(0, self.colaborador_var.get())
+        colaborador_entry.pack(fill="x", pady=(4, 10))
+
+        tk.Label(
+            form, text="Checks obligatorios:", font=FONT_LABEL, bg=BG, anchor="w"
+        ).pack(fill="x")
+        checks_frame = tk.Frame(form, bg=BG)
+        checks_frame.pack(fill="x", pady=(4, 0))
+
+        def _subir(destino: str, titulo: str):
+            ruta = filedialog.askopenfilename(
+                parent=dialog, title=titulo,
+                filetypes=[("Imágenes", "*.jpg *.jpeg *.png"), ("Todos", "*.*")]
+            )
+            if not ruta:
+                return
+            try:
+                from PIL import Image
+                Path(destino).parent.mkdir(parents=True, exist_ok=True)
+                with Image.open(ruta) as img:
+                    img.convert("RGB").save(destino, "JPEG", quality=95)
+            except Exception as exc:
+                error_label.config(text=f"No se pudo cargar la imagen: {exc}")
+                return
+            error_label.config(text="")
+            _refrescar_checks()
+
+        gen = {"proc": None}
+
+        def _generar_video():
+            if gen["proc"] is not None:
+                return
+            error_label.config(text="")
+            flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            gen["proc"] = subprocess.Popen(
+                [python_ejecutable(), str(PROJECT_ROOT / "utils" / "generate_fake_camera_video.py")],
+                cwd=PROJECT_ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, creationflags=flags
+            )
+            _refrescar_checks()
+            dialog.after(300, _esperar_video)
+
+        def _esperar_video():
+            proc = gen["proc"]
+            if proc is None or not dialog.winfo_exists():
+                return
+            if proc.poll() is None:
+                dialog.after(300, _esperar_video)
+                return
+            salida = proc.stdout.read() or ""
+            gen["proc"] = None
+            if proc.returncode != 0:
+                error_label.config(
+                    text="No se pudo generar el video: " + (salida.strip().splitlines() or ["error"])[-1]
+                )
+            _refrescar_checks()
+
+        def _boton(parent, texto, comando, habilitado=True):
+            tk.Button(
+                parent, text=texto, font=("Segoe UI", 8), relief="flat", bg="#e3f2fd",
+                command=comando, state="normal" if habilitado else "disabled"
+            ).pack(side="left", padx=(0, 6))
+
+        def _refrescar_checks():
+            for child in checks_frame.winfo_children():
+                child.destroy()
+            estado = self._estado_archivos()
+            selfie_ok, video_ok = estado[0][1], estado[3][1]
+            generando = gen["proc"] is not None
+            for i, (etiqueta, ok, detalle) in enumerate(estado):
+                tk.Label(
+                    checks_frame, text=("✔ " if ok else "✘ ") + etiqueta,
+                    font=("Segoe UI", 9), bg=BG, fg="#2e7d32" if ok else "#c62828",
+                    anchor="w", wraplength=350, justify="left"
+                ).pack(fill="x")
+                if detalle:
+                    tk.Label(
+                        checks_frame, text=detalle, font=("Segoe UI", 8), bg=BG, fg="#757575",
+                        anchor="w", wraplength=350, justify="left", padx=14
+                    ).pack(fill="x")
+                fila = tk.Frame(checks_frame, bg=BG, padx=14)
+                fila.pack(fill="x", pady=(0, 4))
+                if i == 0:
+                    _boton(fila, "Subir foto de frente…", lambda: _subir(
+                        Settings.LEGALARIO_SELFIE_IMAGE_PATH, "Foto de frente (selfie)"))
+                elif i == 1:
+                    _boton(fila, "Subir INE frontal…", lambda: _subir(
+                        Settings.LEGALARIO_FRONT_IMAGE_PATH, "INE frontal"))
+                    _boton(fila, "Subir INE trasera…", lambda: _subir(
+                        Settings.LEGALARIO_BACK_IMAGE_PATH, "INE trasera"))
+                elif i == 2:
+                    _boton(fila, "Subir comprobante de domicilio…", lambda: _subir(
+                        Settings.COMPROBANTE_DOMICILIO_PATH, "Comprobante de domicilio"))
+                else:
+                    if generando:
+                        texto = "Generando video…"
+                    else:
+                        texto = "Regenerar video" if (Path(Settings.LEGALARIO_SELFIE_VIDEO_PATH).is_file())                             else "Generar video"
+                    # Solo con la selfie cargada, y solo si falta o está viejo.
+                    _boton(fila, texto, _generar_video,
+                           habilitado=selfie_ok and not video_ok and not generando)
+            return all(ok for _, ok, _ in estado)
+
+        _refrescar_checks()
 
         error_label = tk.Label(
-            form, text="", font=("Segoe UI", 8), bg=BG, fg="#c62828", wraplength=300, justify="left"
+            form, text="", font=("Segoe UI", 8), bg=BG, fg="#c62828", wraplength=350, justify="left"
         )
         error_label.pack(fill="x", pady=(4, 0))
+
+        tk.Frame(form, height=1, bg="#d0d0d0").pack(fill="x", pady=(12, 6))
+        fila_version = tk.Frame(form, bg=BG)
+        fila_version.pack(fill="x")
+        tk.Label(fila_version, text=f"InsumosGen v{__version__}", font=("Segoe UI", 9, "bold"), bg=BG).pack(side="left")
+        boton_buscar = tk.Button(
+            fila_version, text="Buscar actualizaciones", font=("Segoe UI", 8), relief="flat", bg="#e3f2fd",
+            cursor="hand2")
+        boton_buscar.pack(side="right")
+        resultado_frame = tk.Frame(form, bg=BG)
+        resultado_frame.pack(fill="x", pady=(4, 0))
+
+        def _mostrar_resultado(texto, color="#424242", resultado=None, enlace=None):
+            for hijo in resultado_frame.winfo_children():
+                hijo.destroy()
+            tk.Label(resultado_frame, text=texto, font=("Segoe UI", 8), bg=BG, fg=color, wraplength=350,
+                     justify="left", anchor="w").pack(fill="x")
+            if resultado is not None:
+                tk.Button(
+                    resultado_frame, text="Actualizar" if resultado.puede_actualizar_solo else "Ver descarga",
+                    font=("Segoe UI", 8, "bold"), relief="flat", bg=ACCENT, fg="white", cursor="hand2",
+                    command=lambda: self._ofrecer_actualizacion(resultado, dialog)).pack(anchor="w", pady=(4, 0))
+            if enlace:
+                tk.Button(resultado_frame, text="Ver releases", font=("Segoe UI", 8), relief="flat", bg="#e3f2fd",
+                          cursor="hand2", command=lambda: webbrowser.open(enlace)).pack(anchor="w", pady=(4, 0))
+
+        def _buscar():
+            boton_buscar.config(state="disabled")
+            _mostrar_resultado("Buscando…")
+            salida = {}
+
+            def _trabajo():
+                salida["res"] = updater.comprobar()
+
+            hilo = threading.Thread(target=_trabajo, daemon=True)
+            hilo.start()
+
+            def _sondear():
+                if hilo.is_alive():
+                    dialog.after(100, _sondear)
+                    return
+                boton_buscar.config(state="normal")
+                res = salida["res"]
+                if res.hay_nueva:
+                    _mostrar_resultado(f"Hay una versión nueva: {res.version_nueva}.", "#1565C0", resultado=res)
+                elif res.estado == updater.ESTADO_AL_DIA:
+                    _mostrar_resultado("Estás al día.", "#2e7d32")
+                else:
+                    _mostrar_resultado(res.mensaje, "#c62828", enlace=updater.URL_RELEASES)
+
+            dialog.after(100, _sondear)
+
+        boton_buscar.config(command=_buscar)
 
         def _save():
             celular = celular_entry.get().strip()
             correo = correo_entry.get().strip()
+            nombre = " ".join(nombre_var.get().split())
+            colaborador = colaborador_entry.get().strip()
 
-            if not celular.isdigit() or len(celular) != 10:
-                error_label.config(text="Ingresa un número de celular válido (10 dígitos).")
+            if not CELULAR_REGEX.match(celular):
+                error_label.config(text="Ingresa un número de celular válido: exactamente 10 dígitos (solo números).")
                 return
-            if not EMAIL_REGEX.match(correo):
-                error_label.config(text="Ingresa un correo electrónico válido.")
+            if not correo_valido(correo):
+                error_label.config(text="Ingresa un correo electrónico válido (ej. nombre@dominio.com, sin espacios).")
+                return
+            if not NOMBRE_INE_REGEX.match(nombre):
+                error_label.config(
+                    text="Ingresa el nombre tal como aparece en la INE, solo letras en mayúsculas."
+                )
+                return
+            if not COLABORADOR_REGEX.match(colaborador):
+                error_label.config(text="El número de colaborador debe ser de 2 dígitos.")
                 return
 
             self.celular_var.set(celular)
             self.correo_var.set(correo)
+            self.nombre_ine_var.set(nombre)
+            self.colaborador_var.set(colaborador)
             self.user_settings["celular"] = celular
             self.user_settings["correo"] = correo
+            self.user_settings["nombre_ine"] = nombre
+            self.user_settings["numero_colaborador"] = colaborador
             self._save_user_settings()
+
+            if not _refrescar_checks():
+                error_label.config(
+                    text="Datos guardados, pero los checks obligatorios deben cumplirse "
+                         "para poder operar."
+                )
+                self._actualizar_gate_ajustes()
+                return
             dialog.destroy()
 
         btn_frame = tk.Frame(dialog, bg=BG, pady=10)
@@ -1004,8 +1485,15 @@ class SelectorUI:
             command=_save
         ).pack()
 
+        self.root.update_idletasks()
+        dialog.update_idletasks()
+        x = self.root.winfo_x() + (self.root.winfo_width() - dialog.winfo_reqwidth()) // 2
+        y = self.root.winfo_y() + (self.root.winfo_height() - dialog.winfo_reqheight()) // 2
+        dialog.geometry(f"+{max(x, 0)}+{max(y, 0)}")
+
         celular_entry.focus_set()
         dialog.wait_window()
+        self._actualizar_gate_ajustes()
 
     def _importar_env_legado(self):
         """
@@ -1046,6 +1534,24 @@ class SelectorUI:
             return False
 
     def _on_confirm(self):
+        faltan = self._prerrequisitos_pendientes()
+        if faltan:
+            messagebox.showerror(
+                "Faltan programas por instalar",
+                "No se puede iniciar la ejecución. Instala:\n\n  • " + "\n  • ".join(p.nombre for p in faltan),
+            )
+            self._actualizar_gate_ajustes()
+            return
+        ajustes_ok, pendientes = self._ajustes_completos()
+        if not ajustes_ok:
+            messagebox.showwarning(
+                "Ajustes incompletos",
+                "Completa los ajustes de usuario antes de continuar.\n\nPendiente:\n  • "
+                + "\n  • ".join(pendientes)
+            )
+            self._actualizar_gate_ajustes()
+            return
+
         insumo = self.insumo_var.get()
 
         if not insumo:
@@ -1129,14 +1635,14 @@ class SelectorUI:
                 return
             celular = self.celular_var.get().strip()
             correo = self.correo_var.get().strip()
-            if not celular.isdigit() or len(celular) != 10:
+            if not CELULAR_REGEX.match(celular):
                 messagebox.showwarning(
-                    "Campo requerido", "Ingresa un número de celular válido (10 dígitos)."
+                    "Campo requerido", "Ingresa un número de celular válido: exactamente 10 dígitos (solo números)."
                 )
                 return
-            if not EMAIL_REGEX.match(correo):
+            if not correo_valido(correo):
                 messagebox.showwarning(
-                    "Campo requerido", "Ingresa un correo electrónico válido."
+                    "Campo requerido", "Ingresa un correo electrónico válido (ej. nombre@dominio.com, sin espacios)."
                 )
                 return
             tomar_capturas = self.tomar_capturas_var.get()
@@ -1196,8 +1702,10 @@ class SelectorUI:
                 "ventas_batches": ventas_batches,
                 "celular":        self.celular_var.get(),
                 "correo":         self.correo_var.get(),
+                "nombre_ine":     self.nombre_ine_var.get(),
+                "numero_colaborador": self.colaborador_var.get(),
                 "tomar_capturas": tomar_capturas,
-                "headless":       self.navegador_var.get() == "headless",
+                "headless":       Settings.PARALELISMO_HABILITADO and self.navegador_var.get() == "headless",
             }
 
         self.config_path.parent.mkdir(parents=True, exist_ok=True)

@@ -1,18 +1,18 @@
 """
-Genera data/selfie.y4m para usarlo como cámara fake en Chrome.
+Genera selfie.y4m para usarlo como cámara fake en Chrome. La app lo hace desde Ajustes (botón
+"Generar video"); este script es lo que ese botón ejecuta.
 
 Requisitos:
-    pip install pillow numpy
-    (opencv-python es opcional, se usa solo para resize si está disponible)
+    pip install pillow numpy opencv-python
 
 Uso:
     python utils/generate_fake_camera_video.py
 
-Entrada esperada:
-    data/selfie.jpeg
+Entrada esperada (carpeta de imágenes del usuario, utils/paths.imagenes_dir()):
+    <datos>/images/selfie.jpeg
 
 Salida:
-    data/selfie.y4m
+    <datos>/images/selfie.y4m
 
     python utils/generate_fake_camera_video.py [ruta_salida.y4m]
 
@@ -36,8 +36,12 @@ from PIL import Image
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-INPUT_IMAGE = PROJECT_ROOT / "data" / "selfie.jpeg"
-OUTPUT_VIDEO = PROJECT_ROOT / "data" / "selfie.y4m"
+sys.path.insert(0, str(PROJECT_ROOT))  # al correr como script, sys.path[0] es utils/
+
+from utils.paths import imagenes_dir  # noqa: E402
+
+INPUT_IMAGE = imagenes_dir() / "selfie.jpeg"
+OUTPUT_VIDEO = imagenes_dir() / "selfie.y4m"
 
 # Alto de la cara como fracción del alto del frame
 FRACTION_START = 0.50

@@ -21,7 +21,7 @@ class ResultsUI:
         FONT_BTN = ("Segoe UI", 10, "bold")
 
         self.root = tk.Tk()
-        self.root.title("Providigital — Resultado de la ejecución")
+        self.root.title("InsumosGen — Resultado de la ejecución")
         self.root.configure(bg=BG)
         self.root.protocol("WM_DELETE_WINDOW", self._close)
 

@@ -23,9 +23,10 @@ from tests.test_login import (
     _flujo_identidad_a_otp,
     _flujo_beneficiario_a_finalizar,
 )
+from utils.paths import app_data_dir
 
 
-RUN_RESULTS_PATH = Path(Settings.RUN_RESULTS_PATH) if Settings.RUN_RESULTS_PATH else Path("data/run_results_cf.json")
+RUN_RESULTS_PATH = Path(Settings.RUN_RESULTS_PATH) if Settings.RUN_RESULTS_PATH else app_data_dir() / "run_results_cf.json"
 
 
 # Finabien solo aparece en "Método de entrega" si el monto elegido es menor a esto.
@@ -194,9 +195,9 @@ def _insertar_oferta_cf(
 
 
 def _capturar_diagnostico_falla(driver, ciclo: int) -> None:
-    """Guarda screenshot, URL y HTML del punto de falla en data/diagnostico_cf/."""
+    """Guarda screenshot, URL y HTML del punto de falla en la carpeta diagnostico_cf de los datos de la app."""
     try:
-        out = Path("data/diagnostico_cf")
+        out = app_data_dir() / "diagnostico_cf"
         out.mkdir(parents=True, exist_ok=True)
         driver.save_screenshot(str(out / f"ciclo{ciclo}_falla.png"))
         (out / f"ciclo{ciclo}_falla.html").write_text(driver.page_source, encoding="utf-8")
