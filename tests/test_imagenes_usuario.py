@@ -1,4 +1,7 @@
 import os
+import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 
@@ -113,3 +116,17 @@ def test_imagenes_dir_no_pisa_lo_que_ya_hay_en_images(datos):
 
     assert (carpeta / "selfie.jpeg").read_bytes() == b"nuevo"
     assert (datos / "selfie.jpeg").read_bytes() == b"viejo"
+
+
+def test_el_script_del_video_arranca_como_lo_lanza_ajustes(tmp_path):
+    # Ajustes lo ejecuta como script (sys.path[0] = utils/, donde utils/utils.py tapaba al paquete `utils`).
+    # Sin selfie debe fallar por la falta de la imagen, no por un error de importación.
+    entorno = {**os.environ, "INSUMOSGEN_INSTALADO": "1", "LOCALAPPDATA": str(tmp_path)}
+    script = Path(__file__).resolve().parents[1] / "utils" / "generate_fake_camera_video.py"
+
+    proceso = subprocess.run([sys.executable, str(script)], capture_output=True, text=True, env=entorno,
+                             cwd=script.parents[1])
+
+    assert proceso.returncode != 0
+    assert "ModuleNotFoundError" not in proceso.stderr
+    assert "No existe la imagen base" in proceso.stderr
