@@ -66,6 +66,7 @@ NOMBRE_INE_REGEX = re.compile(r"^[A-ZÁÉÍÓÚÜÑ]+( [A-ZÁÉÍÓÚÜÑ]+)*$")
 COLABORADOR_REGEX = re.compile(r"^[0-9]{2}$")
 CELULAR_REGEX = re.compile(r"^[0-9]{10}$")
 AJUSTES_INCOMPLETOS_TEXTO = "Completa los ajustes de usuario para continuar"
+ATRIBUCION = "Desarrollado por NayeBP-MTP"
 
 
 class SelectorUI:
@@ -1378,7 +1379,11 @@ class SelectorUI:
         tk.Frame(form, height=1, bg="#d0d0d0").pack(fill="x", pady=(12, 6))
         fila_version = tk.Frame(form, bg=BG)
         fila_version.pack(fill="x")
-        tk.Label(fila_version, text=f"InsumosGen v{__version__}", font=("Segoe UI", 9, "bold"), bg=BG).pack(side="left")
+        bloque_version = tk.Frame(fila_version, bg=BG)
+        bloque_version.pack(side="left")
+        tk.Label(bloque_version, text=f"InsumosGen v{__version__}", font=("Segoe UI", 9, "bold"), bg=BG,
+                 anchor="w").pack(fill="x")
+        tk.Label(bloque_version, text=ATRIBUCION, font=("Segoe UI", 8), bg=BG, fg="#757575", anchor="w").pack(fill="x")
         boton_buscar = tk.Button(
             fila_version, text="Buscar actualizaciones", font=("Segoe UI", 8), relief="flat", bg="#e3f2fd",
             cursor="hand2")
