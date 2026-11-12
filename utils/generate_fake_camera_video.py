@@ -36,7 +36,10 @@ from PIL import Image
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(PROJECT_ROOT))  # al correr como script, sys.path[0] es utils/
+# Al correr como script, sys.path[0] es utils/ y ahí vive utils/utils.py, que taparía al paquete `utils`
+# (no tiene __init__.py): se quita esa carpeta del path y se pone la raíz del proyecto en su lugar.
+sys.path[:] = [p for p in sys.path if Path(p or ".").resolve() != Path(__file__).resolve().parent]
+sys.path.insert(0, str(PROJECT_ROOT))
 
 from utils.paths import imagenes_dir  # noqa: E402
 
