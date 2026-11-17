@@ -4,6 +4,7 @@ import time
 import allure
 
 from pathlib import Path
+from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -642,6 +643,47 @@ def _flujo_identidad_a_otp(
         time.sleep(10)
 
 
+def _diagnostico_otp_legalario(driver, interceptor: NetworkInterceptor) -> str:
+    """
+    Texto de diagnóstico para cuando los inputs del OTP de Legalario están en pantalla pero el interceptor
+    no tiene el código: qué respondió send-code, si el interceptor sigue vivo y qué otras llamadas hubo.
+    """
+    lineas = ["=== DIAGNÓSTICO OTP LEGALARIO ==="]
+
+    def _intentar(titulo, funcion):
+        try:
+            lineas.append(f"{titulo}: {funcion()}")
+        except Exception as e:
+            lineas.append(f"{titulo}: no se pudo leer ({type(e).__name__}: {str(e)[:120]})")
+
+    _intentar("URL actual", lambda: driver.current_url)
+    _intentar("Última respuesta OTP Legalario (window.__lastLegalarioOtpResponse)",
+              lambda: json.dumps(interceptor.get_last_legalario_otp_response(), ensure_ascii=False)[:800])
+    _intentar("Interceptor vivo (fetch parcheado / peticiones capturadas)", lambda: driver.execute_script(
+        "return {capturedIsArray: Array.isArray(window.__capturedRequests), "
+        "capturadas: (window.__capturedRequests || []).length, "
+        "fetchPatched: String(window.fetch).indexOf('__capturedRequests') !== -1, "
+        "xhrPatched: String(XMLHttpRequest.prototype.send).indexOf('__requestData') !== -1};"))
+    _intentar("Iframes en la página", lambda: driver.execute_script(
+        "return Array.from(document.querySelectorAll('iframe')).map(f => f.src || '(sin src)');"))
+
+    def _peticiones():
+        capturadas = interceptor.get_captured_requests()
+        send_code = [r for r in capturadas if "send-code" in str(r.get("url", ""))]
+        lineas.append(f"Peticiones send-code capturadas ({len(send_code)}):")
+        for r in send_code:
+            lineas.append(f"    {r.get('method')} {r.get('url')} status={r.get('status')} "
+                          f"respuesta={str(r.get('responseText'))[:500]}")
+        legalario = [r for r in capturadas if "legalario" in str(r.get("url", "")).lower()]
+        lineas.append(f"Últimas llamadas a Legalario ({len(legalario)} en total):")
+        for r in legalario[-15:]:
+            lineas.append(f"    {r.get('method')} {r.get('url')} status={r.get('status')}")
+        return "ok"
+
+    _intentar("Detalle de peticiones", _peticiones)
+    return "\n".join(lineas)
+
+
 def _flujo_identidad_y_venta(
     driver,
     login_page: LoginPage,
@@ -817,12 +859,24 @@ def _flujo_beneficiario_a_finalizar(
         )
 
     with allure.step("Obtener OTP Legalario"):
-        WebDriverWait(driver, 30).until(
-            lambda d: interceptor.get_last_legalario_otp_code() is not None
-        )
-        otp_legalario = interceptor.get_last_legalario_otp_code()
+        # Antes el código venía en la respuesta de send-code; hoy el SDK usa send-code-new (sin
+        # código) y hay que pedirlo al endpoint anterior (ver NetworkInterceptor.solicitar_otp_legalario).
+        otp_legalario = None
+        try:
+            WebDriverWait(driver, 5).until(
+                lambda d: interceptor.get_last_legalario_otp_code() is not None
+            )
+            otp_legalario = interceptor.get_last_legalario_otp_code()
+        except TimeoutException:
+            otp_legalario = interceptor.solicitar_otp_legalario()
+        if not otp_legalario:
+            diagnostico = _diagnostico_otp_legalario(driver, interceptor)
+            print(diagnostico)
+            allure.attach(diagnostico, name="diagnostico_otp_legalario", attachment_type=allure.attachment_type.TEXT)
+            take_step_screenshot(driver, "otp_legalario_sin_codigo", force=True)
         assert otp_legalario, (
-            "No se pudo obtener OTP Legalario desde /sdk/invites/send-code"
+            "No se pudo obtener el OTP de Legalario (ni de la respuesta de send-code-new ni "
+            "pidiéndolo a /sdk/invites/send-code)"
         )
         print(f"OTP Legalario capturado: {otp_legalario}")
 
