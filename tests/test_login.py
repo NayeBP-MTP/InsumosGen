@@ -859,22 +859,24 @@ def _flujo_beneficiario_a_finalizar(
         )
 
     with allure.step("Obtener OTP Legalario"):
+        # Antes el código venía en la respuesta de send-code; hoy el SDK usa send-code-new (sin
+        # código) y hay que pedirlo al endpoint anterior (ver NetworkInterceptor.solicitar_otp_legalario).
+        otp_legalario = None
         try:
-            WebDriverWait(driver, 30).until(
+            WebDriverWait(driver, 5).until(
                 lambda d: interceptor.get_last_legalario_otp_code() is not None
             )
+            otp_legalario = interceptor.get_last_legalario_otp_code()
         except TimeoutException:
+            otp_legalario = interceptor.solicitar_otp_legalario()
+        if not otp_legalario:
             diagnostico = _diagnostico_otp_legalario(driver, interceptor)
             print(diagnostico)
             allure.attach(diagnostico, name="diagnostico_otp_legalario", attachment_type=allure.attachment_type.TEXT)
             take_step_screenshot(driver, "otp_legalario_sin_codigo", force=True)
-            raise AssertionError(
-                "Los inputs OTP de Legalario aparecieron pero el interceptor no capturó el código "
-                "(data.otp_code de /sdk/invites/send-code).\n" + diagnostico
-            )
-        otp_legalario = interceptor.get_last_legalario_otp_code()
         assert otp_legalario, (
-            "No se pudo obtener OTP Legalario desde /sdk/invites/send-code"
+            "No se pudo obtener el OTP de Legalario (ni de la respuesta de send-code-new ni "
+            "pidiéndolo a /sdk/invites/send-code)"
         )
         print(f"OTP Legalario capturado: {otp_legalario}")
 
