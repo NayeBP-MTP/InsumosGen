@@ -3,13 +3,14 @@ import allure
 
 from pathlib import Path
 from config.settings import Settings
+from utils.paths import app_data_dir
 from pages.login_page import LoginPage
 from utils.allure_utils import take_step_screenshot
 from utils.progress import Progress
 from flows.venta_cf import capturar_diagnostico_falla, ejecutar_venta_cf
 
 
-RUN_RESULTS_PATH = Path(Settings.RUN_RESULTS_PATH) if Settings.RUN_RESULTS_PATH else Path("data/run_results_cf.json")
+RUN_RESULTS_PATH = Path(Settings.RUN_RESULTS_PATH) if Settings.RUN_RESULTS_PATH else app_data_dir() / "run_results_cf.json"
 
 
 @allure.epic("Provident")

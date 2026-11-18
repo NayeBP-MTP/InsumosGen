@@ -10,7 +10,7 @@ from keyring.errors import KeyringError, PasswordDeleteError
 from utils.paths import app_data_dir
 
 
-SERVICE = "ProvidigitalVentas"
+SERVICE = "InsumosGen"
 DRIVER_POR_DEFECTO = "ODBC Driver 17 for SQL Server"
 
 

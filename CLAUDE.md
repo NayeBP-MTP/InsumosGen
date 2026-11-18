@@ -31,7 +31,8 @@ documentadas en `Context.md` y `config/Context/REGLAS_DE_NEGOCIO.md`.
 # Instalar dependencias (entorno virtual recomendado)
 pip install -r requirements.txt
 
-# Generar el video de cámara fake requerido por Legalario (una vez, o si cambia data/selfie.jpeg)
+# Video de cámara fake requerido por Legalario: se genera desde Ajustes (⚙ → Generar video) con la selfie
+# que sube cada usuario (una vez, o si cambia la selfie); a mano: python utils/generate_fake_camera_video.py
 python utils/generate_fake_camera_video.py
 
 # Ejecutar vía el asistente interactivo (recomendado): pide agencia, tipo(s) de cliente,
@@ -47,8 +48,9 @@ pytest tests/test_oferta.py --alluredir=allure-results      # OF (solo inserta o
 # Un solo test (cada archivo define una única clase/test end-to-end)
 pytest tests/test_login_cf.py::TestLoginProvidentCF::test_login_exitoso_cf -s -v
 
-# Ver el reporte
-allure serve allure-results
+# Ver el reporte (lo que genera run.py queda en la carpeta de datos: <repo>/data/allure-results en
+# desarrollo, %LOCALAPPDATA%\InsumosGen\allure-results con la app instalada)
+allure serve data/allure-results
 
 # Recetas de insumo sobre un contrato ya vendido (sin navegador; python -m insumos <comando> -h)
 python -m insumos listar                                        # las 6 recetas y sus pasos
@@ -122,8 +124,8 @@ los hallazgos de la implementación, en `PLAN_IMPLEMENTACION.md`.
 - **Runner** (`insumos/runner.py`, `RunnerRecetas`): `ejecutar` / `reanudar` / `continuar_tras_qa` / `deshacer`.
   Arranca en el primer módulo no completado; solo se deshace solo si falla antes de `PAUSA_QA`. Rechaza una receta
   CF sobre un contrato CN (`ContextoVenta.verificar_tipo`).
-- **Estado persistido:** log por operación en `data/insumos/<contrato>.jsonl` (`LogOperacion`: insert/update/delete y
-  marcadores `modulo_iniciado` / `modulo_completado` / `deshecho`) y pausas en `data/insumos_pendientes.json`
+- **Estado persistido:** log por operación en `insumos/<contrato>.jsonl` (en la carpeta de datos, `app_data_dir()`) (`LogOperacion`: insert/update/delete y
+  marcadores `modulo_iniciado` / `modulo_completado` / `deshecho`) y pausas en `insumos_pendientes.json`
   (`PendientesStore`: en_curso, esperando_qa, completada, fallida, deshecha). `Deshacedor` revierte el log en orden
   inverso y no pisa lo que cambió otra persona (lo reporta como conflicto).
 - **Desde `run.py`:** un lote de "Registrar Cliente" lleva `receta` en `ventas_batches`; tras cada venta
@@ -165,7 +167,8 @@ flujo actual de los tests).
 ### Cámara fake para facematch desatendido
 
 Legalario requiere una cámara real para el facematch; `utils/generate_fake_camera_video.py` genera
-`data/selfie.y4m` a partir de `data/selfie.jpeg` (con zoom progresivo para disparar el trigger de
+`<datos>/images/selfie.y4m` a partir de `<datos>/images/selfie.jpeg` (la selfie, INE y comprobante los sube
+el usuario desde Ajustes; no hay imágenes por defecto; con zoom progresivo para disparar el trigger de
 "acércate" del SDK). `conftest.py` monta Chrome con `--use-fake-device-for-media-stream` apuntando a
 ese archivo cuando `Settings.USE_FAKE_CAMERA=True`. Debe regenerarse si cambia `selfie.jpeg`.
 
@@ -247,6 +250,24 @@ Si mueves o renombras carpetas dentro de `InsumosGen/`, revisa las rutas hardcod
 - **Flujo por paso: implementar → la persona revisa → recién entonces se commitea → se empieza el
   siguiente paso.** No se commitea un paso antes de su review ni se avanza al siguiente sin él.
 - Un commit por paso del plan de trabajo vigente (ver `config/Context/crearClientesFC/PLAN_IMPLEMENTACION.md`).
+
+## Releases (recordatorio obligatorio)
+
+Desde v1.0.0 un release se publica **solo** al mergear `dev` → `main` (workflow de
+`.github/workflows/release.yml`, ver `PLAN_IMPLEMENTACIONES.md`, paso 5.9). El workflow solo publica
+si `version.py` trae una versión **sin tag todavía**; si no, termina en verde sin publicar y solo deja
+un aviso en Actions, y nadie se entera. Por eso, **antes de abrir o mergear un PR `dev` → `main`,
+recuerda siempre al usuario**:
+
+1. Subir `__version__` en `version.py` (SemVer; el número decide el release).
+2. Escribir `release-notes/<versión>.md` en **español**, para el usuario final (el workflow falla si
+   falta; es el texto que muestra el aviso de actualización de la app). Describe lo que el usuario
+   puede hacer o ya no tiene que hacer, no los commits.
+3. Tras el merge, comprobar en Actions que el workflow publicó y en Releases que están los 4 assets
+   y que no es pre-release ni borrador.
+
+Si el usuario pide preparar o revisar un merge a `main` y falta alguno de estos puntos, díselo antes
+de seguir.
 
 ## Riesgos conocidos (no los repitas al tocar código nuevo)
 

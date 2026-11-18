@@ -4,12 +4,13 @@ import allure
 from pathlib import Path
 
 from config.settings import Settings
+from utils.paths import app_data_dir
 from services.offer_repository import OfferRepository
 from utils.progress import Progress
 from flows.oferta_cf import insertar_oferta_cf
 
 
-RUN_RESULTS_PATH = Path(Settings.RUN_RESULTS_PATH) if Settings.RUN_RESULTS_PATH else Path("data/run_results_of.json")
+RUN_RESULTS_PATH = Path(Settings.RUN_RESULTS_PATH) if Settings.RUN_RESULTS_PATH else app_data_dir() / "run_results_of.json"
 
 
 @allure.epic("Provident")

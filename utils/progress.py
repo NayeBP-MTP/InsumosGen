@@ -2,6 +2,7 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
+from utils.paths import app_data_dir
 
 # Ruta del canal de progreso de ESTE proceso. run.py la fija a una ruta propia
 # por proceso (data/run_progress_<pid>.jsonl) vía Progress.set_path(), ANTES de
@@ -11,7 +12,7 @@ from pathlib import Path
 # PROVIDIGITAL_RUN_PROGRESS_PATH (set_path la deja en os.environ) y la leen aquí
 # al importar este módulo. Sin ninguna de las dos (ej. un `pytest` suelto fuera
 # de run.py), se usa la ruta de siempre.
-PROGRESS_PATH = Path(os.environ.get("PROVIDIGITAL_RUN_PROGRESS_PATH", "data/run_progress.jsonl"))
+PROGRESS_PATH = Path(os.environ.get("PROVIDIGITAL_RUN_PROGRESS_PATH", app_data_dir() / "run_progress.jsonl"))
 
 # Si run.py lanzó este subproceso como una venta aislada (ver MAX_WORKERS_VENTAS
 # en run.py), esta variable trae una etiqueta legible ("CN · Izcalli 335") para

@@ -1,9 +1,10 @@
 import json
 import time
 from pathlib import Path
+from utils.paths import app_data_dir
 
-HISTORY_PATH = Path("data/historial_ventas.json")
-_LOCK_PATH = Path("data/historial_ventas.lock")
+HISTORY_PATH = app_data_dir() / "historial_ventas.json"
+_LOCK_PATH = app_data_dir() / "historial_ventas.lock"
 _LOCK_TIMEOUT_S = 15
 _LOCK_POLL_S = 0.05
 

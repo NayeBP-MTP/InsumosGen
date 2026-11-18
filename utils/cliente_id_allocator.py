@@ -1,8 +1,10 @@
 import sqlite3
 from pathlib import Path
+
+from utils.paths import app_data_dir
 from typing import Optional
 
-DB_PATH = Path("data/generated_cliente_ids.sqlite3")
+DB_PATH = app_data_dir() / "generated_cliente_ids.sqlite3"
 MAX_NNN = 999
 
 

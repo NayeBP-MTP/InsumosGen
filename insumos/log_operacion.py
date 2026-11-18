@@ -2,9 +2,11 @@
 import json
 from datetime import datetime
 from pathlib import Path
+
+from utils.paths import app_data_dir
 from typing import Iterator, Optional
 
-DIRECTORIO_DEFAULT = Path("data/insumos")
+DIRECTORIO_DEFAULT = app_data_dir() / "insumos"
 
 
 class LogOperacion:

@@ -3,9 +3,11 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
+
+from utils.paths import app_data_dir
 from typing import Optional
 
-RUTA_DEFAULT = Path("data/insumos_pendientes.json")
+RUTA_DEFAULT = app_data_dir() / "insumos_pendientes.json"
 
 EN_CURSO = "en_curso"
 ESPERANDO_QA = "esperando_qa"

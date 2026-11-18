@@ -1,6 +1,7 @@
 """Flujo de venta de Cliente Frecuente (CF). Movido de tests/test_login_cf.py."""
 import allure
 from pathlib import Path
+from utils.paths import app_data_dir
 from config.settings import Settings
 from pages.login_page import LoginPage
 from pages.prestamo_personal_page import PrestamoPersonalPage
@@ -21,9 +22,9 @@ from flows.oferta_cf import (
 
 
 def capturar_diagnostico_falla(driver, ciclo: int) -> None:
-    """Guarda screenshot, URL y HTML del punto de falla en data/diagnostico_cf/."""
+    """Guarda screenshot, URL y HTML del punto de falla en la carpeta diagnostico_cf de los datos de la app."""
     try:
-        out = Path("data/diagnostico_cf")
+        out = app_data_dir() / "diagnostico_cf"
         out.mkdir(parents=True, exist_ok=True)
         driver.save_screenshot(str(out / f"ciclo{ciclo}_falla.png"))
         (out / f"ciclo{ciclo}_falla.html").write_text(driver.page_source, encoding="utf-8")

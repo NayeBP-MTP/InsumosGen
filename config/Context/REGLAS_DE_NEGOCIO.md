@@ -1,4 +1,4 @@
-# Reglas de negocio y contexto teórico — Providigital Ventas
+# Reglas de negocio y contexto teórico — InsumosGen
 
 Este documento reúne **qué significa cada cosa y por qué**: reglas de negocio, conceptos y
 comportamientos observados del portal. **Cómo se automatiza** (flujos, pantallas, componentes)

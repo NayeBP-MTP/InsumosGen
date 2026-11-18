@@ -13,6 +13,7 @@ from selenium.webdriver.support.ui import Select
 
 from config.settings import Settings
 from utils.allure_utils import take_step_screenshot
+from utils.paths import app_data_dir
 
 
 class PrestamoPersonalPage:
@@ -315,15 +316,15 @@ class PrestamoPersonalPage:
                 # evidencia (HTML + captura) y se falla con un mensaje que lo explique.
                 candidatos = self.driver.find_elements(By.XPATH, "//input[@type='file']")
                 if not candidatos:
-                    os.makedirs("data", exist_ok=True)
-                    with open("data/diag_comprobante.html", "w", encoding="utf-8") as f:
+                    ruta_diag = app_data_dir() / "diag_comprobante.html"
+                    with open(ruta_diag, "w", encoding="utf-8") as f:
                         f.write(self.driver.page_source)
                     take_step_screenshot(
                         self.driver, "comprobante_sin_input", force=True
                     )
                     raise AssertionError(
                         "No apareció el input de comprobante de domicilio en 40s "
-                        f"(URL {self.driver.current_url}). HTML en data/diag_comprobante.html"
+                        f"(URL {self.driver.current_url}). HTML en {ruta_diag}"
                     )
                 input_file = candidatos[0]
 

@@ -1,8 +1,9 @@
 import sqlite3
 from pathlib import Path
+from utils.paths import app_data_dir
 
 
-DB_PATH = Path("data/catalog.sqlite3")
+DB_PATH = app_data_dir() / "catalog.sqlite3"
 
 # seccion: seccionCliente observada para esa agencia en insumos reales de
 # InsumosGen (generadores/output de dbo.Ofertas). NULL = sin evidencia encontrada;

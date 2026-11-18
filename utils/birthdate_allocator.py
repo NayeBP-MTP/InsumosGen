@@ -1,9 +1,10 @@
 import sqlite3
 from datetime import date, timedelta
 from pathlib import Path
+from utils.paths import app_data_dir
 
 
-DB_PATH = Path("data/generated_birthdates.sqlite3")
+DB_PATH = app_data_dir() / "generated_birthdates.sqlite3"
 
 
 class BirthdateAllocator:

@@ -6,6 +6,8 @@ solo la llaman.
 import json
 import tkinter as tk
 from pathlib import Path
+
+from utils.paths import app_data_dir
 from tkinter import messagebox, ttk
 from typing import Optional
 
@@ -15,7 +17,7 @@ from insumos.recetas import RECETAS
 from insumos.runner import RunnerRecetas
 
 SIN_RECETA = "Sin receta"
-USER_SETTINGS_PATH = Path("data/user_settings.json")
+USER_SETTINGS_PATH = app_data_dir() / "user_settings.json"
 
 CONTINUAR, REANUDAR, DESHACER = "continuar", "reanudar", "deshacer"
 ETIQUETA_ACCION = {
